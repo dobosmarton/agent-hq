@@ -1,0 +1,71 @@
+name: Telegram Bot CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "telegram-bot/**"
+      - ".github/workflows/telegram-bot.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "telegram-bot/**"
+
+defaults:
+  run:
+    working-directory: telegram-bot
+
+jobs:
+  quality:
+    name: Build & Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: telegram-bot/package-lock.json
+
+      - run: npm ci
+
+      - name: Check formatting
+        run: npx prettier --check .
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npx tsc
+
+  deploy:
+    name: Deploy to VPS
+    needs: quality
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "telegram-bot/src,telegram-bot/package.json,telegram-bot/package-lock.json,telegram-bot/tsconfig.json,telegram-bot/Dockerfile,telegram-bot/docker-compose.yml"
+          target: "~/"
+          overwrite: true
+
+      - name: Build and restart container
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/telegram-bot
+            docker compose up -d --build --force-recreate
+            sleep 5
+            docker compose ps
+            docker compose logs --tail=5
