@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    env_file: .env
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - bot-data:/app/data
+
+volumes:
+  bot-data:
