@@ -10,6 +10,7 @@ export const EnvSchema = z.object({
   PLANE_WORKSPACE_SLUG: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().min(1),
   ANTHROPIC_MODEL: z.string().default("claude-haiku-4-5-20251001"),
+  AGENT_RUNNER_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
