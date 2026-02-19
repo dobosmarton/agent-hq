@@ -23,22 +23,31 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         "Move the current task to a different workflow state. Use 'in_review' when work is complete and ready for human review. Use 'done' only if explicitly told the task needs no review.",
         { state: z.enum(["in_review", "done"]) },
         async ({ state }) => {
-          const stateId = state === "in_review" ? ctx.inReviewStateId : ctx.doneStateId;
+          const stateId =
+            state === "in_review" ? ctx.inReviewStateId : ctx.doneStateId;
           if (!stateId) {
             return {
               content: [
-                { type: "text" as const, text: `State "${state}" not available in this project.` },
+                {
+                  type: "text" as const,
+                  text: `State "${state}" not available in this project.`,
+                },
               ],
             };
           }
 
-          await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, { state: stateId });
+          await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, {
+            state: stateId,
+          });
           return {
             content: [
-              { type: "text" as const, text: `Task ${ctx.taskDisplayId} moved to ${state}.` },
+              {
+                type: "text" as const,
+                text: `Task ${ctx.taskDisplayId} moved to ${state}.`,
+              },
             ],
           };
-        }
+        },
       ),
 
       tool(
@@ -46,13 +55,21 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         "Add a progress comment to the current Plane task. Use HTML formatting: <p>, <ul>, <li>, <code>, <strong>. Call this at key milestones to keep the human informed of progress.",
         { comment_html: z.string().describe("HTML-formatted comment content") },
         async ({ comment_html }) => {
-          await addComment(ctx.planeConfig, ctx.projectId, ctx.issueId, comment_html);
+          await addComment(
+            ctx.planeConfig,
+            ctx.projectId,
+            ctx.issueId,
+            comment_html,
+          );
           return {
             content: [
-              { type: "text" as const, text: `Comment added to task ${ctx.taskDisplayId}.` },
+              {
+                type: "text" as const,
+                text: `Comment added to task ${ctx.taskDisplayId}.`,
+              },
             ],
           };
-        }
+        },
       ),
 
       tool(
@@ -62,11 +79,16 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
           question: z.string().describe("The question to ask the human"),
         },
         async ({ question }) => {
-          const answer = await ctx.telegramBridge.askAndWait(ctx.taskDisplayId, question);
+          const answer = await ctx.telegramBridge.askAndWait(
+            ctx.taskDisplayId,
+            question,
+          );
           return {
-            content: [{ type: "text" as const, text: `Human answered: ${answer}` }],
+            content: [
+              { type: "text" as const, text: `Human answered: ${answer}` },
+            ],
           };
-        }
+        },
       ),
     ],
   });

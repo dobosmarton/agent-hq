@@ -29,7 +29,9 @@ export const createTelegramBridge = (notifier: Notifier) => {
 
         if (!question) {
           res.writeHead(404);
-          res.end(JSON.stringify({ error: "No pending question for this task" }));
+          res.end(
+            JSON.stringify({ error: "No pending question for this task" }),
+          );
           return;
         }
 
@@ -37,7 +39,9 @@ export const createTelegramBridge = (notifier: Notifier) => {
         for await (const chunk of req) {
           chunks.push(chunk as Buffer);
         }
-        const body = AnswerBodySchema.parse(JSON.parse(Buffer.concat(chunks).toString()));
+        const body = AnswerBodySchema.parse(
+          JSON.parse(Buffer.concat(chunks).toString()),
+        );
 
         clearTimeout(question.timeoutHandle);
         pending.delete(taskId);
@@ -64,13 +68,18 @@ export const createTelegramBridge = (notifier: Notifier) => {
     });
   };
 
-  const askAndWait = async (taskId: string, question: string): Promise<string> => {
+  const askAndWait = async (
+    taskId: string,
+    question: string,
+  ): Promise<string> => {
     const messageId = await notifier.agentBlocked(taskId, question);
 
     return new Promise<string>((resolve) => {
       const timeoutHandle = setTimeout(() => {
         pending.delete(taskId);
-        resolve("[No answer received within timeout. Proceeding with best judgment.]");
+        resolve(
+          "[No answer received within timeout. Proceeding with best judgment.]",
+        );
       }, DEFAULT_TIMEOUT_MS);
 
       pending.set(taskId, { taskId, messageId, resolve, timeoutHandle });

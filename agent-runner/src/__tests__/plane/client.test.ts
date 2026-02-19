@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makePlaneConfig } from "../fixtures/config.js";
-import { makeProject, makeState, makeIssue, makeLabel, makeComment, paginate } from "../fixtures/plane.js";
+import {
+  makeProject,
+  makeState,
+  makeIssue,
+  makeLabel,
+  makeComment,
+  paginate,
+} from "../fixtures/plane.js";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -65,7 +72,9 @@ describe("listProjects", () => {
 
   it("throws on non-OK response", async () => {
     mockError(500, "Internal Server Error");
-    await expect(listProjects(config)).rejects.toThrow("Plane API error: 500 Internal Server Error");
+    await expect(listProjects(config)).rejects.toThrow(
+      "Plane API error: 500 Internal Server Error",
+    );
   });
 });
 
@@ -134,14 +143,23 @@ describe("findStateByGroupAndName", () => {
     ];
     mockOk(paginate(states));
 
-    const result = await findStateByGroupAndName(config, "proj-1", "started", "in review");
+    const result = await findStateByGroupAndName(
+      config,
+      "proj-1",
+      "started",
+      "in review",
+    );
     expect(result?.id).toBe("s2");
   });
 
   it("returns null when no match", async () => {
     mockOk(paginate([makeState({ group: "unstarted" })]));
 
-    const result = await findStateByGroupAndName(config, "proj-1", "nonexistent");
+    const result = await findStateByGroupAndName(
+      config,
+      "proj-1",
+      "nonexistent",
+    );
     expect(result).toBeNull();
   });
 });
@@ -203,7 +221,9 @@ describe("updateIssue", () => {
     const issue = makeIssue({ id: "updated" });
     mockOk(issue);
 
-    const result = await updateIssue(config, "proj-1", "issue-1", { state: "s" });
+    const result = await updateIssue(config, "proj-1", "issue-1", {
+      state: "s",
+    });
     expect(result.id).toBe("updated");
   });
 });

@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makeConfig, makePlaneConfig } from "../fixtures/config.js";
-import { makeProject, makeState, makeIssue, makeLabel, paginate } from "../fixtures/plane.js";
+import {
+  makeProject,
+  makeState,
+  makeIssue,
+  makeLabel,
+  paginate,
+} from "../fixtures/plane.js";
 
 vi.mock("../../plane/client.js", () => ({
   listProjects: vi.fn(),
@@ -10,7 +16,13 @@ vi.mock("../../plane/client.js", () => ({
   updateIssue: vi.fn(),
 }));
 
-import { listProjects, listLabels, listStates, listIssues, updateIssue } from "../../plane/client.js";
+import {
+  listProjects,
+  listLabels,
+  listStates,
+  listIssues,
+  updateIssue,
+} from "../../plane/client.js";
 import { createTaskPoller } from "../../poller/task-poller.js";
 
 const mockedListProjects = vi.mocked(listProjects);
@@ -202,7 +214,11 @@ describe("pollForTasks", () => {
   it("continues polling other projects if one errors", async () => {
     // Set up two projects
     const project1 = makeProject({ id: "proj-1", identifier: "HQ" });
-    const project2 = makeProject({ id: "proj-2", identifier: "APP", name: "App" });
+    const project2 = makeProject({
+      id: "proj-2",
+      identifier: "APP",
+      name: "App",
+    });
 
     mockedListProjects.mockResolvedValue([project1, project2]);
     mockedListLabels.mockResolvedValue([makeLabel({ name: "agent" })]);
@@ -213,8 +229,16 @@ describe("pollForTasks", () => {
 
     const config = makeConfig({
       projects: {
-        HQ: { repoPath: "/repos/hq", repoUrl: "https://github.com/test/hq", defaultBranch: "main" },
-        APP: { repoPath: "/repos/app", repoUrl: "https://github.com/test/app", defaultBranch: "main" },
+        HQ: {
+          repoPath: "/repos/hq",
+          repoUrl: "https://github.com/test/hq",
+          defaultBranch: "main",
+        },
+        APP: {
+          repoPath: "/repos/app",
+          repoUrl: "https://github.com/test/app",
+          defaultBranch: "main",
+        },
       },
     });
 
@@ -224,7 +248,9 @@ describe("pollForTasks", () => {
     // First project errors, second succeeds
     mockedListIssues
       .mockRejectedValueOnce(new Error("API error"))
-      .mockResolvedValueOnce([makeIssue({ id: "i2", label_ids: ["label-uuid-1"] })]);
+      .mockResolvedValueOnce([
+        makeIssue({ id: "i2", label_ids: ["label-uuid-1"] }),
+      ]);
 
     const tasks = await poller.pollForTasks(10);
     expect(tasks).toHaveLength(1);
@@ -253,7 +279,12 @@ describe("claimTask", () => {
     });
 
     expect(result).toBe(true);
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(planeConfig, "proj-1", "i1", { state: "ip-state" });
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(
+      planeConfig,
+      "proj-1",
+      "i1",
+      { state: "ip-state" },
+    );
   });
 
   it("returns false when cache missing", async () => {

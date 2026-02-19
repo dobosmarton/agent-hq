@@ -62,17 +62,27 @@ describe("save", () => {
     mockedExistsSync.mockReturnValue(false);
 
     const persistence = createStatePersistence("/tmp/newdir/state.json");
-    const state: RunnerState = { activeAgents: {}, dailySpendUsd: 0, dailySpendDate: "2026-02-19" };
+    const state: RunnerState = {
+      activeAgents: {},
+      dailySpendUsd: 0,
+      dailySpendDate: "2026-02-19",
+    };
     persistence.save(state);
 
-    expect(mockedMkdirSync).toHaveBeenCalledWith("/tmp/newdir", { recursive: true });
+    expect(mockedMkdirSync).toHaveBeenCalledWith("/tmp/newdir", {
+      recursive: true,
+    });
   });
 
   it("does not create directory if it exists", () => {
     mockedExistsSync.mockReturnValue(true);
 
     const persistence = createStatePersistence("/tmp/existing/state.json");
-    const state: RunnerState = { activeAgents: {}, dailySpendUsd: 0, dailySpendDate: "2026-02-19" };
+    const state: RunnerState = {
+      activeAgents: {},
+      dailySpendUsd: 0,
+      dailySpendDate: "2026-02-19",
+    };
     persistence.save(state);
 
     expect(mockedMkdirSync).not.toHaveBeenCalled();
@@ -82,12 +92,16 @@ describe("save", () => {
     mockedExistsSync.mockReturnValue(true);
 
     const persistence = createStatePersistence("/tmp/test/state.json");
-    const state: RunnerState = { activeAgents: {}, dailySpendUsd: 1.5, dailySpendDate: "2026-02-19" };
+    const state: RunnerState = {
+      activeAgents: {},
+      dailySpendUsd: 1.5,
+      dailySpendDate: "2026-02-19",
+    };
     persistence.save(state);
 
     expect(mockedWriteFileSync).toHaveBeenCalledWith(
       "/tmp/test/state.json",
-      JSON.stringify(state, null, 2)
+      JSON.stringify(state, null, 2),
     );
   });
 });

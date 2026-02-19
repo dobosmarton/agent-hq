@@ -4,7 +4,14 @@ import { makePlaneConfig, makeProject, makeState, makeIssue, paginate } from "./
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-import { listProjects, listStates, listIssues, createIssue, findProjectByIdentifier, buildStateMap } from "../plane.js";
+import {
+  listProjects,
+  listStates,
+  listIssues,
+  createIssue,
+  findProjectByIdentifier,
+  buildStateMap,
+} from "../plane.js";
 
 const config = makePlaneConfig();
 
@@ -141,10 +148,7 @@ describe("findProjectByIdentifier", () => {
 
 describe("buildStateMap", () => {
   it("builds Map<id, name>", async () => {
-    const states = [
-      makeState({ id: "s1", name: "Todo" }),
-      makeState({ id: "s2", name: "Done" }),
-    ];
+    const states = [makeState({ id: "s1", name: "Todo" }), makeState({ id: "s2", name: "Done" })];
     mockOk(paginate(states));
 
     const map = await buildStateMap(config, "proj-1");

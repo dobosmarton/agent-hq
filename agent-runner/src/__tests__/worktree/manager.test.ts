@@ -144,7 +144,8 @@ describe("removeWorktree", () => {
 
 describe("listWorktrees", () => {
   it("parses porcelain output", async () => {
-    const output = "worktree /repos/hq\n\nworktree /repos/hq/.worktrees/agent-HQ-42\nbranch refs/heads/agent/HQ-42\n";
+    const output =
+      "worktree /repos/hq\n\nworktree /repos/hq/.worktrees/agent-HQ-42\nbranch refs/heads/agent/HQ-42\n";
     mockGitSuccess(output);
 
     const paths = await listWorktrees("/repos/hq");
@@ -168,7 +169,7 @@ describe("ensureWorktreeGitignore", () => {
     ensureWorktreeGitignore("/repos/hq");
     expect(mockedAppendFileSync).toHaveBeenCalledWith(
       expect.stringContaining(".gitignore"),
-      "\n.worktrees/\n"
+      "\n.worktrees/\n",
     );
   });
 
@@ -178,7 +179,7 @@ describe("ensureWorktreeGitignore", () => {
     ensureWorktreeGitignore("/repos/hq");
     expect(mockedAppendFileSync).toHaveBeenCalledWith(
       expect.stringContaining(".gitignore"),
-      ".worktrees/\n"
+      ".worktrees/\n",
     );
   });
 });

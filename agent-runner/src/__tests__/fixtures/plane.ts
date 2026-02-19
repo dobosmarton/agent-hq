@@ -1,6 +1,14 @@
-import type { PlaneProject, PlaneIssue, PlaneState, PlaneLabel, PlaneComment } from "../../plane/types.js";
+import type {
+  PlaneProject,
+  PlaneIssue,
+  PlaneState,
+  PlaneLabel,
+  PlaneComment,
+} from "../../plane/types.js";
 
-export const makeProject = (overrides?: Partial<PlaneProject>): PlaneProject => ({
+export const makeProject = (
+  overrides?: Partial<PlaneProject>,
+): PlaneProject => ({
   id: "proj-uuid-1",
   name: "Agent HQ",
   identifier: "HQ",
@@ -31,7 +39,9 @@ export const makeLabel = (overrides?: Partial<PlaneLabel>): PlaneLabel => ({
   ...overrides,
 });
 
-export const makeComment = (overrides?: Partial<PlaneComment>): PlaneComment => ({
+export const makeComment = (
+  overrides?: Partial<PlaneComment>,
+): PlaneComment => ({
   id: "comment-uuid-1",
   comment_html: "<p>Progress update</p>",
   created_at: "2026-02-19T10:00:00Z",

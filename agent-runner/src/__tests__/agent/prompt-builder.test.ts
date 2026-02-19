@@ -36,7 +36,10 @@ describe("buildAgentPrompt", () => {
   });
 
   it("shows fallback when description is empty", () => {
-    const prompt = buildAgentPrompt(makeTask({ descriptionHtml: "" }), "agent/HQ-42");
+    const prompt = buildAgentPrompt(
+      makeTask({ descriptionHtml: "" }),
+      "agent/HQ-42",
+    );
     expect(prompt).toContain("No description provided.");
   });
 

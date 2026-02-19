@@ -3,9 +3,11 @@ import { z } from "zod";
 const TELEGRAM_API = "https://api.telegram.org";
 
 const TelegramResponseSchema = z.object({
-  result: z.object({
-    message_id: z.number(),
-  }).optional(),
+  result: z
+    .object({
+      message_id: z.number(),
+    })
+    .optional(),
 });
 
 type NotifierConfig = {
@@ -14,17 +16,25 @@ type NotifierConfig = {
 };
 
 export const createNotifier = (config: NotifierConfig) => {
-  const sendMessage = async (text: string, replyToMessageId?: number): Promise<number> => {
-    const res = await fetch(`${TELEGRAM_API}/bot${config.botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: config.chatId,
-        text,
-        parse_mode: "HTML",
-        ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
-      }),
-    });
+  const sendMessage = async (
+    text: string,
+    replyToMessageId?: number,
+  ): Promise<number> => {
+    const res = await fetch(
+      `${TELEGRAM_API}/bot${config.botToken}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: config.chatId,
+          text,
+          parse_mode: "HTML",
+          ...(replyToMessageId
+            ? { reply_to_message_id: replyToMessageId }
+            : {}),
+        }),
+      },
+    );
 
     if (!res.ok) {
       const body = await res.text();
@@ -38,22 +48,30 @@ export const createNotifier = (config: NotifierConfig) => {
 
   return {
     agentStarted: async (taskId: string, title: string): Promise<void> => {
-      await sendMessage(`<b>Agent started</b>\n<code>${taskId}</code>: ${title}`);
+      await sendMessage(
+        `<b>Agent started</b>\n<code>${taskId}</code>: ${title}`,
+      );
     },
 
     agentCompleted: async (taskId: string, title: string): Promise<void> => {
-      await sendMessage(`<b>Agent completed</b>\n<code>${taskId}</code>: ${title}`);
+      await sendMessage(
+        `<b>Agent completed</b>\n<code>${taskId}</code>: ${title}`,
+      );
     },
 
-    agentErrored: async (taskId: string, title: string, error: string): Promise<void> => {
+    agentErrored: async (
+      taskId: string,
+      title: string,
+      error: string,
+    ): Promise<void> => {
       await sendMessage(
-        `<b>Agent error</b>\n<code>${taskId}</code>: ${title}\n\n<pre>${error.slice(0, 500)}</pre>`
+        `<b>Agent error</b>\n<code>${taskId}</code>: ${title}\n\n<pre>${error.slice(0, 500)}</pre>`,
       );
     },
 
     agentBlocked: async (taskId: string, question: string): Promise<number> => {
       return sendMessage(
-        `<b>Agent needs help</b>\n<code>${taskId}</code>\n\n${question}\n\n<i>Reply to this message to answer.</i>`
+        `<b>Agent needs help</b>\n<code>${taskId}</code>\n\n${question}\n\n<i>Reply to this message to answer.</i>`,
       );
     },
 

@@ -28,7 +28,9 @@ const main = async (): Promise<void> => {
     try {
       ensureWorktreeGitignore(projectConfig.repoPath);
     } catch (err) {
-      console.warn(`Could not update .gitignore in ${projectConfig.repoPath}: ${err}`);
+      console.warn(
+        `Could not update .gitignore in ${projectConfig.repoPath}: ${err}`,
+      );
     }
   }
 
@@ -37,7 +39,9 @@ const main = async (): Promise<void> => {
   await taskPoller.initialize();
 
   // Initialize state persistence
-  const statePersistence = createStatePersistence("/app/state/runner-state.json");
+  const statePersistence = createStatePersistence(
+    "/app/state/runner-state.json",
+  );
 
   // Initialize agent manager
   const agentManager = createAgentManager({
@@ -51,14 +55,17 @@ const main = async (): Promise<void> => {
 
   // Start polling loop
   console.log(`Polling every ${config.agent.pollIntervalMs}ms for tasks...`);
-  await notifier.sendMessage("<b>Agent Runner started</b>\nPolling for tasks...");
+  await notifier.sendMessage(
+    "<b>Agent Runner started</b>\nPolling for tasks...",
+  );
 
   const pollCycle = async (): Promise<void> => {
     try {
       // Check for stale agents
       await agentManager.checkStaleAgents();
 
-      const availableSlots = config.agent.maxConcurrent - agentManager.activeCount();
+      const availableSlots =
+        config.agent.maxConcurrent - agentManager.activeCount();
       if (availableSlots <= 0) return;
 
       const tasks = await taskPoller.pollForTasks(availableSlots);

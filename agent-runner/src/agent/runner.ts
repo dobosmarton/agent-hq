@@ -25,7 +25,7 @@ export const runAgent = async (
   task: AgentTask,
   worktreePath: string,
   branchName: string,
-  deps: RunnerDeps
+  deps: RunnerDeps,
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
   const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
@@ -40,7 +40,7 @@ export const runAgent = async (
     deps.planeConfig,
     task.projectId,
     task.issueId,
-    `<p><strong>Agent started</strong> working on this task.</p><p>Branch: <code>${branchName}</code></p>`
+    `<p><strong>Agent started</strong> working on this task.</p><p>Branch: <code>${branchName}</code></p>`,
   );
 
   // Create task-scoped MCP server
@@ -86,33 +86,42 @@ export const runAgent = async (
     })) {
       if (message.type === "result") {
         // Extract cost if available
-        if ("total_cost_usd" in message && typeof message.total_cost_usd === "number") {
+        if (
+          "total_cost_usd" in message &&
+          typeof message.total_cost_usd === "number"
+        ) {
           totalCostUsd = message.total_cost_usd;
         }
 
         if (message.subtype === "success") {
           console.log(
-            `Agent ${taskDisplayId} completed successfully (cost: $${totalCostUsd.toFixed(2)})`
+            `Agent ${taskDisplayId} completed successfully (cost: $${totalCostUsd.toFixed(2)})`,
           );
           await deps.notifier.agentCompleted(taskDisplayId, task.title);
           await addComment(
             deps.planeConfig,
             task.projectId,
             task.issueId,
-            `<p><strong>Agent completed</strong> work on this task.</p><p>Branch <code>${branchName}</code> is ready for review.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>`
+            `<p><strong>Agent completed</strong> work on this task.</p><p>Branch <code>${branchName}</code> is ready for review.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>`,
           );
         } else {
           const errorText =
             "errors" in message && Array.isArray(message.errors)
               ? message.errors.join(", ")
               : "Unknown error";
-          console.error(`Agent ${taskDisplayId} ended with error: ${errorText}`);
-          await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
+          console.error(
+            `Agent ${taskDisplayId} ended with error: ${errorText}`,
+          );
+          await deps.notifier.agentErrored(
+            taskDisplayId,
+            task.title,
+            errorText,
+          );
           await addComment(
             deps.planeConfig,
             task.projectId,
             task.issueId,
-            `<p><strong>Agent encountered an error:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`
+            `<p><strong>Agent encountered an error:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`,
           );
         }
       }
@@ -127,7 +136,7 @@ export const runAgent = async (
       deps.planeConfig,
       task.projectId,
       task.issueId,
-      `<p><strong>Agent crashed:</strong></p><pre>${errorMsg.slice(0, 1000)}</pre>`
+      `<p><strong>Agent crashed:</strong></p><pre>${errorMsg.slice(0, 1000)}</pre>`,
     );
     throw err;
   }

@@ -47,10 +47,17 @@ export const createAgentManager = (deps: ManagerDeps) => {
       state.dailySpendDate = currentDay;
     }
 
-    return state.dailySpendUsd + deps.config.agent.maxBudgetPerTask <= deps.config.agent.maxDailyBudget;
+    return (
+      state.dailySpendUsd + deps.config.agent.maxBudgetPerTask <=
+      deps.config.agent.maxDailyBudget
+    );
   };
 
-  const cleanup = async (issueId: string, taskSlug: string, repoPath: string): Promise<void> => {
+  const cleanup = async (
+    issueId: string,
+    taskSlug: string,
+    repoPath: string,
+  ): Promise<void> => {
     try {
       await removeWorktree(repoPath, taskSlug);
       console.log(`Cleaned up worktree for ${taskSlug}`);
@@ -72,10 +79,10 @@ export const createAgentManager = (deps: ManagerDeps) => {
     if (!checkBudget()) {
       const taskSlug = `${task.projectIdentifier}-${task.sequenceId}`;
       console.warn(
-        `Daily budget limit reached ($${state.dailySpendUsd.toFixed(2)}/$${deps.config.agent.maxDailyBudget}), skipping ${taskSlug}`
+        `Daily budget limit reached ($${state.dailySpendUsd.toFixed(2)}/$${deps.config.agent.maxDailyBudget}), skipping ${taskSlug}`,
       );
       await deps.notifier.sendMessage(
-        `<b>Budget limit reached</b>\nDaily spend: $${state.dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}\nSkipping <code>${taskSlug}</code>: ${task.title}`
+        `<b>Budget limit reached</b>\nDaily spend: $${state.dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}\nSkipping <code>${taskSlug}</code>: ${task.title}`,
       );
       deps.taskPoller.releaseTask(task.issueId);
       return;
@@ -90,14 +97,18 @@ export const createAgentManager = (deps: ManagerDeps) => {
       const result = await createWorktree(
         projectConfig.repoPath,
         taskSlug,
-        projectConfig.defaultBranch
+        projectConfig.defaultBranch,
       );
       worktreePath = result.worktreePath;
       branchName = result.branchName;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`Failed to create worktree for ${taskSlug}: ${msg}`);
-      await deps.notifier.agentErrored(taskSlug, task.title, `Worktree creation failed: ${msg}`);
+      await deps.notifier.agentErrored(
+        taskSlug,
+        task.title,
+        `Worktree creation failed: ${msg}`,
+      );
       deps.taskPoller.releaseTask(task.issueId);
       return;
     }
@@ -127,7 +138,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
         state.dailySpendUsd += result.costUsd;
         persistState();
         console.log(
-          `Daily spend: $${state.dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}`
+          `Daily spend: $${state.dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}`,
         );
         await cleanup(task.issueId, taskSlug, projectConfig.repoPath);
       })
@@ -154,7 +165,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
         const hours = Math.floor(elapsed / (60 * 60 * 1000));
         console.warn(`Agent ${taskSlug} has been running for ${hours}h`);
         await deps.notifier.sendMessage(
-          `<b>Stale agent detected</b>\n<code>${taskSlug}</code>: ${agent.task.title}\nRunning for ${hours}h with no completion.`
+          `<b>Stale agent detected</b>\n<code>${taskSlug}</code>: ${agent.task.title}\nRunning for ${hours}h with no completion.`,
         );
         agent.alertedStale = true;
         persistState();

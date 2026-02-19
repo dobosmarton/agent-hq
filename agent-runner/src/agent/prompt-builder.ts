@@ -1,6 +1,9 @@
 import type { AgentTask } from "../types.js";
 
-export const buildAgentPrompt = (task: AgentTask, branchName: string): string => {
+export const buildAgentPrompt = (
+  task: AgentTask,
+  branchName: string,
+): string => {
   const taskId = `${task.projectIdentifier}-${task.sequenceId}`;
 
   return `You are an autonomous software engineer working on task ${taskId}: "${task.title}".

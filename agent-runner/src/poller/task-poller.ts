@@ -27,8 +27,12 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
     console.log("Initializing task poller...");
     const projects = await listProjects(planeConfig);
 
-    for (const [identifier, _projectConfig] of Object.entries(config.projects)) {
-      const project = projects.find((p) => p.identifier === identifier.toUpperCase());
+    for (const [identifier, _projectConfig] of Object.entries(
+      config.projects,
+    )) {
+      const project = projects.find(
+        (p) => p.identifier === identifier.toUpperCase(),
+      );
       if (!project) {
         console.warn(`Project "${identifier}" not found in Plane, skipping`);
         continue;
@@ -37,10 +41,12 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
       // Find the "agent" label
       const labels = await listLabels(planeConfig, project.id);
       const agentLabel = labels.find(
-        (l) => l.name.toLowerCase() === config.agent.labelName.toLowerCase()
+        (l) => l.name.toLowerCase() === config.agent.labelName.toLowerCase(),
       );
       if (!agentLabel) {
-        console.warn(`Label "${config.agent.labelName}" not found in project ${identifier}`);
+        console.warn(
+          `Label "${config.agent.labelName}" not found in project ${identifier}`,
+        );
         continue;
       }
 
@@ -49,7 +55,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
       const todoState = states.find((s) => s.group === "unstarted");
       const inProgressState = states.find((s) => s.group === "started");
       const inReviewState = states.find(
-        (s) => s.group === "started" && s.name.toLowerCase().includes("review")
+        (s) => s.group === "started" && s.name.toLowerCase().includes("review"),
       );
       const doneState = states.find((s) => s.group === "completed");
 
@@ -68,7 +74,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
       });
 
       console.log(
-        `Registered project ${identifier}: label=${agentLabel.name}, todo=${todoState.name}, inProgress=${inProgressState.name}`
+        `Registered project ${identifier}: label=${agentLabel.name}, todo=${todoState.name}, inProgress=${inProgressState.name}`,
       );
     }
 

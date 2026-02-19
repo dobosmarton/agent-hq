@@ -57,7 +57,7 @@ describe("update_task_status", () => {
       ctx.planeConfig,
       "proj-1",
       "issue-1",
-      { state: "review-state" }
+      { state: "review-state" },
     );
     expect(result.content[0].text).toContain("moved to in_review");
   });
@@ -74,7 +74,7 @@ describe("update_task_status", () => {
       ctx.planeConfig,
       "proj-1",
       "issue-1",
-      { state: "done-state" }
+      { state: "done-state" },
     );
   });
 
@@ -103,7 +103,7 @@ describe("add_task_comment", () => {
       ctx.planeConfig,
       "proj-1",
       "issue-1",
-      "<p>Progress</p>"
+      "<p>Progress</p>",
     );
     expect(result.content[0].text).toContain("Comment added");
   });
@@ -117,7 +117,10 @@ describe("ask_human", () => {
     const handler = toolHandlers.get("ask_human")!;
     const result = await handler({ question: "What DB?" });
 
-    expect(ctx.telegramBridge.askAndWait).toHaveBeenCalledWith("HQ-42", "What DB?");
+    expect(ctx.telegramBridge.askAndWait).toHaveBeenCalledWith(
+      "HQ-42",
+      "What DB?",
+    );
     expect(result.content[0].text).toContain("Human answered: Human answer");
   });
 });

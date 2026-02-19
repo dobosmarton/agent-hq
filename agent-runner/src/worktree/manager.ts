@@ -18,7 +18,7 @@ const git = async (repoPath: string, args: string[]): Promise<string> => {
 export const createWorktree = async (
   repoPath: string,
   taskSlug: string,
-  defaultBranch: string
+  defaultBranch: string,
 ): Promise<{ worktreePath: string; branchName: string }> => {
   const branchName = `agent/${taskSlug}`;
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
@@ -39,7 +39,10 @@ export const createWorktree = async (
   return { worktreePath: wtPath, branchName };
 };
 
-export const removeWorktree = async (repoPath: string, taskSlug: string): Promise<void> => {
+export const removeWorktree = async (
+  repoPath: string,
+  taskSlug: string,
+): Promise<void> => {
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
   const branchName = `agent/${taskSlug}`;
 
@@ -80,6 +83,9 @@ export const ensureWorktreeGitignore = (repoPath: string): void => {
   }
 };
 
-export const pushBranch = async (worktreePath: string, branchName: string): Promise<void> => {
+export const pushBranch = async (
+  worktreePath: string,
+  branchName: string,
+): Promise<void> => {
   await git(worktreePath, ["push", "-u", "origin", branchName]);
 };

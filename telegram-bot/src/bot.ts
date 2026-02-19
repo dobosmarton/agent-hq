@@ -33,8 +33,7 @@ bot.command("clear", async (ctx) => {
 
 // Reply relay: forward replies to agent questions to the agent-runner
 bot.on("message:text").filter(
-  (ctx) =>
-    !!ctx.msg.reply_to_message?.text?.includes("Agent needs help") && !!env.AGENT_RUNNER_URL,
+  (ctx) => !!ctx.msg.reply_to_message?.text?.includes("Agent needs help") && !!env.AGENT_RUNNER_URL,
   async (ctx) => {
     const originalText = ctx.msg.reply_to_message?.text ?? "";
     const taskId = extractTaskId(originalText);

@@ -27,8 +27,8 @@
   },
   "agent": {
     "maxConcurrent": 2,
-    "maxBudgetPerTask": 5.00,
-    "maxDailyBudget": 20.00,
+    "maxBudgetPerTask": 5.0,
+    "maxDailyBudget": 20.0,
     "maxTurns": 200,
     "pollIntervalMs": 30000,
     "labelName": "agent"

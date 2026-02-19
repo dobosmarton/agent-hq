@@ -81,9 +81,7 @@ describe("list_tasks tool", () => {
 
   it("uses 'Unknown' for missing state", async () => {
     mockedFindProject.mockResolvedValue(makeProject());
-    mockedListIssues.mockResolvedValue([
-      makeIssue({ state: "unknown-state" }),
-    ]);
+    mockedListIssues.mockResolvedValue([makeIssue({ state: "unknown-state" })]);
     mockedBuildStateMap.mockResolvedValue(new Map());
 
     const tools = createPlaneTools(config);
@@ -113,9 +111,7 @@ describe("create_task tool", () => {
   it("returns formatted ID on success", async () => {
     const project = makeProject({ identifier: "HQ" });
     mockedFindProject.mockResolvedValue(project);
-    mockedCreateIssue.mockResolvedValue(
-      makeIssue({ sequence_id: 99, name: "New task" })
-    );
+    mockedCreateIssue.mockResolvedValue(makeIssue({ sequence_id: 99, name: "New task" }));
 
     const tools = createPlaneTools(config);
     const result = (await tools.createTask.execute!(
@@ -137,12 +133,7 @@ describe("create_task tool", () => {
       {} as any
     );
 
-    expect(mockedCreateIssue).toHaveBeenCalledWith(
-      config,
-      "proj-uuid-1",
-      "T",
-      "<p>HTML</p>"
-    );
+    expect(mockedCreateIssue).toHaveBeenCalledWith(config, "proj-uuid-1", "T", "<p>HTML</p>");
   });
 
   it("returns error when project not found", async () => {

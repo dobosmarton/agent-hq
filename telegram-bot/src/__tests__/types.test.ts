@@ -32,9 +32,7 @@ describe("EnvSchema", () => {
   });
 
   it("rejects invalid AGENT_RUNNER_URL", () => {
-    expect(() =>
-      EnvSchema.parse({ ...validEnv, AGENT_RUNNER_URL: "not-a-url" })
-    ).toThrow();
+    expect(() => EnvSchema.parse({ ...validEnv, AGENT_RUNNER_URL: "not-a-url" })).toThrow();
   });
 
   it("rejects missing TELEGRAM_BOT_TOKEN", () => {
@@ -48,15 +46,11 @@ describe("EnvSchema", () => {
   });
 
   it("rejects invalid PLANE_BASE_URL", () => {
-    expect(() =>
-      EnvSchema.parse({ ...validEnv, PLANE_BASE_URL: "not-url" })
-    ).toThrow();
+    expect(() => EnvSchema.parse({ ...validEnv, PLANE_BASE_URL: "not-url" })).toThrow();
   });
 
   it("rejects empty ALLOWED_USER_ID", () => {
-    expect(() =>
-      EnvSchema.parse({ ...validEnv, ALLOWED_USER_ID: "" })
-    ).toThrow();
+    expect(() => EnvSchema.parse({ ...validEnv, ALLOWED_USER_ID: "" })).toThrow();
   });
 });
 
@@ -67,9 +61,7 @@ describe("PlaneProjectSchema", () => {
   });
 
   it("rejects missing identifier", () => {
-    expect(() =>
-      PlaneProjectSchema.parse({ id: "x", name: "y" })
-    ).toThrow();
+    expect(() => PlaneProjectSchema.parse({ id: "x", name: "y" })).toThrow();
   });
 });
 
@@ -110,9 +102,7 @@ describe("PlanePaginatedSchema", () => {
 
   it("rejects missing total_count", () => {
     const schema = PlanePaginatedSchema(PlaneProjectSchema);
-    expect(() =>
-      schema.parse({ results: [] })
-    ).toThrow();
+    expect(() => schema.parse({ results: [] })).toThrow();
   });
 
   it("accepts empty results", () => {

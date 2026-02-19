@@ -88,7 +88,10 @@ describe("budget checking", () => {
     const deps = makeDeps({
       persistence: makePersistence({ dailySpendUsd: 10 }),
     });
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
 
     const manager = createAgentManager(deps);
@@ -108,7 +111,9 @@ describe("budget checking", () => {
     await manager.spawnAgent(makeTask());
 
     expect(mockedRunAgent).not.toHaveBeenCalled();
-    expect(notifier.sendMessage).toHaveBeenCalledWith(expect.stringContaining("Budget limit reached"));
+    expect(notifier.sendMessage).toHaveBeenCalledWith(
+      expect.stringContaining("Budget limit reached"),
+    );
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
   });
 
@@ -118,7 +123,10 @@ describe("budget checking", () => {
       dailySpendDate: "2020-01-01", // old date
     });
     const deps = makeDeps({ persistence });
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
 
     const manager = createAgentManager(deps);
@@ -151,7 +159,7 @@ describe("spawnAgent", () => {
     expect(notifier.agentErrored).toHaveBeenCalledWith(
       "HQ-42",
       "Fix the bug",
-      expect.stringContaining("Worktree creation failed")
+      expect.stringContaining("Worktree creation failed"),
     );
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
     expect(mockedRunAgent).not.toHaveBeenCalled();
@@ -159,7 +167,10 @@ describe("spawnAgent", () => {
 
   it("registers agent as active on successful spawn", async () => {
     const deps = makeDeps();
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockReturnValue(new Promise(() => {})); // never resolves
 
     const manager = createAgentManager(deps);
@@ -171,7 +182,10 @@ describe("spawnAgent", () => {
 
   it("persists state after registering agent", async () => {
     const deps = makeDeps();
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
@@ -183,9 +197,14 @@ describe("spawnAgent", () => {
   it("updates daily spend on agent completion", async () => {
     const deps = makeDeps();
     let resolveAgent: (v: { costUsd: number }) => void;
-    const agentPromise = new Promise<{ costUsd: number }>((r) => { resolveAgent = r; });
+    const agentPromise = new Promise<{ costUsd: number }>((r) => {
+      resolveAgent = r;
+    });
 
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockReturnValue(agentPromise);
     mockedRemoveWorktree.mockResolvedValue(undefined);
 
@@ -203,9 +222,14 @@ describe("spawnAgent", () => {
   it("does not clean worktree on agent error", async () => {
     const deps = makeDeps();
     let rejectAgent: (e: Error) => void;
-    const agentPromise = new Promise<{ costUsd: number }>((_, rej) => { rejectAgent = rej; });
+    const agentPromise = new Promise<{ costUsd: number }>((_, rej) => {
+      rejectAgent = rej;
+    });
 
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockReturnValue(agentPromise);
 
     const manager = createAgentManager(deps);
@@ -224,7 +248,10 @@ describe("checkStaleAgents", () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
 
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
@@ -233,9 +260,9 @@ describe("checkStaleAgents", () => {
     await manager.checkStaleAgents();
 
     // sendMessage should not be called for stale (only for other reasons)
-    const staleCalls = vi.mocked(notifier.sendMessage).mock.calls.filter(
-      (call) => String(call[0]).includes("Stale agent")
-    );
+    const staleCalls = vi
+      .mocked(notifier.sendMessage)
+      .mock.calls.filter((call) => String(call[0]).includes("Stale agent"));
     expect(staleCalls).toHaveLength(0);
   });
 
@@ -243,7 +270,10 @@ describe("checkStaleAgents", () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
 
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
@@ -256,7 +286,7 @@ describe("checkStaleAgents", () => {
     await manager.checkStaleAgents();
 
     expect(notifier.sendMessage).toHaveBeenCalledWith(
-      expect.stringContaining("Stale agent detected")
+      expect.stringContaining("Stale agent detected"),
     );
   });
 
@@ -264,7 +294,10 @@ describe("checkStaleAgents", () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
 
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
@@ -276,9 +309,9 @@ describe("checkStaleAgents", () => {
     await manager.checkStaleAgents();
     await manager.checkStaleAgents();
 
-    const staleCalls = vi.mocked(notifier.sendMessage).mock.calls.filter(
-      (call) => String(call[0]).includes("Stale agent")
-    );
+    const staleCalls = vi
+      .mocked(notifier.sendMessage)
+      .mock.calls.filter((call) => String(call[0]).includes("Stale agent"));
     expect(staleCalls).toHaveLength(1);
   });
 
@@ -286,7 +319,10 @@ describe("checkStaleAgents", () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
 
-    mockedCreateWorktree.mockResolvedValue({ worktreePath: "/wt", branchName: "agent/HQ-42" });
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
     mockedRemoveWorktree.mockResolvedValue(undefined);
 
@@ -298,9 +334,9 @@ describe("checkStaleAgents", () => {
 
     await manager.checkStaleAgents();
 
-    const staleCalls = vi.mocked(notifier.sendMessage).mock.calls.filter(
-      (call) => String(call[0]).includes("Stale agent")
-    );
+    const staleCalls = vi
+      .mocked(notifier.sendMessage)
+      .mock.calls.filter((call) => String(call[0]).includes("Stale agent"));
     expect(staleCalls).toHaveLength(0);
   });
 });
