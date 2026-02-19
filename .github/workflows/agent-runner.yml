@@ -1,19 +1,19 @@
-name: Telegram Bot CI/CD
+name: Agent Runner CI/CD
 
 on:
   push:
     branches: [main]
     paths:
-      - "telegram-bot/**"
-      - ".github/workflows/telegram-bot.yml"
+      - "agent-runner/**"
+      - ".github/workflows/agent-runner.yml"
   pull_request:
     branches: [main]
     paths:
-      - "telegram-bot/**"
+      - "agent-runner/**"
 
 defaults:
   run:
-    working-directory: telegram-bot
+    working-directory: agent-runner
 
 jobs:
   quality:
@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: telegram-bot/package-lock.json
+          cache-dependency-path: agent-runner/package-lock.json
 
       - run: npm ci
 
@@ -56,7 +56,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "telegram-bot/src,telegram-bot/package.json,telegram-bot/package-lock.json,telegram-bot/tsconfig.json,telegram-bot/Dockerfile,telegram-bot/docker-compose.yml"
+          source: "agent-runner/src,agent-runner/package.json,agent-runner/package-lock.json,agent-runner/tsconfig.json,agent-runner/Dockerfile,agent-runner/docker-compose.yml,agent-runner/config.json,agent-runner/entrypoint.sh"
           target: "~/"
           overwrite: true
 
@@ -67,7 +67,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/telegram-bot
+            cd ~/agent-runner
             docker compose up -d --build --force-recreate
             sleep 5
             docker compose ps
