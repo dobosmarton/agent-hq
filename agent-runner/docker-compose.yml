@@ -1,0 +1,12 @@
+services:
+  runner:
+    build: .
+    env_file: .env
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - /home/deploy/repos:/repos
+      - runner-state:/app/state
+
+volumes:
+  runner-state:

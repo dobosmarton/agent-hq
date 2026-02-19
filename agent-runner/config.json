@@ -1,0 +1,36 @@
+{
+  "plane": {
+    "baseUrl": "http://localhost/api/v1",
+    "workspaceSlug": "projects"
+  },
+  "projects": {
+    "HQ": {
+      "repoPath": "/repos/agent-hq",
+      "repoUrl": "https://github.com/dobosmarton/agent-hq",
+      "defaultBranch": "main"
+    },
+    "AOE2": {
+      "repoPath": "/repos/aoe2-agent",
+      "repoUrl": "https://github.com/dobosmarton/aoe2-agent",
+      "defaultBranch": "main"
+    },
+    "VERDANDI": {
+      "repoPath": "/repos/verdandi",
+      "repoUrl": "https://github.com/dobosmarton/verdandi",
+      "defaultBranch": "main"
+    },
+    "STYLESWIPE": {
+      "repoPath": "/repos/style-swipe-app",
+      "repoUrl": "https://github.com/Style-swipe/style-swipe-app",
+      "defaultBranch": "main"
+    }
+  },
+  "agent": {
+    "maxConcurrent": 2,
+    "maxBudgetPerTask": 5.00,
+    "maxDailyBudget": 20.00,
+    "maxTurns": 200,
+    "pollIntervalMs": 30000,
+    "labelName": "agent"
+  }
+}

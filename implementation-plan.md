@@ -631,70 +631,178 @@ You can describe a task here and then manually trigger it in CCManager with the 
 
 ---
 
-## Phase 6: Refinements & Extensions (Week 2+)
+## Phase 6: Autonomous Agent Runner (Week 2+)
 
-Once comfortable with the base workflow, consider these enhancements:
+An always-on service on the VPS that automatically picks up Plane tasks labeled "agent" and works on them using Claude Code, reporting progress via Plane comments and Telegram.
 
-### 6.1: Plane Webhooks → Auto-trigger agents
+### Architecture
 
-Set up Plane webhooks so moving a task to "In Progress" automatically dispatches a Claude Code agent:
-
-1. In Plane: **Settings → Webhooks → Add Webhook**
-2. Point it at a small Express server on your VPS
-3. The handler reads the task details and spawns a Claude Code process
-
-### 6.2: Per-project CLAUDE.md with Plane context
-
-Add instructions in each project's `CLAUDE.md`:
-
-```markdown
-## Task Management
-- You have access to Plane via MCP. Always check for assigned tasks before starting.
-- When starting a task, update its status to "In Progress".
-- When finishing, update status to "In Review" and add a comment with a summary.
-- Reference Plane task identifiers (e.g., WEB-42) in git commit messages.
+```
+                         VPS (100.80.229.60)
+┌──────────────────────────────────────────────────────────────┐
+│  agent-runner/ (TypeScript daemon, Docker)                   │
+│                                                              │
+│  Task Poller (30s) ── Agent Manager ── Telegram Notifier     │
+│       │                    │                 │               │
+│       │              Worktree Manager        │               │
+│       │                    │                 │               │
+│  Plane API           Claude Code SDK    Telegram Bot API     │
+│  (localhost:80)      (per-task)         (same bot token)     │
+│                                                              │
+│  Git repos cloned at ~/repos/ with GitHub PAT for push      │
+│                                                              │
+│  Co-located: Plane, Observability, Telegram Bot              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### 6.3: Custom Claude Code subagents
+**Runs on VPS** (always on, not the Mac). Claude Code SDK makes API calls to Anthropic. Plane API is localhost. Git repos cloned on VPS with GitHub PAT for push access.
 
-Create specialized agents per project in `.claude/agents/`:
+### Core Flow
 
-```markdown
-<!-- .claude/agents/code-reviewer.md -->
----
-name: code-reviewer
-tools: ["Read", "Glob", "Grep"]
----
+1. **Poll** Plane every 30s for issues in "Todo" with "agent" label
+2. **Claim** — immediately move to "In Progress" to prevent double-pickup
+3. **Worktree** — `git worktree add .worktrees/agent-VER-42 -b agent/VER-42 origin/main`
+4. **Spawn** Claude Code SDK instance in the worktree with task-scoped MCP tools
+5. Agent works autonomously: reads code, edits, commits, pushes, writes Plane comments
+6. If stuck → `ask_human` MCP tool → question sent to Telegram → blocks until reply
+7. Done → move task to "In Review", push final commits, clean up worktree
+8. Telegram notifications at: start, done, error, blocked
 
-You are a code reviewer. Read the recent changes, check for:
-- Security vulnerabilities
-- Missing error handling
-- Test coverage gaps
-Report findings as a Plane comment on the relevant task.
+### Projects
+
+| Plane Project | GitHub Repo | VPS Path |
+|--------------|-------------|----------|
+| Agent HQ | `dobosmarton/agent-hq` | `~/repos/agent-hq` |
+| AoE2 Agent | `dobosmarton/aoe2-agent` | `~/repos/aoe2-agent` |
+| Verdandi | `dobosmarton/verdandi` | `~/repos/verdandi` |
+| Style-swipe | `Style-swipe/style-swipe-app` | `~/repos/style-swipe-app` |
+
+### Key Design Decisions
+
+**Claude Code SDK** (`@anthropic-ai/claude-code`) — Programmatic control: inject task-scoped MCP tools, in-process hooks, cost limits (`maxBudgetUsd`, `maxTurns`), session resume on crash.
+
+**Task-scoped MCP tools** — Each agent gets 3 tools scoped to its own task:
+- `update_task_status` — move between In Progress / In Review / Done
+- `add_task_comment` — write progress comment (HTML)
+- `ask_human` — ask question via Telegram, block until answer
+
+**Polling, not webhooks** — 30s interval, well within 60 req/min rate limit. Simple and reliable.
+
+**Telegram Q&A** — All on VPS, no cross-network callbacks. Runner sends question via Bot API, Telegram bot detects user reply, notifies runner via localhost HTTP (`http://localhost:3847/answers/{issueId}`).
+
+### File Structure
+
+```
+agent-runner/
+├── package.json
+├── tsconfig.json
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── config.json
+├── src/
+│   ├── index.ts                    # Entry: starts poller + answer listener
+│   ├── config.ts                   # Config loading + Zod validation
+│   ├── types.ts                    # Shared types
+│   ├── plane/
+│   │   ├── client.ts              # Extended Plane API client
+│   │   └── types.ts               # PlaneLabel, PlaneComment, etc.
+│   ├── poller/
+│   │   ├── task-poller.ts         # Poll loop: find agent-labeled Todo tasks
+│   │   └── claim.ts              # Optimistic state update to claim
+│   ├── agent/
+│   │   ├── manager.ts            # Agent lifecycle (spawn, track, cleanup)
+│   │   ├── runner.ts             # Single agent execution via SDK
+│   │   ├── mcp-tools.ts          # Per-task MCP server
+│   │   └── prompt-builder.ts     # Build prompt from issue data
+│   ├── worktree/
+│   │   └── manager.ts            # Git worktree create/remove
+│   ├── telegram/
+│   │   ├── notifier.ts           # Send notifications via Bot API
+│   │   └── bridge.ts             # askAndWait: question → Telegram → answer
+│   └── state/
+│       └── persistence.ts        # State file for crash recovery
 ```
 
-### 6.4: Claude Code Agent Teams (experimental)
+### Config
 
-When Anthropic stabilizes Agent Teams, you can use them for intra-project parallelism:
-
-```bash
-export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
-# Then ask Claude Code to split a large task across teammates
+```json
+{
+  "plane": {
+    "baseUrl": "http://localhost/api/v1",
+    "workspaceSlug": "projects"
+  },
+  "projects": {
+    "HQ": {
+      "repoPath": "/home/deploy/repos/agent-hq",
+      "repoUrl": "https://github.com/dobosmarton/agent-hq",
+      "defaultBranch": "main"
+    },
+    "AOE2AGENT": {
+      "repoPath": "/home/deploy/repos/aoe2-agent",
+      "repoUrl": "https://github.com/dobosmarton/aoe2-agent",
+      "defaultBranch": "main"
+    },
+    "VERDANDI": {
+      "repoPath": "/home/deploy/repos/verdandi",
+      "repoUrl": "https://github.com/dobosmarton/verdandi",
+      "defaultBranch": "main"
+    },
+    "STYLESWIPE": {
+      "repoPath": "/home/deploy/repos/style-swipe-app",
+      "repoUrl": "https://github.com/Style-swipe/style-swipe-app",
+      "defaultBranch": "main"
+    }
+  },
+  "agent": {
+    "maxConcurrent": 2,
+    "maxBudgetPerTask": 5.00,
+    "maxDailyBudget": 20.00,
+    "maxTurns": 200,
+    "pollIntervalMs": 30000,
+    "labelName": "agent"
+  }
+}
 ```
 
-Currently limited to a single working directory and requires tmux/iTerm2.
+### Telegram Bot Changes
 
-### 6.5: Cost tracking
+Small extension to existing `telegram-bot/`:
+- Runner sends questions to user using the same bot token via direct Bot API calls
+- Bot detects user replies to question messages (reply-to-message matching)
+- Bot POSTs answer to `http://localhost:3847/answers/{issueId}` (runner's answer server)
+- New env var: `AGENT_RUNNER_URL=http://localhost:3847`
 
-Add a Telegram command to track API spend:
+### VPS Setup (one-time)
 
-```javascript
-bot.command('costs', async (ctx) => {
-  // Read from observability dashboard's SQLite DB
-  // or from Claude Code's usage logs
-  ctx.reply('Today: $4.20 | This week: $28.50');
-});
-```
+1. Clone all 4 repos to `~/repos/`
+2. Configure GitHub PAT: `git config --global credential.helper store` + PAT in `~/.git-credentials`
+3. `ANTHROPIC_API_KEY` in agent-runner `.env`
+4. Add `.worktrees/` to each repo's `.gitignore`
+5. Docker Compose service for agent-runner
+
+### Implementation Phases
+
+**Phase 6.1 — Foundation**: Config schema, extended Plane client (updateIssue, addComment, listLabels, getIssueDetail), worktree manager, project scaffold.
+
+**Phase 6.2 — Core Loop (MVP)**: Task poller + claim, agent runner with SDK, prompt builder, MCP tools (update_task_status, add_task_comment), basic Telegram notifications.
+
+**Phase 6.3 — Telegram Q&A**: Answer HTTP server, ask_human MCP tool, Telegram bridge (askAndWait), bot extension for reply relay.
+
+**Phase 6.4 — Resilience**: State persistence + crash recovery (session resume), cost tracking + daily budget, stale agent detection (6h no activity → alert).
+
+### Verification
+
+1. Create test task in Plane with "agent" label in "Todo"
+2. `docker compose up` agent-runner
+3. Task moves to "In Progress" within 30s
+4. Worktree created, agent spawned
+5. Progress comments on Plane task
+6. Branch pushed to GitHub
+7. Telegram notifications received
+8. Test ask_human flow
+9. Task moves to "In Review" on completion
+10. Worktree cleaned up
 
 ---
 
