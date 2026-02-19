@@ -53,7 +53,7 @@ describe("listProjects", () => {
     mockOk(paginate([]));
     await listProjects(config);
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0]!;
     expect(url).toBe("http://localhost/api/v1/workspaces/test-ws/projects/");
   });
 
@@ -81,7 +81,7 @@ describe("listIssues", () => {
     mockOk(paginate([]));
     await listIssues(config, "proj-1");
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0]!;
     expect(url).toContain("state_group=");
     expect(url).toContain("per_page=50");
   });
@@ -92,7 +92,7 @@ describe("createIssue", () => {
     mockOk(makeIssue());
     await createIssue(config, "proj-1", "Test task");
 
-    const [, init] = mockFetch.mock.calls[0];
+    const [, init] = mockFetch.mock.calls[0]!;
     expect(init.method).toBe("POST");
     const body = JSON.parse(init.body);
     expect(body.name).toBe("Test task");
@@ -103,7 +103,7 @@ describe("createIssue", () => {
     mockOk(makeIssue());
     await createIssue(config, "proj-1", "Test task", "<p>Details</p>");
 
-    const [, init] = mockFetch.mock.calls[0];
+    const [, init] = mockFetch.mock.calls[0]!;
     const body = JSON.parse(init.body);
     expect(body.description_html).toBe("<p>Details</p>");
   });
