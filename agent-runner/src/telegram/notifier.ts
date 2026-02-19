@@ -1,12 +1,20 @@
+import { z } from "zod";
+
 const TELEGRAM_API = "https://api.telegram.org";
+
+const TelegramResponseSchema = z.object({
+  result: z.object({
+    message_id: z.number(),
+  }).optional(),
+});
 
 type NotifierConfig = {
   botToken: string;
   chatId: string;
 };
 
-export function createNotifier(config: NotifierConfig) {
-  async function sendMessage(text: string, replyToMessageId?: number): Promise<number> {
+export const createNotifier = (config: NotifierConfig) => {
+  const sendMessage = async (text: string, replyToMessageId?: number): Promise<number> => {
     const res = await fetch(`${TELEGRAM_API}/bot${config.botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -24,26 +32,26 @@ export function createNotifier(config: NotifierConfig) {
       return 0;
     }
 
-    const data = (await res.json()) as { result?: { message_id?: number } };
+    const data = TelegramResponseSchema.parse(await res.json());
     return data.result?.message_id ?? 0;
-  }
+  };
 
   return {
-    async agentStarted(taskId: string, title: string): Promise<void> {
+    agentStarted: async (taskId: string, title: string): Promise<void> => {
       await sendMessage(`<b>Agent started</b>\n<code>${taskId}</code>: ${title}`);
     },
 
-    async agentCompleted(taskId: string, title: string): Promise<void> {
+    agentCompleted: async (taskId: string, title: string): Promise<void> => {
       await sendMessage(`<b>Agent completed</b>\n<code>${taskId}</code>: ${title}`);
     },
 
-    async agentErrored(taskId: string, title: string, error: string): Promise<void> {
+    agentErrored: async (taskId: string, title: string, error: string): Promise<void> => {
       await sendMessage(
         `<b>Agent error</b>\n<code>${taskId}</code>: ${title}\n\n<pre>${error.slice(0, 500)}</pre>`
       );
     },
 
-    async agentBlocked(taskId: string, question: string): Promise<number> {
+    agentBlocked: async (taskId: string, question: string): Promise<number> => {
       return sendMessage(
         `<b>Agent needs help</b>\n<code>${taskId}</code>\n\n${question}\n\n<i>Reply to this message to answer.</i>`
       );
@@ -51,6 +59,6 @@ export function createNotifier(config: NotifierConfig) {
 
     sendMessage,
   };
-}
+};
 
 export type Notifier = ReturnType<typeof createNotifier>;

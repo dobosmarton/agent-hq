@@ -7,20 +7,19 @@ const exec = promisify(execFile);
 
 const WORKTREE_DIR = ".worktrees";
 
-function worktreePath(repoPath: string, branchSlug: string): string {
-  return join(repoPath, WORKTREE_DIR, branchSlug);
-}
+const worktreePath = (repoPath: string, branchSlug: string): string =>
+  join(repoPath, WORKTREE_DIR, branchSlug);
 
-async function git(repoPath: string, args: string[]): Promise<string> {
+const git = async (repoPath: string, args: string[]): Promise<string> => {
   const { stdout } = await exec("git", ["-C", repoPath, ...args]);
   return stdout.trim();
-}
+};
 
-export async function createWorktree(
+export const createWorktree = async (
   repoPath: string,
   taskSlug: string,
   defaultBranch: string
-): Promise<{ worktreePath: string; branchName: string }> {
+): Promise<{ worktreePath: string; branchName: string }> => {
   const branchName = `agent/${taskSlug}`;
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
 
@@ -38,9 +37,9 @@ export async function createWorktree(
   ]);
 
   return { worktreePath: wtPath, branchName };
-}
+};
 
-export async function removeWorktree(repoPath: string, taskSlug: string): Promise<void> {
+export const removeWorktree = async (repoPath: string, taskSlug: string): Promise<void> => {
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
   const branchName = `agent/${taskSlug}`;
 
@@ -55,9 +54,9 @@ export async function removeWorktree(repoPath: string, taskSlug: string): Promis
   } catch {
     // Branch might already be deleted
   }
-}
+};
 
-export async function listWorktrees(repoPath: string): Promise<string[]> {
+export const listWorktrees = async (repoPath: string): Promise<string[]> => {
   const output = await git(repoPath, ["worktree", "list", "--porcelain"]);
   const paths: string[] = [];
   for (const line of output.split("\n")) {
@@ -66,9 +65,9 @@ export async function listWorktrees(repoPath: string): Promise<string[]> {
     }
   }
   return paths;
-}
+};
 
-export function ensureWorktreeGitignore(repoPath: string): void {
+export const ensureWorktreeGitignore = (repoPath: string): void => {
   const gitignorePath = join(repoPath, ".gitignore");
   const entry = `${WORKTREE_DIR}/`;
 
@@ -79,8 +78,8 @@ export function ensureWorktreeGitignore(repoPath: string): void {
   } else {
     appendFileSync(gitignorePath, `${entry}\n`);
   }
-}
+};
 
-export async function pushBranch(worktreePath: string, branchName: string): Promise<void> {
+export const pushBranch = async (worktreePath: string, branchName: string): Promise<void> => {
   await git(worktreePath, ["push", "-u", "origin", branchName]);
-}
+};

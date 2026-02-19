@@ -6,11 +6,9 @@ import {
   listIssues,
   listLabels,
   listStates,
-  findStateByGroupAndName,
   updateIssue,
-  getIssue,
 } from "../plane/client.js";
-import type { PlaneProject, PlaneLabel, PlaneState } from "../plane/types.js";
+import type { PlaneProject } from "../plane/types.js";
 
 type ProjectCache = {
   project: PlaneProject;
@@ -21,13 +19,11 @@ type ProjectCache = {
   doneStateId: string | null;
 };
 
-export type TaskPoller = ReturnType<typeof createTaskPoller>;
-
-export function createTaskPoller(planeConfig: PlaneConfig, config: Config) {
+export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
   const projectCaches = new Map<string, ProjectCache>();
   const claimedIssues = new Set<string>();
 
-  async function initialize(): Promise<void> {
+  const initialize = async (): Promise<void> => {
     console.log("Initializing task poller...");
     const projects = await listProjects(planeConfig);
 
@@ -77,9 +73,9 @@ export function createTaskPoller(planeConfig: PlaneConfig, config: Config) {
     }
 
     console.log(`Task poller initialized with ${projectCaches.size} projects`);
-  }
+  };
 
-  async function pollForTasks(maxTasks: number): Promise<AgentTask[]> {
+  const pollForTasks = async (maxTasks: number): Promise<AgentTask[]> => {
     const tasks: AgentTask[] = [];
 
     for (const [identifier, cache] of projectCaches) {
@@ -116,9 +112,9 @@ export function createTaskPoller(planeConfig: PlaneConfig, config: Config) {
     }
 
     return tasks;
-  }
+  };
 
-  async function claimTask(task: AgentTask): Promise<boolean> {
+  const claimTask = async (task: AgentTask): Promise<boolean> => {
     const cache = projectCaches.get(task.projectIdentifier);
     if (!cache) return false;
 
@@ -133,15 +129,17 @@ export function createTaskPoller(planeConfig: PlaneConfig, config: Config) {
       console.error(`Failed to claim task ${task.issueId}: ${msg}`);
       return false;
     }
-  }
+  };
 
-  function releaseTask(issueId: string): void {
+  const releaseTask = (issueId: string): void => {
     claimedIssues.delete(issueId);
-  }
+  };
 
-  function getProjectCache(identifier: string): ProjectCache | undefined {
+  const getProjectCache = (identifier: string): ProjectCache | undefined => {
     return projectCaches.get(identifier.toUpperCase());
-  }
+  };
 
   return { initialize, pollForTasks, claimTask, releaseTask, getProjectCache };
-}
+};
+
+export type TaskPoller = ReturnType<typeof createTaskPoller>;

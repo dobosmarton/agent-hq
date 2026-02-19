@@ -16,6 +16,8 @@ export type ActiveAgent = {
   branchName: string;
   startedAt: number;
   status: "running" | "blocked" | "completed" | "errored";
+  costUsd?: number;
+  alertedStale?: boolean;
 };
 
 export type RunnerState = {

@@ -14,7 +14,7 @@ type McpToolsContext = {
   telegramBridge: TelegramBridge;
 };
 
-export function createAgentMcpServer(ctx: McpToolsContext) {
+export const createAgentMcpServer = (ctx: McpToolsContext) => {
   return createSdkMcpServer({
     name: "agent-plane-tools",
     tools: [
@@ -70,4 +70,4 @@ export function createAgentMcpServer(ctx: McpToolsContext) {
       ),
     ],
   });
-}
+};

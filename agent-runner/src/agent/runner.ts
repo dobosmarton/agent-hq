@@ -1,7 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PlaneConfig } from "../config.js";
 import type { Config } from "../config.js";
-import type { AgentTask, ActiveAgent } from "../types.js";
+import type { AgentTask } from "../types.js";
 import type { Notifier } from "../telegram/notifier.js";
 import type { TelegramBridge } from "../telegram/bridge.js";
 import type { TaskPoller } from "../poller/task-poller.js";
@@ -17,12 +17,16 @@ type RunnerDeps = {
   taskPoller: TaskPoller;
 };
 
-export async function runAgent(
+export type AgentResult = {
+  costUsd: number;
+};
+
+export const runAgent = async (
   task: AgentTask,
   worktreePath: string,
   branchName: string,
   deps: RunnerDeps
-): Promise<void> {
+): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
   const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
 
@@ -51,6 +55,7 @@ export async function runAgent(
   });
 
   const prompt = buildAgentPrompt(task, branchName);
+  let totalCostUsd = 0;
 
   try {
     for await (const message of query({
@@ -80,14 +85,21 @@ export async function runAgent(
       },
     })) {
       if (message.type === "result") {
+        // Extract cost if available
+        if ("total_cost_usd" in message && typeof message.total_cost_usd === "number") {
+          totalCostUsd = message.total_cost_usd;
+        }
+
         if (message.subtype === "success") {
-          console.log(`Agent ${taskDisplayId} completed successfully`);
+          console.log(
+            `Agent ${taskDisplayId} completed successfully (cost: $${totalCostUsd.toFixed(2)})`
+          );
           await deps.notifier.agentCompleted(taskDisplayId, task.title);
           await addComment(
             deps.planeConfig,
             task.projectId,
             task.issueId,
-            `<p><strong>Agent completed</strong> work on this task.</p><p>Branch <code>${branchName}</code> is ready for review.</p>`
+            `<p><strong>Agent completed</strong> work on this task.</p><p>Branch <code>${branchName}</code> is ready for review.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>`
           );
         } else {
           const errorText =
@@ -105,6 +117,8 @@ export async function runAgent(
         }
       }
     }
+
+    return { costUsd: totalCostUsd };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`Agent ${taskDisplayId} crashed: ${errorMsg}`);
@@ -117,4 +131,4 @@ export async function runAgent(
     );
     throw err;
   }
-}
+};

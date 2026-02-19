@@ -4,8 +4,9 @@ import { createAgentManager } from "./agent/manager.js";
 import { createNotifier } from "./telegram/notifier.js";
 import { createTelegramBridge } from "./telegram/bridge.js";
 import { ensureWorktreeGitignore } from "./worktree/manager.js";
+import { createStatePersistence } from "./state/persistence.js";
 
-async function main() {
+const main = async (): Promise<void> => {
   console.log("Agent Runner starting...");
 
   // Load configuration
@@ -35,6 +36,9 @@ async function main() {
   const taskPoller = createTaskPoller(planeConfig, config);
   await taskPoller.initialize();
 
+  // Initialize state persistence
+  const statePersistence = createStatePersistence("/app/state/runner-state.json");
+
   // Initialize agent manager
   const agentManager = createAgentManager({
     planeConfig,
@@ -42,14 +46,18 @@ async function main() {
     notifier,
     telegramBridge,
     taskPoller,
+    statePersistence,
   });
 
   // Start polling loop
   console.log(`Polling every ${config.agent.pollIntervalMs}ms for tasks...`);
   await notifier.sendMessage("<b>Agent Runner started</b>\nPolling for tasks...");
 
-  async function pollCycle() {
+  const pollCycle = async (): Promise<void> => {
     try {
+      // Check for stale agents
+      await agentManager.checkStaleAgents();
+
       const availableSlots = config.agent.maxConcurrent - agentManager.activeCount();
       if (availableSlots <= 0) return;
 
@@ -70,7 +78,7 @@ async function main() {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`Poll cycle error: ${msg}`);
     }
-  }
+  };
 
   // Initial poll
   await pollCycle();
@@ -79,16 +87,16 @@ async function main() {
   const pollInterval = setInterval(pollCycle, config.agent.pollIntervalMs);
 
   // Graceful shutdown
-  function shutdown() {
+  const shutdown = (): void => {
     console.log("Shutting down...");
     clearInterval(pollInterval);
     telegramBridge.stop();
     process.exit(0);
-  }
+  };
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
-}
+};
 
 main().catch((err) => {
   console.error("Fatal error:", err);

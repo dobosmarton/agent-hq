@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createServer, type Server } from "node:http";
 import type { Notifier } from "./notifier.js";
 
@@ -8,14 +9,18 @@ type PendingQuestion = {
   timeoutHandle: ReturnType<typeof setTimeout>;
 };
 
+const AnswerBodySchema = z.object({
+  answer: z.string(),
+});
+
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
 const ANSWER_PORT = 3847;
 
-export function createTelegramBridge(notifier: Notifier) {
+export const createTelegramBridge = (notifier: Notifier) => {
   const pending = new Map<string, PendingQuestion>();
   let server: Server | null = null;
 
-  function startAnswerServer(): void {
+  const startAnswerServer = (): void => {
     server = createServer(async (req, res) => {
       // POST /answers/{taskId}
       if (req.method === "POST" && req.url?.startsWith("/answers/")) {
@@ -32,7 +37,7 @@ export function createTelegramBridge(notifier: Notifier) {
         for await (const chunk of req) {
           chunks.push(chunk as Buffer);
         }
-        const body = JSON.parse(Buffer.concat(chunks).toString()) as { answer: string };
+        const body = AnswerBodySchema.parse(JSON.parse(Buffer.concat(chunks).toString()));
 
         clearTimeout(question.timeoutHandle);
         pending.delete(taskId);
@@ -57,9 +62,9 @@ export function createTelegramBridge(notifier: Notifier) {
     server.listen(ANSWER_PORT, "127.0.0.1", () => {
       console.log(`Answer server listening on http://127.0.0.1:${ANSWER_PORT}`);
     });
-  }
+  };
 
-  async function askAndWait(taskId: string, question: string): Promise<string> {
+  const askAndWait = async (taskId: string, question: string): Promise<string> => {
     const messageId = await notifier.agentBlocked(taskId, question);
 
     return new Promise<string>((resolve) => {
@@ -70,18 +75,18 @@ export function createTelegramBridge(notifier: Notifier) {
 
       pending.set(taskId, { taskId, messageId, resolve, timeoutHandle });
     });
-  }
+  };
 
-  function stop(): void {
+  const stop = (): void => {
     for (const q of pending.values()) {
       clearTimeout(q.timeoutHandle);
       q.resolve("[Agent runner shutting down]");
     }
     pending.clear();
     server?.close();
-  }
+  };
 
   return { startAnswerServer, askAndWait, stop };
-}
+};
 
 export type TelegramBridge = ReturnType<typeof createTelegramBridge>;

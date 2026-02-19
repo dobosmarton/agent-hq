@@ -1,0 +1,40 @@
+import type { Config, Env, PlaneConfig } from "../../config.js";
+
+export const makeConfig = (overrides?: Partial<Config>): Config => ({
+  plane: {
+    baseUrl: "http://localhost/api/v1",
+    workspaceSlug: "test-ws",
+  },
+  projects: {
+    HQ: {
+      repoPath: "/repos/hq",
+      repoUrl: "https://github.com/test/hq",
+      defaultBranch: "main",
+    },
+  },
+  agent: {
+    maxConcurrent: 2,
+    maxBudgetPerTask: 5,
+    maxDailyBudget: 20,
+    maxTurns: 200,
+    pollIntervalMs: 30000,
+    labelName: "agent",
+  },
+  ...overrides,
+});
+
+export const makeEnv = (overrides?: Partial<Env>): Env => ({
+  PLANE_API_KEY: "test-plane-key",
+  ANTHROPIC_API_KEY: "test-anthropic-key",
+  TELEGRAM_BOT_TOKEN: "test-bot-token",
+  TELEGRAM_CHAT_ID: "12345",
+  GITHUB_PAT: "test-github-pat",
+  ...overrides,
+});
+
+export const makePlaneConfig = (overrides?: Partial<PlaneConfig>): PlaneConfig => ({
+  apiKey: "test-api-key",
+  baseUrl: "http://localhost/api/v1",
+  workspaceSlug: "test-ws",
+  ...overrides,
+});

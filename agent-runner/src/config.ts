@@ -40,15 +40,15 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
-export function loadConfig(configPath?: string): Config {
+export const loadConfig = (configPath?: string): Config => {
   const path = configPath ?? resolve(process.cwd(), "config.json");
   const raw = readFileSync(path, "utf-8");
   return ConfigSchema.parse(JSON.parse(raw));
-}
+};
 
-export function loadEnv(): Env {
+export const loadEnv = (): Env => {
   return EnvSchema.parse(process.env);
-}
+};
 
 export type PlaneConfig = {
   apiKey: string;
@@ -56,10 +56,8 @@ export type PlaneConfig = {
   workspaceSlug: string;
 };
 
-export function buildPlaneConfig(config: Config, env: Env): PlaneConfig {
-  return {
-    apiKey: env.PLANE_API_KEY,
-    baseUrl: config.plane.baseUrl,
-    workspaceSlug: config.plane.workspaceSlug,
-  };
-}
+export const buildPlaneConfig = (config: Config, env: Env): PlaneConfig => ({
+  apiKey: env.PLANE_API_KEY,
+  baseUrl: config.plane.baseUrl,
+  workspaceSlug: config.plane.workspaceSlug,
+});
