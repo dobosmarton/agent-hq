@@ -16,6 +16,7 @@ A command center for managing multiple Claude Code agents across software projec
 ┌──────────────────────────────────────────────────┐
 │  Plane (self-hosted)          → port 80          │
 │  Observability Dashboard      → port 4080        │
+│  Agent Runner (Docker)        → polls Plane       │
 │  Telegram Bot (Docker)        → long polling      │
 └──────────────────────────────────────────────────┘
                         │
@@ -30,6 +31,7 @@ A command center for managing multiple Claude Code agents across software projec
 | Component | Tech | Purpose |
 |-----------|------|---------|
 | Task board | [Plane](https://plane.so) (self-hosted) | Kanban boards, project management |
+| Agent runner | Claude Agent SDK + Plane API | Autonomous agents that pick up tasks and work on them |
 | Agent monitoring | [Observability Dashboard](https://github.com/disler/claude-code-hooks-multi-agent-observability) | Real-time web dashboard of all agent activity |
 | Mobile access | Telegram bot + Mastra AI agent | Create/list/inspect tasks via natural language |
 | Networking | Tailscale | Private encrypted mesh between Mac and VPS |
@@ -68,11 +70,13 @@ telegram-bot/
 │   ├── bot.ts              # Entry point — grammy bot setup, auth middleware, message handler
 │   ├── types.ts            # Zod schemas for env validation and Plane API responses
 │   ├── plane.ts            # Typed Plane API client (list projects, issues, states; create issues)
+│   ├── utils.ts            # Pure utilities — extractTaskId, chunkMessage
 │   ├── agent/
 │   │   ├── index.ts        # Mastra agent setup — system prompt, memory, model config
 │   │   └── tools.ts        # Four Plane tools: list_projects, list_tasks, create_task, get_project_states
-│   └── commands/
-│       └── help.ts         # /start and /help command handlers
+│   ├── commands/
+│   │   └── help.ts         # /start and /help command handlers
+│   └── __tests__/          # Vitest unit tests (50 tests)
 ├── Dockerfile              # Multi-stage build (compile TS → run JS)
 ├── docker-compose.yml      # Docker Compose with bot-data volume for SQLite persistence
 ├── tsconfig.json           # Strict TypeScript config
@@ -120,7 +124,7 @@ npm start              # run the bot
 The bot runs as a Docker container on the VPS. CI/CD is handled by GitHub Actions (`.github/workflows/telegram-bot.yml`).
 
 **Pipeline:**
-1. **Quality** — `npm ci`, type check (`tsc --noEmit`), build (`tsc`)
+1. **Quality** — `npm ci`, formatting check, type check (`tsc --noEmit`), tests (`vitest run`), build (`tsc`)
 2. **Deploy** — SCP files to VPS, rebuild Docker container
 
 **Manual deploy:**
@@ -143,8 +147,95 @@ ssh -i ~/.ssh/<ssh-key-name> deploy@<vps-ip> "cd ~/telegram-bot && docker compos
 | `npm run build` | Compile TypeScript |
 | `npm start` | Run the compiled bot |
 | `npm run dev` | Watch mode (recompile on changes) |
+| `npm test` | Run unit tests |
+| `npm run test:watch` | Run tests in watch mode |
 | `npm run format` | Format code with Prettier |
 | `npm run format:check` | Check formatting (CI) |
+
+## Agent Runner
+
+The agent runner lives in [`agent-runner/`](./agent-runner/) and is an autonomous task execution system. It polls Plane for tasks labeled `agent`, spawns Claude Code agents to work on them, and reports progress back via Telegram.
+
+### How it works
+
+1. Polls Plane for issues with the `agent` label in configured projects
+2. Claims a task by moving it to "In Progress"
+3. Creates a git worktree with a dedicated branch (`agent/<task-id>`)
+4. Spawns a Claude Code agent (via the Agent SDK) with MCP tools for updating task status, adding comments, and asking humans questions
+5. On completion, cleans up the worktree and notifies via Telegram
+6. Manages daily budget limits to control API spend
+
+### Tech stack
+
+- **[Claude Agent SDK](https://docs.anthropic.com/en/docs/agents)** — Spawns Claude Code agents with tool use
+- **[Zod](https://zod.dev)** — Runtime config and API response validation
+- **[Vitest](https://vitest.dev)** — Unit testing (104 tests)
+- **TypeScript** — Strict mode
+
+### Project structure
+
+```
+agent-runner/
+├── src/
+│   ├── index.ts              # Entry point — config loading, polling loop, graceful shutdown
+│   ├── config.ts             # Zod schemas for config.json and environment variables
+│   ├── types.ts              # Shared type definitions
+│   ├── agent/
+│   │   ├── manager.ts        # Agent lifecycle — spawning, budget tracking, stale detection
+│   │   ├── runner.ts         # Claude Agent SDK integration — runs the agent process
+│   │   ├── mcp-tools.ts      # MCP tools: update_task_status, add_task_comment, ask_human
+│   │   └── prompt-builder.ts # Builds the system prompt for each agent
+│   ├── plane/
+│   │   ├── client.ts         # Typed Plane API client (projects, states, labels, issues, comments)
+│   │   └── types.ts          # Zod schemas for Plane API responses
+│   ├── poller/
+│   │   └── task-poller.ts    # Polls Plane for agent-labeled tasks, manages claim/release
+│   ├── state/
+│   │   └── persistence.ts    # JSON file persistence for agent state across restarts
+│   ├── telegram/
+│   │   ├── notifier.ts       # Telegram message sender (start/complete/error/blocked notifications)
+│   │   └── bridge.ts         # Human-in-the-loop — agents ask questions, humans reply via Telegram
+│   ├── worktree/
+│   │   └── manager.ts        # Git worktree creation/cleanup for isolated agent workspaces
+│   └── __tests__/            # Vitest unit tests (104 tests)
+├── config.json               # Project mappings and agent settings
+├── Dockerfile                # Multi-stage build with git support
+├── docker-compose.yml        # Docker Compose with repo volumes and state persistence
+├── entrypoint.sh             # Container entrypoint
+└── env.example               # Required environment variables
+```
+
+### Environment variables
+
+Copy `env.example` to `.env` and fill in the values:
+
+| Variable | Description |
+|----------|-------------|
+| `PLANE_API_KEY` | Plane workspace API token |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude agents |
+| `TELEGRAM_BOT_TOKEN` | Bot token (same as telegram-bot) |
+| `TELEGRAM_CHAT_ID` | Telegram chat ID for notifications |
+| `GITHUB_PAT` | GitHub PAT for git push in worktrees |
+
+### Scripts
+
+| Script | Command |
+|--------|---------|
+| `npm run build` | Compile TypeScript |
+| `npm start` | Run the compiled runner |
+| `npm run dev` | Watch mode (recompile on changes) |
+| `npm test` | Run unit tests |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run format` | Format code with Prettier |
+| `npm run format:check` | Check formatting (CI) |
+
+### Deployment
+
+The runner runs as a Docker container on the VPS. CI/CD is handled by GitHub Actions (`.github/workflows/agent-runner.yml`).
+
+**Pipeline:**
+1. **Quality** — `npm ci`, formatting check, type check (`tsc --noEmit`), tests (`vitest run`), build (`tsc`)
+2. **Deploy** — SCP files to VPS, rebuild Docker container
 
 ## VPS Services
 
@@ -154,6 +245,7 @@ All services run on a Hetzner VPS and are accessed via Tailscale private network
 |---------|------|-----|
 | Plane | 80 | `http://<tailscale-ip>` |
 | Observability Dashboard | 4080 | `http://<tailscale-ip>:4080` |
+| Agent Runner | — | Polls Plane (no incoming port) |
 | Telegram Bot | — | Long polling (no incoming port) |
 
 ### SSH access
@@ -168,6 +260,7 @@ ssh -i ~/.ssh/<ssh-key-name> deploy@<vps-ip>
 |------|----------|
 | `~/plane-selfhost/` | Plane self-hosted (Docker Compose) |
 | `~/observability/` | Observability dashboard (Docker Compose) |
+| `~/agent-runner/` | Agent runner (Docker Compose) |
 | `~/telegram-bot/` | Telegram bot (Docker Compose) |
 
 ## Planning docs
