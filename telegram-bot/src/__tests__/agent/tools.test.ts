@@ -421,7 +421,7 @@ describe("move_task_state tool", () => {
     )) as any;
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain("State \"Invalid\" not found");
+    expect(result.error).toContain('State "Invalid" not found');
     expect(result.error).toContain("Available states");
   });
 
