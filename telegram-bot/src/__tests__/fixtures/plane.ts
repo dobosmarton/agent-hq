@@ -1,4 +1,4 @@
-import type { PlaneProject, PlaneState, PlaneIssue, PlaneConfig } from "../../types.js";
+import type { PlaneProject, PlaneState, PlaneIssue, PlaneComment, PlaneConfig } from "../../types.js";
 
 export const makeProject = (overrides?: Partial<PlaneProject>): PlaneProject => ({
   id: "proj-uuid-1",
@@ -20,6 +20,25 @@ export const makeIssue = (overrides?: Partial<PlaneIssue>): PlaneIssue => ({
   priority: "high",
   state: "state-uuid-1",
   sequence_id: 42,
+  description_html: "<p>Task description</p>",
+  description: "Task description",
+  created_at: "2024-01-01T00:00:00Z",
+  updated_at: "2024-01-01T00:00:00Z",
+  project: "proj-uuid-1",
+  ...overrides,
+});
+
+export const makeComment = (overrides?: Partial<PlaneComment>): PlaneComment => ({
+  id: "comment-uuid-1",
+  comment_html: "<p>This is a comment</p>",
+  created_at: "2024-01-01T00:00:00Z",
+  updated_at: "2024-01-01T00:00:00Z",
+  created_by: "user-uuid-1",
+  actor_detail: {
+    first_name: "John",
+    last_name: "Doe",
+    display_name: "John Doe",
+  },
   ...overrides,
 });
 
