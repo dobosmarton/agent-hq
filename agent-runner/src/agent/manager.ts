@@ -1,17 +1,17 @@
 import type { Config, PlaneConfig } from "../config.js";
 import type { AgentTask, ActiveAgent, RunnerState } from "../types.js";
 import type { Notifier } from "../telegram/notifier.js";
-import type { TelegramBridge } from "../telegram/bridge.js";
 import type { TaskPoller } from "../poller/task-poller.js";
 import type { StatePersistence } from "../state/persistence.js";
 import { createWorktree, removeWorktree } from "../worktree/manager.js";
+import { listComments } from "../plane/client.js";
+import { detectPhase } from "./phase.js";
 import { runAgent } from "./runner.js";
 
 type ManagerDeps = {
   planeConfig: PlaneConfig;
   config: Config;
   notifier: Notifier;
-  telegramBridge: TelegramBridge;
   taskPoller: TaskPoller;
   statePersistence: StatePersistence;
 };
@@ -40,7 +40,6 @@ export const createAgentManager = (deps: ManagerDeps) => {
   const isTaskActive = (issueId: string): boolean => activeAgents.has(issueId);
 
   const checkBudget = (): boolean => {
-    // Reset if new day
     const currentDay = new Date().toISOString().slice(0, 10);
     if (state.dailySpendDate !== currentDay) {
       state.dailySpendUsd = 0;
@@ -57,12 +56,16 @@ export const createAgentManager = (deps: ManagerDeps) => {
     issueId: string,
     taskSlug: string,
     repoPath: string,
+    phase: "planning" | "implementation",
   ): Promise<void> => {
-    try {
-      await removeWorktree(repoPath, taskSlug);
-      console.log(`Cleaned up worktree for ${taskSlug}`);
-    } catch (err) {
-      console.error(`Failed to cleanup worktree for ${taskSlug}:`, err);
+    // Only clean up worktree for implementation phase
+    if (phase === "implementation") {
+      try {
+        await removeWorktree(repoPath, taskSlug);
+        console.log(`Cleaned up worktree for ${taskSlug}`);
+      } catch (err) {
+        console.error(`Failed to cleanup worktree for ${taskSlug}:`, err);
+      }
     }
     activeAgents.delete(issueId);
     deps.taskPoller.releaseTask(issueId);
@@ -90,33 +93,51 @@ export const createAgentManager = (deps: ManagerDeps) => {
 
     const taskSlug = `${task.projectIdentifier}-${task.sequenceId}`;
 
-    // Create worktree
-    let worktreePath: string;
+    // Fetch comments to determine phase
+    const comments = await listComments(
+      deps.planeConfig,
+      task.projectId,
+      task.issueId,
+    );
+    const phase = detectPhase(comments);
+
+    console.log(`Task ${taskSlug} detected as ${phase} phase`);
+
+    let workingDir: string;
     let branchName: string;
-    try {
-      const result = await createWorktree(
-        projectConfig.repoPath,
-        taskSlug,
-        projectConfig.defaultBranch,
-      );
-      worktreePath = result.worktreePath;
-      branchName = result.branchName;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to create worktree for ${taskSlug}: ${msg}`);
-      await deps.notifier.agentErrored(
-        taskSlug,
-        task.title,
-        `Worktree creation failed: ${msg}`,
-      );
-      deps.taskPoller.releaseTask(task.issueId);
-      return;
+
+    if (phase === "planning") {
+      // Planning runs in the repo dir directly (read-only)
+      workingDir = projectConfig.repoPath;
+      branchName = "";
+    } else {
+      // Implementation creates a worktree
+      try {
+        const result = await createWorktree(
+          projectConfig.repoPath,
+          taskSlug,
+          projectConfig.defaultBranch,
+        );
+        workingDir = result.worktreePath;
+        branchName = result.branchName;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to create worktree for ${taskSlug}: ${msg}`);
+        await deps.notifier.agentErrored(
+          taskSlug,
+          task.title,
+          `Worktree creation failed: ${msg}`,
+        );
+        deps.taskPoller.releaseTask(task.issueId);
+        return;
+      }
     }
 
     // Register as active
     const agent: ActiveAgent = {
       task,
-      worktreePath,
+      phase,
+      worktreePath: workingDir,
       branchName,
       startedAt: Date.now(),
       status: "running",
@@ -125,11 +146,10 @@ export const createAgentManager = (deps: ManagerDeps) => {
     persistState();
 
     // Run agent in background (don't await — it runs concurrently)
-    runAgent(task, worktreePath, branchName, {
+    runAgent(task, phase, workingDir, branchName, comments, {
       planeConfig: deps.planeConfig,
       config: deps.config,
       notifier: deps.notifier,
-      telegramBridge: deps.telegramBridge,
       taskPoller: deps.taskPoller,
     })
       .then(async (result) => {
@@ -140,11 +160,11 @@ export const createAgentManager = (deps: ManagerDeps) => {
         console.log(
           `Daily spend: $${state.dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}`,
         );
-        await cleanup(task.issueId, taskSlug, projectConfig.repoPath);
+        await cleanup(task.issueId, taskSlug, projectConfig.repoPath, phase);
       })
       .catch(async (err) => {
         agent.status = "errored";
-        console.error(`Agent ${taskSlug} failed:`, err);
+        console.error(`Agent ${taskSlug} (${phase}) failed:`, err);
         persistState();
         // Don't clean up worktree on error — preserve for debugging
         activeAgents.delete(task.issueId);

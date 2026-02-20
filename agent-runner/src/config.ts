@@ -33,15 +33,20 @@ export type Config = z.infer<typeof ConfigSchema>;
 const EnvSchema = z.object({
   PLANE_API_KEY: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().min(1),
-  TELEGRAM_BOT_TOKEN: z.string().min(1),
-  TELEGRAM_CHAT_ID: z.string().min(1),
+  TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  TELEGRAM_CHAT_ID: z.string().min(1).optional(),
   GITHUB_PAT: z.string().min(1),
+  CONFIG_PATH: z.string().optional(),
+  STATE_PATH: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
 
 export const loadConfig = (configPath?: string): Config => {
-  const path = configPath ?? resolve(process.cwd(), "config.json");
+  const path =
+    configPath ??
+    process.env.CONFIG_PATH ??
+    resolve(process.cwd(), "config.json");
   const raw = readFileSync(path, "utf-8");
   return ConfigSchema.parse(JSON.parse(raw));
 };

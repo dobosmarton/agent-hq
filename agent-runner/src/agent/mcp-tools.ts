@@ -1,17 +1,16 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { PlaneConfig } from "../config.js";
-import { updateIssue, addComment } from "../plane/client.js";
-import type { TelegramBridge } from "../telegram/bridge.js";
+import { updateIssue, addComment, addLink } from "../plane/client.js";
 
 type McpToolsContext = {
   planeConfig: PlaneConfig;
   projectId: string;
   issueId: string;
   taskDisplayId: string;
+  planReviewStateId: string | null;
   inReviewStateId: string | null;
   doneStateId: string | null;
-  telegramBridge: TelegramBridge;
 };
 
 export const createAgentMcpServer = (ctx: McpToolsContext) => {
@@ -20,11 +19,16 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
     tools: [
       tool(
         "update_task_status",
-        "Move the current task to a different workflow state. Use 'in_review' when work is complete and ready for human review. Use 'done' only if explicitly told the task needs no review.",
-        { state: z.enum(["in_review", "done"]) },
+        "Move the current task to a different workflow state. Use 'plan_review' after posting an implementation plan. Use 'in_review' when implementation is complete and ready for human review. Use 'done' only if explicitly told the task needs no review.",
+        { state: z.enum(["plan_review", "in_review", "done"]) },
         async ({ state }) => {
-          const stateId =
-            state === "in_review" ? ctx.inReviewStateId : ctx.doneStateId;
+          const stateMap: Record<string, string | null> = {
+            plan_review: ctx.planReviewStateId,
+            in_review: ctx.inReviewStateId,
+            done: ctx.doneStateId,
+          };
+          const stateId = stateMap[state];
+
           if (!stateId) {
             return {
               content: [
@@ -73,19 +77,26 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
       ),
 
       tool(
-        "ask_human",
-        "Ask the human operator a question via Telegram. This will block until they reply. Only use this when you genuinely need clarification — do not use it for status updates (use add_task_comment instead).",
+        "add_task_link",
+        "Add a link to the current Plane task. Use this to attach the Pull Request URL after creating a PR.",
         {
-          question: z.string().describe("The question to ask the human"),
+          title: z.string().describe("Display title for the link"),
+          url: z.string().url().describe("The URL to link"),
         },
-        async ({ question }) => {
-          const answer = await ctx.telegramBridge.askAndWait(
-            ctx.taskDisplayId,
-            question,
+        async ({ title, url }) => {
+          await addLink(
+            ctx.planeConfig,
+            ctx.projectId,
+            ctx.issueId,
+            title,
+            url,
           );
           return {
             content: [
-              { type: "text" as const, text: `Human answered: ${answer}` },
+              {
+                type: "text" as const,
+                text: `Link "${title}" added to task ${ctx.taskDisplayId}.`,
+              },
             ],
           };
         },

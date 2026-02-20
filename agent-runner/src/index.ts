@@ -1,8 +1,8 @@
+import { resolve } from "node:path";
 import { loadConfig, loadEnv, buildPlaneConfig } from "./config.js";
 import { createTaskPoller } from "./poller/task-poller.js";
 import { createAgentManager } from "./agent/manager.js";
-import { createNotifier } from "./telegram/notifier.js";
-import { createTelegramBridge } from "./telegram/bridge.js";
+import { createNotifier, createNoopNotifier } from "./telegram/notifier.js";
 import { ensureWorktreeGitignore } from "./worktree/manager.js";
 import { createStatePersistence } from "./state/persistence.js";
 
@@ -14,14 +14,14 @@ const main = async (): Promise<void> => {
   const env = loadEnv();
   const planeConfig = buildPlaneConfig(config, env);
 
-  // Initialize Telegram
-  const notifier = createNotifier({
-    botToken: env.TELEGRAM_BOT_TOKEN,
-    chatId: env.TELEGRAM_CHAT_ID,
-  });
-
-  const telegramBridge = createTelegramBridge(notifier);
-  telegramBridge.startAnswerServer();
+  // Initialize Telegram (optional — no-op when tokens missing)
+  const notifier =
+    env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID
+      ? createNotifier({
+          botToken: env.TELEGRAM_BOT_TOKEN,
+          chatId: env.TELEGRAM_CHAT_ID,
+        })
+      : createNoopNotifier();
 
   // Ensure .worktrees/ is gitignored in all repos
   for (const projectConfig of Object.values(config.projects)) {
@@ -39,16 +39,15 @@ const main = async (): Promise<void> => {
   await taskPoller.initialize();
 
   // Initialize state persistence
-  const statePersistence = createStatePersistence(
-    "/app/state/runner-state.json",
-  );
+  const statePath =
+    env.STATE_PATH ?? resolve(process.cwd(), "state/runner-state.json");
+  const statePersistence = createStatePersistence(statePath);
 
   // Initialize agent manager
   const agentManager = createAgentManager({
     planeConfig,
     config,
     notifier,
-    telegramBridge,
     taskPoller,
     statePersistence,
   });
@@ -97,7 +96,6 @@ const main = async (): Promise<void> => {
   const shutdown = (): void => {
     console.log("Shutting down...");
     clearInterval(pollInterval);
-    telegramBridge.stop();
     process.exit(0);
   };
 

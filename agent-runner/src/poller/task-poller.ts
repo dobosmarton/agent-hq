@@ -15,6 +15,7 @@ type ProjectCache = {
   agentLabelId: string;
   todoStateId: string;
   inProgressStateId: string;
+  planReviewStateId: string | null;
   inReviewStateId: string | null;
   doneStateId: string | null;
 };
@@ -54,8 +55,14 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
       const states = await listStates(planeConfig, project.id);
       const todoState = states.find((s) => s.group === "unstarted");
       const inProgressState = states.find((s) => s.group === "started");
+      const planReviewState = states.find(
+        (s) => s.group === "started" && s.name.toLowerCase().includes("plan"),
+      );
       const inReviewState = states.find(
-        (s) => s.group === "started" && s.name.toLowerCase().includes("review"),
+        (s) =>
+          s.group === "started" &&
+          s.name.toLowerCase().includes("review") &&
+          !s.name.toLowerCase().includes("plan"),
       );
       const doneState = states.find((s) => s.group === "completed");
 
@@ -69,12 +76,13 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
         agentLabelId: agentLabel.id,
         todoStateId: todoState.id,
         inProgressStateId: inProgressState.id,
+        planReviewStateId: planReviewState?.id ?? null,
         inReviewStateId: inReviewState?.id ?? null,
         doneStateId: doneState?.id ?? null,
       });
 
       console.log(
-        `Registered project ${identifier}: label=${agentLabel.name}, todo=${todoState.name}, inProgress=${inProgressState.name}`,
+        `Registered project ${identifier}: label=${agentLabel.name}, todo=${todoState.name}, inProgress=${inProgressState.name}${planReviewState ? `, planReview=${planReviewState.name}` : ""}`,
       );
     }
 
@@ -96,8 +104,11 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
           if (tasks.length >= maxTasks) break;
           if (claimedIssues.has(issue.id)) continue;
 
+          // Verify issue is actually in Todo state (API filter may be unreliable)
+          if (issue.state !== cache.todoStateId) continue;
+
           // Check if issue has the agent label
-          const hasAgentLabel = issue.label_ids.includes(cache.agentLabelId);
+          const hasAgentLabel = issue.labels.includes(cache.agentLabelId);
           if (!hasAgentLabel) continue;
 
           tasks.push({
@@ -108,7 +119,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
             title: issue.name,
             descriptionHtml: issue.description_html ?? "",
             stateId: issue.state,
-            labelIds: issue.label_ids,
+            labelIds: issue.labels,
           });
         }
       } catch (err) {

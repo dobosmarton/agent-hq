@@ -11,6 +11,7 @@ export type AgentTask = {
 
 export type ActiveAgent = {
   task: AgentTask;
+  phase: "planning" | "implementation";
   sessionId?: string;
   worktreePath: string;
   branchName: string;

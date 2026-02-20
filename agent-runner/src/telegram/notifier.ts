@@ -80,3 +80,11 @@ export const createNotifier = (config: NotifierConfig) => {
 };
 
 export type Notifier = ReturnType<typeof createNotifier>;
+
+export const createNoopNotifier = (): Notifier => ({
+  agentStarted: async () => {},
+  agentCompleted: async () => {},
+  agentErrored: async () => {},
+  agentBlocked: async () => 0,
+  sendMessage: async () => 0,
+});
