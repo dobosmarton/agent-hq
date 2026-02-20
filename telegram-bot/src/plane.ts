@@ -3,9 +3,11 @@ import {
   type PlaneProject,
   type PlaneState,
   type PlaneIssue,
+  type PlaneComment,
   PlaneProjectSchema,
   PlaneStateSchema,
   PlaneIssueSchema,
+  PlaneCommentSchema,
   PlanePaginatedSchema,
 } from "./types.js";
 
@@ -45,11 +47,22 @@ export const listStates = async (config: PlaneConfig, projectId: string): Promis
   return parsed.results;
 };
 
-export const listIssues = async (config: PlaneConfig, projectId: string): Promise<PlaneIssue[]> => {
+export const listIssues = async (
+  config: PlaneConfig,
+  projectId: string,
+  options?: { stateIds?: string[] }
+): Promise<PlaneIssue[]> => {
   const params = new URLSearchParams({
-    state_group: "backlog,unstarted,started",
     per_page: "50",
   });
+
+  // If no specific state IDs provided, use default groups
+  if (!options?.stateIds || options.stateIds.length === 0) {
+    params.set("state_group", "backlog,unstarted,started");
+  } else {
+    // Filter by specific state IDs
+    params.set("state", options.stateIds.join(","));
+  }
 
   const res = await fetch(
     `${workspaceUrl(config)}/projects/${projectId}/issues/?${params.toString()}`,
@@ -110,4 +123,141 @@ export const buildStateMap = async (
     map.set(state.id, state.name);
   }
   return map;
+};
+
+/**
+ * Parse task identifier like "VERDANDI-5" into project identifier and sequence ID
+ */
+export const parseIssueIdentifier = (
+  taskId: string
+): { projectIdentifier: string; sequenceId: number } | null => {
+  const match = taskId.match(/^([A-Z]+)-(\d+)$/i);
+  if (!match) return null;
+  return {
+    projectIdentifier: match[1]!.toUpperCase(),
+    sequenceId: parseInt(match[2]!, 10),
+  };
+};
+
+/**
+ * Find an issue by its sequence ID within a project
+ */
+export const findIssueBySequenceId = async (
+  config: PlaneConfig,
+  projectId: string,
+  sequenceId: number
+): Promise<PlaneIssue | null> => {
+  const params = new URLSearchParams({
+    per_page: "100",
+  });
+
+  const res = await fetch(
+    `${workspaceUrl(config)}/projects/${projectId}/issues/?${params.toString()}`,
+    { headers: planeHeaders(config) }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Plane API error: ${res.status} ${res.statusText}`);
+  }
+
+  const data: unknown = await res.json();
+  const parsed = PlanePaginatedSchema(PlaneIssueSchema).parse(data);
+  return parsed.results.find((issue) => issue.sequence_id === sequenceId) ?? null;
+};
+
+/**
+ * Get full details of a specific issue by ID
+ */
+export const getIssue = async (
+  config: PlaneConfig,
+  projectId: string,
+  issueId: string
+): Promise<PlaneIssue> => {
+  const res = await fetch(
+    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`,
+    { headers: planeHeaders(config) }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Plane API error: ${res.status} ${res.statusText}`);
+  }
+
+  const data: unknown = await res.json();
+  return PlaneIssueSchema.parse(data);
+};
+
+/**
+ * List comments for an issue
+ */
+export const listIssueComments = async (
+  config: PlaneConfig,
+  projectId: string,
+  issueId: string
+): Promise<PlaneComment[]> => {
+  const res = await fetch(
+    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/comments/`,
+    { headers: planeHeaders(config) }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Plane API error: ${res.status} ${res.statusText}`);
+  }
+
+  const data: unknown = await res.json();
+  const parsed = PlanePaginatedSchema(PlaneCommentSchema).parse(data);
+  return parsed.results;
+};
+
+/**
+ * Add a comment to an issue
+ */
+export const addIssueComment = async (
+  config: PlaneConfig,
+  projectId: string,
+  issueId: string,
+  commentHtml: string
+): Promise<PlaneComment> => {
+  const res = await fetch(
+    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/comments/`,
+    {
+      method: "POST",
+      headers: planeHeaders(config),
+      body: JSON.stringify({ comment_html: commentHtml }),
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Plane API error: ${res.status} ${body}`);
+  }
+
+  const data: unknown = await res.json();
+  return PlaneCommentSchema.parse(data);
+};
+
+/**
+ * Update issue state
+ */
+export const updateIssueState = async (
+  config: PlaneConfig,
+  projectId: string,
+  issueId: string,
+  stateId: string
+): Promise<PlaneIssue> => {
+  const res = await fetch(
+    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`,
+    {
+      method: "PATCH",
+      headers: planeHeaders(config),
+      body: JSON.stringify({ state: stateId }),
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Plane API error: ${res.status} ${body}`);
+  }
+
+  const data: unknown = await res.json();
+  return PlaneIssueSchema.parse(data);
 };

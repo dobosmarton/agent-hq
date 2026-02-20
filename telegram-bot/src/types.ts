@@ -45,9 +45,31 @@ export const PlaneIssueSchema = z.object({
   priority: z.string(),
   state: z.string(),
   sequence_id: z.number(),
+  description_html: z.string().optional(),
+  description: z.string().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+  project: z.string().optional(),
 });
 
 export type PlaneIssue = z.infer<typeof PlaneIssueSchema>;
+
+export const PlaneCommentSchema = z.object({
+  id: z.string(),
+  comment_html: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  created_by: z.string(),
+  actor_detail: z
+    .object({
+      first_name: z.string(),
+      last_name: z.string(),
+      display_name: z.string(),
+    })
+    .optional(),
+});
+
+export type PlaneComment = z.infer<typeof PlaneCommentSchema>;
 
 export const PlanePaginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({
