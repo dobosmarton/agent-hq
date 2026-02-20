@@ -5,11 +5,13 @@ import {
   type PlaneIssue,
   type PlaneLabel,
   type PlaneComment,
+  type PlaneLink,
   PlaneProjectSchema,
   PlaneStateSchema,
   PlaneIssueSchema,
   PlaneLabelSchema,
   PlaneCommentSchema,
+  PlaneLinkSchema,
   PlanePaginatedSchema,
 } from "./types.js";
 
@@ -195,4 +197,24 @@ export const listComments = async (
     config,
   );
   return PlanePaginatedSchema(PlaneCommentSchema).parse(data).results;
+};
+
+// --- Links ---
+
+export const addLink = async (
+  config: PlaneConfig,
+  projectId: string,
+  issueId: string,
+  title: string,
+  url: string,
+): Promise<PlaneLink> => {
+  const data = await planeRequest(
+    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/links/`,
+    config,
+    {
+      method: "POST",
+      body: JSON.stringify({ title, url }),
+    },
+  );
+  return PlaneLinkSchema.parse(data);
 };

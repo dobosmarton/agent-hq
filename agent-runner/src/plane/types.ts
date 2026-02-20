@@ -23,7 +23,7 @@ export const PlaneIssueSchema = z.object({
   state: z.string(),
   sequence_id: z.number(),
   description_html: z.string().nullable().optional(),
-  label_ids: z.array(z.string()).optional().default([]),
+  labels: z.array(z.string()).optional().default([]),
 });
 
 export type PlaneIssue = z.infer<typeof PlaneIssueSchema>;
@@ -43,6 +43,14 @@ export const PlaneCommentSchema = z.object({
 });
 
 export type PlaneComment = z.infer<typeof PlaneCommentSchema>;
+
+export const PlaneLinkSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  url: z.string(),
+});
+
+export type PlaneLink = z.infer<typeof PlaneLinkSchema>;
 
 export const PlanePaginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({
