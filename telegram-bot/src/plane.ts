@@ -173,10 +173,9 @@ export const getIssue = async (
   projectId: string,
   issueId: string
 ): Promise<PlaneIssue> => {
-  const res = await fetch(
-    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`,
-    { headers: planeHeaders(config) }
-  );
+  const res = await fetch(`${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`, {
+    headers: planeHeaders(config),
+  });
 
   if (!res.ok) {
     throw new Error(`Plane API error: ${res.status} ${res.statusText}`);
@@ -244,14 +243,11 @@ export const updateIssueState = async (
   issueId: string,
   stateId: string
 ): Promise<PlaneIssue> => {
-  const res = await fetch(
-    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`,
-    {
-      method: "PATCH",
-      headers: planeHeaders(config),
-      body: JSON.stringify({ state: stateId }),
-    }
-  );
+  const res = await fetch(`${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`, {
+    method: "PATCH",
+    headers: planeHeaders(config),
+    body: JSON.stringify({ state: stateId }),
+  });
 
   if (!res.ok) {
     const body = await res.text();
