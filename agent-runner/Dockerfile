@@ -8,8 +8,9 @@ RUN npx tsc
 FROM node:22-alpine
 WORKDIR /app
 
-# Install git for worktree operations
-RUN apk add --no-cache git
+# Install git, GitHub CLI, and Claude Code CLI
+RUN apk add --no-cache git github-cli
+RUN npm install -g @anthropic-ai/claude-code
 
 COPY package*.json ./
 RUN npm ci --omit=dev

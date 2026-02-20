@@ -4,12 +4,12 @@
     "workspaceSlug": "projects"
   },
   "projects": {
-    "HQ": {
+    "AGENTHQ": {
       "repoPath": "/repos/agent-hq",
       "repoUrl": "https://github.com/dobosmarton/agent-hq",
       "defaultBranch": "main"
     },
-    "AOE2": {
+    "AOE2AGENT": {
       "repoPath": "/repos/aoe2-agent",
       "repoUrl": "https://github.com/dobosmarton/aoe2-agent",
       "defaultBranch": "main"

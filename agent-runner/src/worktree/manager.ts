@@ -23,8 +23,29 @@ export const createWorktree = async (
   const branchName = `agent/${taskSlug}`;
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
 
-  // Fetch latest from origin
+  // Fetch and pull latest main
   await git(repoPath, ["fetch", "origin", defaultBranch]);
+  await git(repoPath, ["pull", "origin", defaultBranch]);
+
+  // If worktree already exists, someone is working on this task
+  if (existsSync(wtPath)) {
+    throw new Error(
+      `Worktree already exists at ${wtPath} — task is already in progress`,
+    );
+  }
+
+  // If branch already exists, task is being worked on (or PR not yet merged)
+  try {
+    await git(repoPath, ["rev-parse", "--verify", branchName]);
+    throw new Error(
+      `Branch ${branchName} already exists — task is already in progress`,
+    );
+  } catch (err) {
+    // rev-parse throws if branch doesn't exist — that's the happy path
+    if (err instanceof Error && err.message.includes("already in progress")) {
+      throw err;
+    }
+  }
 
   // Create worktree with new branch based on origin/main
   await git(repoPath, [
@@ -44,7 +65,6 @@ export const removeWorktree = async (
   taskSlug: string,
 ): Promise<void> => {
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
-  const branchName = `agent/${taskSlug}`;
 
   try {
     await git(repoPath, ["worktree", "remove", wtPath, "--force"]);
@@ -52,11 +72,7 @@ export const removeWorktree = async (
     // Worktree might already be removed
   }
 
-  try {
-    await git(repoPath, ["branch", "-D", branchName]);
-  } catch {
-    // Branch might already be deleted
-  }
+  // Never delete branches — they are cleaned up after PR merge on the remote
 };
 
 export const listWorktrees = async (repoPath: string): Promise<string[]> => {
