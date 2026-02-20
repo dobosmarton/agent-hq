@@ -153,6 +153,11 @@ export const runAgent = async (
             `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`,
           );
         }
+
+        // Return immediately after processing the result message.
+        // The Claude Code process may exit with a non-zero code after
+        // yielding the result, which would throw if we continue iterating.
+        return { costUsd: totalCostUsd };
       }
     }
 
