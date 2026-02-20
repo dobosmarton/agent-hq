@@ -7,6 +7,9 @@ if [ -n "$GITHUB_PAT" ]; then
   export GH_TOKEN="$GITHUB_PAT"
 fi
 
+# Trust mounted repo directories (ownership differs between host and container)
+git config --global --add safe.directory '*'
+
 # Use the user's identity for git commits
 git config --global user.name "${GIT_USER_NAME:-Marton Dobos}"
 git config --global user.email "${GIT_USER_EMAIL:-martondobos92@gmail.com}"
