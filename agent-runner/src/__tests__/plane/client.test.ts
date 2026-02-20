@@ -23,6 +23,7 @@ import {
   listIssues,
   updateIssue,
   addComment,
+  addLink,
 } from "../../plane/client.js";
 
 const config = makePlaneConfig();
@@ -244,5 +245,34 @@ describe("addComment", () => {
 
     const result = await addComment(config, "proj-1", "issue-1", "<p>Hi</p>");
     expect(result.id).toBe("c-1");
+  });
+});
+
+describe("addLink", () => {
+  it("sends POST with title and url body", async () => {
+    mockOk({ id: "link-1", title: "PR", url: "https://github.com/pr/1" });
+    await addLink(config, "proj-1", "issue-1", "PR", "https://github.com/pr/1");
+
+    const [url, init] = mockFetch.mock.calls[0]!;
+    expect(url).toContain("/issues/issue-1/links/");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({
+      title: "PR",
+      url: "https://github.com/pr/1",
+    });
+  });
+
+  it("returns parsed link", async () => {
+    mockOk({ id: "link-1", title: "PR", url: "https://github.com/pr/1" });
+
+    const result = await addLink(
+      config,
+      "proj-1",
+      "issue-1",
+      "PR",
+      "https://github.com/pr/1",
+    );
+    expect(result.id).toBe("link-1");
+    expect(result.url).toBe("https://github.com/pr/1");
   });
 });

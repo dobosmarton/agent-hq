@@ -29,7 +29,7 @@ export const makeIssue = (overrides?: Partial<PlaneIssue>): PlaneIssue => ({
   state: "state-uuid-1",
   sequence_id: 42,
   description_html: "<p>Fix it</p>",
-  label_ids: ["label-uuid-1"],
+  labels: ["label-uuid-1"],
   ...overrides,
 });
 

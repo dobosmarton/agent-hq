@@ -137,6 +137,39 @@ describe("initialize", () => {
     const cache = poller.getProjectCache("HQ");
     expect(cache?.inReviewStateId).toBeNull();
   });
+
+  it("finds plan_review state when present", async () => {
+    const project = makeProject({ id: "proj-1", identifier: "HQ" });
+    mockedListProjects.mockResolvedValue([project]);
+    mockedListLabels.mockResolvedValue([makeLabel({ name: "agent" })]);
+    mockedListStates.mockResolvedValue([
+      makeState({ id: "todo", group: "unstarted", name: "Todo" }),
+      makeState({ id: "ip", group: "started", name: "In Progress" }),
+      makeState({ id: "plan-review", group: "started", name: "Plan Review" }),
+      makeState({ id: "review", group: "started", name: "In Review" }),
+      makeState({ id: "done", group: "completed", name: "Done" }),
+    ]);
+
+    const config = makeConfig();
+    const poller = createTaskPoller(planeConfig, config);
+
+    await poller.initialize();
+
+    const cache = poller.getProjectCache("HQ");
+    expect(cache?.planReviewStateId).toBe("plan-review");
+    expect(cache?.inReviewStateId).toBe("review");
+  });
+
+  it("sets planReviewStateId to null when no plan review state", async () => {
+    setupValidProject(); // no plan review state in default setup
+    const config = makeConfig();
+    const poller = createTaskPoller(planeConfig, config);
+
+    await poller.initialize();
+
+    const cache = poller.getProjectCache("HQ");
+    expect(cache?.planReviewStateId).toBeNull();
+  });
 });
 
 describe("pollForTasks", () => {
@@ -147,7 +180,7 @@ describe("pollForTasks", () => {
     await poller.initialize();
 
     mockedListIssues.mockResolvedValue([
-      makeIssue({ id: "i1", label_ids: ["label-1"], state: "todo-state" }),
+      makeIssue({ id: "i1", labels: ["label-1"], state: "todo-state" }),
     ]);
 
     const tasks = await poller.pollForTasks(10);
@@ -162,7 +195,25 @@ describe("pollForTasks", () => {
     await poller.initialize();
 
     mockedListIssues.mockResolvedValue([
-      makeIssue({ id: "i1", label_ids: ["other-label"] }),
+      makeIssue({ id: "i1", labels: ["other-label"] }),
+    ]);
+
+    const tasks = await poller.pollForTasks(10);
+    expect(tasks).toHaveLength(0);
+  });
+
+  it("skips issues not in todo state", async () => {
+    setupValidProject();
+    const config = makeConfig();
+    const poller = createTaskPoller(planeConfig, config);
+    await poller.initialize();
+
+    mockedListIssues.mockResolvedValue([
+      makeIssue({
+        id: "i1",
+        labels: ["label-1"],
+        state: "plan-review-state", // Not todoStateId
+      }),
     ]);
 
     const tasks = await poller.pollForTasks(10);
@@ -175,7 +226,7 @@ describe("pollForTasks", () => {
     const poller = createTaskPoller(planeConfig, config);
     await poller.initialize();
 
-    const issue = makeIssue({ id: "i1", label_ids: ["label-1"] });
+    const issue = makeIssue({ id: "i1", labels: ["label-1"] });
     mockedListIssues.mockResolvedValue([issue]);
     mockedUpdateIssue.mockResolvedValue(issue);
 
@@ -202,9 +253,19 @@ describe("pollForTasks", () => {
     await poller.initialize();
 
     mockedListIssues.mockResolvedValue([
-      makeIssue({ id: "i1", label_ids: ["label-1"] }),
-      makeIssue({ id: "i2", label_ids: ["label-1"], sequence_id: 43 }),
-      makeIssue({ id: "i3", label_ids: ["label-1"], sequence_id: 44 }),
+      makeIssue({ id: "i1", labels: ["label-1"], state: "todo-state" }),
+      makeIssue({
+        id: "i2",
+        labels: ["label-1"],
+        state: "todo-state",
+        sequence_id: 43,
+      }),
+      makeIssue({
+        id: "i3",
+        labels: ["label-1"],
+        state: "todo-state",
+        sequence_id: 44,
+      }),
     ]);
 
     const tasks = await poller.pollForTasks(1);
@@ -249,7 +310,7 @@ describe("pollForTasks", () => {
     mockedListIssues
       .mockRejectedValueOnce(new Error("API error"))
       .mockResolvedValueOnce([
-        makeIssue({ id: "i2", label_ids: ["label-uuid-1"] }),
+        makeIssue({ id: "i2", labels: ["label-uuid-1"], state: "todo" }),
       ]);
 
     const tasks = await poller.pollForTasks(10);
@@ -336,7 +397,11 @@ describe("releaseTask", () => {
     const poller = createTaskPoller(planeConfig, config);
     await poller.initialize();
 
-    const issue = makeIssue({ id: "i1", label_ids: ["label-1"] });
+    const issue = makeIssue({
+      id: "i1",
+      labels: ["label-1"],
+      state: "todo-state",
+    });
     mockedUpdateIssue.mockResolvedValue(issue);
 
     const task = {

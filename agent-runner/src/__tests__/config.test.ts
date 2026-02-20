@@ -98,8 +98,6 @@ describe("loadEnv", () => {
     const original = { ...process.env };
     process.env.PLANE_API_KEY = "key";
     process.env.ANTHROPIC_API_KEY = "akey";
-    process.env.TELEGRAM_BOT_TOKEN = "token";
-    process.env.TELEGRAM_CHAT_ID = "123";
     process.env.GITHUB_PAT = "pat";
 
     const env = loadEnv();
@@ -109,12 +107,40 @@ describe("loadEnv", () => {
     process.env = original;
   });
 
+  it("parses optional Telegram env vars when present", () => {
+    const original = { ...process.env };
+    process.env.PLANE_API_KEY = "key";
+    process.env.ANTHROPIC_API_KEY = "akey";
+    process.env.GITHUB_PAT = "pat";
+    process.env.TELEGRAM_BOT_TOKEN = "token";
+    process.env.TELEGRAM_CHAT_ID = "123";
+
+    const env = loadEnv();
+    expect(env.TELEGRAM_BOT_TOKEN).toBe("token");
+    expect(env.TELEGRAM_CHAT_ID).toBe("123");
+
+    process.env = original;
+  });
+
+  it("succeeds without Telegram env vars", () => {
+    const original = { ...process.env };
+    process.env.PLANE_API_KEY = "key";
+    process.env.ANTHROPIC_API_KEY = "akey";
+    process.env.GITHUB_PAT = "pat";
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+
+    const env = loadEnv();
+    expect(env.TELEGRAM_BOT_TOKEN).toBeUndefined();
+    expect(env.TELEGRAM_CHAT_ID).toBeUndefined();
+
+    process.env = original;
+  });
+
   it("throws on missing required field", () => {
     const original = { ...process.env };
     delete process.env.PLANE_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.TELEGRAM_BOT_TOKEN;
-    delete process.env.TELEGRAM_CHAT_ID;
     delete process.env.GITHUB_PAT;
 
     expect(() => loadEnv()).toThrow();

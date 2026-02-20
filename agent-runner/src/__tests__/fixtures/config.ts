@@ -26,8 +26,6 @@ export const makeConfig = (overrides?: Partial<Config>): Config => ({
 export const makeEnv = (overrides?: Partial<Env>): Env => ({
   PLANE_API_KEY: "test-plane-key",
   ANTHROPIC_API_KEY: "test-anthropic-key",
-  TELEGRAM_BOT_TOKEN: "test-bot-token",
-  TELEGRAM_CHAT_ID: "12345",
   GITHUB_PAT: "test-github-pat",
   ...overrides,
 });

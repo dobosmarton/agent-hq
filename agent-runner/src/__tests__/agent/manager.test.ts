@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Notifier } from "../../telegram/notifier.js";
-import type { TelegramBridge } from "../../telegram/bridge.js";
 import type { TaskPoller } from "../../poller/task-poller.js";
 import type { StatePersistence } from "../../state/persistence.js";
 import type { AgentTask, RunnerState } from "../../types.js";
 import { makeConfig, makePlaneConfig } from "../fixtures/config.js";
+import { PLAN_MARKER } from "../../agent/phase.js";
 
 vi.mock("../../worktree/manager.js", () => ({
   createWorktree: vi.fn(),
@@ -15,13 +15,21 @@ vi.mock("../../agent/runner.js", () => ({
   runAgent: vi.fn(),
 }));
 
+vi.mock("../../plane/client.js", () => ({
+  listComments: vi.fn(),
+  addComment: vi.fn(),
+  updateIssue: vi.fn(),
+}));
+
 import { createWorktree, removeWorktree } from "../../worktree/manager.js";
 import { runAgent } from "../../agent/runner.js";
+import { listComments } from "../../plane/client.js";
 import { createAgentManager } from "../../agent/manager.js";
 
 const mockedCreateWorktree = vi.mocked(createWorktree);
 const mockedRemoveWorktree = vi.mocked(removeWorktree);
 const mockedRunAgent = vi.mocked(runAgent);
+const mockedListComments = vi.mocked(listComments);
 
 const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
   issueId: "issue-1",
@@ -41,12 +49,6 @@ const makeNotifier = (): Notifier => ({
   agentCompleted: vi.fn().mockResolvedValue(undefined),
   agentErrored: vi.fn().mockResolvedValue(undefined),
   agentBlocked: vi.fn().mockResolvedValue(42),
-});
-
-const makeBridge = (): TelegramBridge => ({
-  startAnswerServer: vi.fn(),
-  askAndWait: vi.fn().mockResolvedValue("answer"),
-  stop: vi.fn(),
 });
 
 const makeTaskPoller = (): TaskPoller => ({
@@ -74,13 +76,14 @@ const makeDeps = (overrides?: {
   planeConfig: makePlaneConfig(),
   config: makeConfig(),
   notifier: overrides?.notifier ?? makeNotifier(),
-  telegramBridge: makeBridge(),
   taskPoller: makeTaskPoller(),
   statePersistence: overrides?.persistence ?? makePersistence(),
 });
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Default: no comments (planning phase)
+  mockedListComments.mockResolvedValue([]);
 });
 
 describe("budget checking", () => {
@@ -123,10 +126,6 @@ describe("budget checking", () => {
       dailySpendDate: "2020-01-01", // old date
     });
     const deps = makeDeps({ persistence });
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
 
     const manager = createAgentManager(deps);
@@ -134,6 +133,64 @@ describe("budget checking", () => {
     await manager.spawnAgent(makeTask());
 
     expect(mockedRunAgent).toHaveBeenCalled();
+  });
+});
+
+describe("phase detection", () => {
+  it("runs planning phase when no plan comment exists", async () => {
+    const deps = makeDeps();
+    mockedListComments.mockResolvedValue([]);
+    mockedRunAgent.mockReturnValue(new Promise(() => {}));
+
+    const manager = createAgentManager(deps);
+    await manager.spawnAgent(makeTask());
+
+    // Planning phase: should NOT create worktree
+    expect(mockedCreateWorktree).not.toHaveBeenCalled();
+    // Should call runAgent with "planning" phase
+    expect(mockedRunAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      "planning",
+      "/repos/hq", // repo path directly
+      "",
+      [],
+      expect.anything(),
+    );
+  });
+
+  it("runs implementation phase when plan comment exists", async () => {
+    const deps = makeDeps();
+    mockedListComments.mockResolvedValue([
+      {
+        id: "c1",
+        comment_html: `${PLAN_MARKER}<h2>Plan</h2>`,
+        created_at: "2026-02-19T10:00:00Z",
+      },
+    ]);
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
+    mockedRunAgent.mockReturnValue(new Promise(() => {}));
+
+    const manager = createAgentManager(deps);
+    await manager.spawnAgent(makeTask());
+
+    // Implementation phase: should create worktree
+    expect(mockedCreateWorktree).toHaveBeenCalled();
+    // Should call runAgent with "implementation" phase
+    expect(mockedRunAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      "implementation",
+      "/wt",
+      "agent/HQ-42",
+      expect.arrayContaining([
+        expect.objectContaining({
+          comment_html: expect.stringContaining(PLAN_MARKER),
+        }),
+      ]),
+      expect.anything(),
+    );
   });
 });
 
@@ -148,9 +205,16 @@ describe("spawnAgent", () => {
     expect(mockedRunAgent).not.toHaveBeenCalled();
   });
 
-  it("handles worktree creation failure", async () => {
+  it("handles worktree creation failure in implementation phase", async () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
+    mockedListComments.mockResolvedValue([
+      {
+        id: "c1",
+        comment_html: `${PLAN_MARKER}<h2>Plan</h2>`,
+        created_at: "2026-02-19T10:00:00Z",
+      },
+    ]);
     mockedCreateWorktree.mockRejectedValue(new Error("git error"));
 
     const manager = createAgentManager(deps);
@@ -167,10 +231,6 @@ describe("spawnAgent", () => {
 
   it("registers agent as active on successful spawn", async () => {
     const deps = makeDeps();
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockReturnValue(new Promise(() => {})); // never resolves
 
     const manager = createAgentManager(deps);
@@ -182,10 +242,6 @@ describe("spawnAgent", () => {
 
   it("persists state after registering agent", async () => {
     const deps = makeDeps();
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
@@ -201,19 +257,12 @@ describe("spawnAgent", () => {
       resolveAgent = r;
     });
 
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockReturnValue(agentPromise);
-    mockedRemoveWorktree.mockResolvedValue(undefined);
 
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    // Resolve the agent
     resolveAgent!({ costUsd: 2.5 });
-    // Wait for .then() chain
     await new Promise((r) => setTimeout(r, 10));
 
     expect(manager.getDailySpend()).toBe(2.5);
@@ -226,6 +275,13 @@ describe("spawnAgent", () => {
       rejectAgent = rej;
     });
 
+    mockedListComments.mockResolvedValue([
+      {
+        id: "c1",
+        comment_html: `${PLAN_MARKER}<h2>Plan</h2>`,
+        created_at: "2026-02-19T10:00:00Z",
+      },
+    ]);
     mockedCreateWorktree.mockResolvedValue({
       worktreePath: "/wt",
       branchName: "agent/HQ-42",
@@ -248,10 +304,6 @@ describe("checkStaleAgents", () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
 
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
@@ -259,7 +311,6 @@ describe("checkStaleAgents", () => {
 
     await manager.checkStaleAgents();
 
-    // sendMessage should not be called for stale (only for other reasons)
     const staleCalls = vi
       .mocked(notifier.sendMessage)
       .mock.calls.filter((call) => String(call[0]).includes("Stale agent"));
@@ -270,16 +321,11 @@ describe("checkStaleAgents", () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
 
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    // Manually set startedAt to 7 hours ago
     const agents = manager.getActiveAgents();
     agents[0]!.startedAt = Date.now() - 7 * 60 * 60 * 1000;
 
@@ -294,10 +340,6 @@ describe("checkStaleAgents", () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
 
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
@@ -319,12 +361,7 @@ describe("checkStaleAgents", () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
 
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
-    mockedRemoveWorktree.mockResolvedValue(undefined);
 
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
