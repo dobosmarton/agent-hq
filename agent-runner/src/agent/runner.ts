@@ -91,7 +91,7 @@ export const runAgent = async (
   // Phase-specific settings
   const maxTurns = phase === "planning" ? 50 : deps.config.agent.maxTurns;
   const maxBudgetUsd =
-    phase === "planning" ? 1.0 : deps.config.agent.maxBudgetPerTask;
+    phase === "planning" ? 2.0 : deps.config.agent.maxBudgetPerTask;
   const allowedTools =
     phase === "planning" ? PLANNING_TOOLS : IMPLEMENTATION_TOOLS;
   const permissionMode = phase === "planning" ? "plan" : "acceptEdits";
@@ -134,12 +134,15 @@ export const runAgent = async (
             `<p><strong>Agent completed ${phaseLabel}</strong>.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`,
           );
         } else {
-          const errorText =
+          const errors =
             "errors" in message && Array.isArray(message.errors)
               ? message.errors.join(", ")
-              : "Unknown error";
+              : "";
+          const errorText =
+            errors ||
+            `result subtype: ${message.subtype}, cost: $${totalCostUsd.toFixed(2)}`;
           console.error(
-            `Agent ${taskDisplayId} (${phase}) ended with error: ${errorText}`,
+            `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${message.subtype}): ${errorText}`,
           );
           await deps.notifier.agentErrored(
             taskDisplayId,
