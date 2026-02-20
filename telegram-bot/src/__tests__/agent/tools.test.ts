@@ -87,10 +87,10 @@ describe("list_tasks tool", () => {
   it("formats task IDs as IDENT-seqId", async () => {
     const project = makeProject({ identifier: "HQ" });
     mockedFindProject.mockResolvedValue(project);
+    mockedListStates.mockResolvedValue([makeState({ id: "s1", name: "Todo" })]);
     mockedListIssues.mockResolvedValue([
       makeIssue({ sequence_id: 42, name: "Fix bug", state: "s1", priority: "high" }),
     ]);
-    mockedBuildStateMap.mockResolvedValue(new Map([["s1", "Todo"]]));
 
     const tools = createPlaneTools(config);
     const result = (await tools.listTasks.execute!(
@@ -105,8 +105,8 @@ describe("list_tasks tool", () => {
 
   it("uses 'Unknown' for missing state", async () => {
     mockedFindProject.mockResolvedValue(makeProject());
+    mockedListStates.mockResolvedValue([]);
     mockedListIssues.mockResolvedValue([makeIssue({ state: "unknown-state" })]);
-    mockedBuildStateMap.mockResolvedValue(new Map());
 
     const tools = createPlaneTools(config);
     const result = (await tools.listTasks.execute!(
