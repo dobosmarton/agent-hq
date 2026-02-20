@@ -94,10 +94,11 @@ ${commentsSection || "<p>No previous comments.</p>"}
    npx prettier --check . && npx tsc --noEmit && npm test && npx tsc
    \`\`\`
    Do NOT create the PR if any check fails — fix the issues first.
-9. After all checks pass, create a Pull Request:
-   gh pr create --title "${taskId}: <concise summary>" --body "<description including decisions made and any open questions>"
-10. Add the PR URL as a link on the task using the add_task_link tool with the title "Pull Request" and the PR URL
-11. Use update_task_status with state "in_review" to mark the task as complete
+9. Update documentation: review and update any relevant documentation (README.md, CLAUDE.md, inline docs) to reflect the changes you made. Keep docs accurate and in sync with the code.
+10. After all checks pass, create a Pull Request:
+    gh pr create --title "${taskId}: <concise summary>" --body "<description including decisions made and any open questions>"
+11. Add the PR URL as a link on the task using the add_task_link tool with the title "Pull Request" and the PR URL
+12. Use update_task_status with state "in_review" to mark the task as complete
 
 ## Git Workflow
 - You are on branch \`${branchName}\`
