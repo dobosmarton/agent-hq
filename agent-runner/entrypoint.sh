@@ -14,4 +14,4 @@ git config --global --add safe.directory '*'
 git config --global user.name "${GIT_USER_NAME:-Marton Dobos}"
 git config --global user.email "${GIT_USER_EMAIL:-martondobos92@gmail.com}"
 
-exec node dist/index.js
+exec npx tsx src/index.ts

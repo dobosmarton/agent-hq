@@ -37,22 +37,25 @@ const IMPLEMENTATION_TOOLS = [
   "Read",
   "Write",
   "Edit",
-  "Bash(npm run *)",
-  "Bash(npm test*)",
-  "Bash(npm install*)",
-  "Bash(npx prettier*)",
-  "Bash(npx tsc*)",
-  "Bash(git *)",
-  "Bash(gh *)",
-  "Bash(ls *)",
-  "Bash(cat *)",
-  "Bash(mkdir *)",
+  "Bash",
   "Glob",
   "Grep",
   "Task",
   "mcp__agent-plane-tools__update_task_status",
   "mcp__agent-plane-tools__add_task_comment",
   "mcp__agent-plane-tools__add_task_link",
+];
+
+// Blocklist for destructive commands — takes precedence over allowedTools
+const DISALLOWED_TOOLS = [
+  "Bash(rm -rf *)",
+  "Bash(git push --force*)",
+  "Bash(git reset --hard*)",
+  "Bash(git clean -f*)",
+  "Bash(docker *)",
+  "Bash(curl *)",
+  "Bash(wget *)",
+  "Bash(sudo *)",
 ];
 
 export const runAgent = async (
@@ -116,6 +119,7 @@ export const runAgent = async (
         maxTurns,
         maxBudgetUsd,
         allowedTools,
+        disallowedTools: phase === "implementation" ? DISALLOWED_TOOLS : [],
         mcpServers: {
           "agent-plane-tools": mcpServer,
         },
