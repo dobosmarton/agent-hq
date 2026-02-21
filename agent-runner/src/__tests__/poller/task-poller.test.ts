@@ -1,14 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makeConfig, makePlaneConfig } from "../fixtures/config.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeConfig, makePlaneConfig } from "../fixtures/config";
 import {
-  makeProject,
-  makeState,
   makeIssue,
   makeLabel,
-  paginate,
-} from "../fixtures/plane.js";
+  makeProject,
+  makeState,
+} from "../fixtures/plane";
 
-vi.mock("../../plane/client.js", () => ({
+vi.mock("../../plane/client", () => ({
   listProjects: vi.fn(),
   listLabels: vi.fn(),
   listStates: vi.fn(),
@@ -17,13 +16,13 @@ vi.mock("../../plane/client.js", () => ({
 }));
 
 import {
-  listProjects,
-  listLabels,
-  listStates,
   listIssues,
+  listLabels,
+  listProjects,
+  listStates,
   updateIssue,
-} from "../../plane/client.js";
-import { createTaskPoller } from "../../poller/task-poller.js";
+} from "../../plane/client";
+import { createTaskPoller } from "../../poller/task-poller";
 
 const mockedListProjects = vi.mocked(listProjects);
 const mockedListLabels = vi.mocked(listLabels);

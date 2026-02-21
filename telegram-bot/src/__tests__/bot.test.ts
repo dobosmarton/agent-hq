@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { extractTaskId, chunkMessage } from "../utils.js";
+import { describe, expect, it } from "vitest";
+import { chunkMessage, extractTaskId } from "../utils";
 
 describe("extractTaskId", () => {
   it("extracts standard task ID", () => {

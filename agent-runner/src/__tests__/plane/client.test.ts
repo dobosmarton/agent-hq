@@ -1,30 +1,29 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makePlaneConfig } from "../fixtures/config.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makePlaneConfig } from "../fixtures/config";
 import {
-  makeProject,
-  makeState,
+  makeComment,
   makeIssue,
   makeLabel,
-  makeComment,
+  makeProject,
+  makeState,
   paginate,
-} from "../fixtures/plane.js";
+} from "../fixtures/plane";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
 import {
-  listProjects,
-  findProjectByIdentifier,
-  listStates,
-  buildStateMap,
-  findStateByGroupAndName,
-  listLabels,
-  findLabelByName,
-  listIssues,
-  updateIssue,
   addComment,
   addLink,
-} from "../../plane/client.js";
+  buildStateMap,
+  findLabelByName,
+  findProjectByIdentifier,
+  findStateByGroupAndName,
+  listIssues,
+  listProjects,
+  listStates,
+  updateIssue,
+} from "../../plane/client";
 
 const config = makePlaneConfig();
 

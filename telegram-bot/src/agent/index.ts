@@ -1,8 +1,8 @@
 import { Agent } from "@mastra/core/agent";
-import { Memory } from "@mastra/memory";
 import { LibSQLStore } from "@mastra/libsql";
-import type { PlaneConfig } from "../types.js";
-import { createPlaneTools } from "./tools.js";
+import { Memory } from "@mastra/memory";
+import type { PlaneConfig } from "../types";
+import { createPlaneTools, createRunnerTools } from "./tools";
 
 const SYSTEM_PROMPT = `You are a project management assistant integrated with Plane (a project tracking tool) via Telegram. You help manage tasks across multiple software projects.
 
@@ -17,6 +17,8 @@ You can:
 - Move tasks between workflow states
 - Add labels to tasks
 - Remove labels from tasks
+- Check agent queue status (running agents, queued tasks, daily spend)
+- Remove tasks from the agent queue
 
 ## Natural Language Understanding
 Users will ask questions in natural language. Examples:
@@ -26,6 +28,8 @@ Users will ask questions in natural language. Examples:
 - "Move STYLESWIPE-12 to Done" → Use move_task_state
 - "Add the agent label to VERDANDI-5" → Use add_labels_to_task
 - "Remove the bug label from HQ-42" → Use remove_labels_from_task
+- "What's in the agent queue?" → Use agent_queue_status
+- "Remove that task from the queue" → Use remove_from_agent_queue
 
 Parse user intent and call the appropriate tools. Be flexible with phrasing.
 
@@ -86,7 +90,13 @@ const DB_URL = process.env.BOT_DATA_DIR
   ? `file:${process.env.BOT_DATA_DIR}/memory.db`
   : "file:./data/memory.db";
 
-export const createAgentHQ = (planeConfig: PlaneConfig, model: string): Agent => {
+type AgentHQOptions = {
+  planeConfig: PlaneConfig;
+  model: string;
+  agentRunnerUrl?: string;
+};
+
+export const createAgentHQ = (options: AgentHQOptions): Agent => {
   const memory = new Memory({
     storage: new LibSQLStore({
       id: "agent-hq-memory",
@@ -97,13 +107,15 @@ export const createAgentHQ = (planeConfig: PlaneConfig, model: string): Agent =>
     },
   });
 
-  const tools = createPlaneTools(planeConfig);
+  const planeTools = createPlaneTools(options.planeConfig);
+  const runnerTools = options.agentRunnerUrl ? createRunnerTools(options.agentRunnerUrl) : {};
+  const tools = { ...planeTools, ...runnerTools };
 
   return new Agent({
     id: "agent-hq",
     name: "Agent HQ",
     instructions: SYSTEM_PROMPT,
-    model,
+    model: options.model,
     tools,
     memory,
   });

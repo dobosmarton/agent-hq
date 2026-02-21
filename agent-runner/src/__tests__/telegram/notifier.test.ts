@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-import { createNotifier } from "../../telegram/notifier.js";
+import { createNotifier } from "../../telegram/notifier";
 
 const notifier = createNotifier({ botToken: "tok123", chatId: "chat456" });
 

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTelegramBridge } from "../../telegram/bridge.js";
-import type { Notifier } from "../../telegram/notifier.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTelegramBridge } from "../../telegram/bridge";
+import type { Notifier } from "../../telegram/notifier";
 
 const createMockNotifier = (): Notifier => ({
   sendMessage: vi.fn().mockResolvedValue(0),
@@ -21,7 +21,7 @@ describe("askAndWait (fake timers)", () => {
 
   it("calls notifier.agentBlocked with taskId and question", async () => {
     const notifier = createMockNotifier();
-    const bridge = createTelegramBridge(notifier);
+    const bridge = createTelegramBridge({ notifier });
     const promise = bridge.askAndWait("HQ-42", "What DB?");
 
     expect(notifier.agentBlocked).toHaveBeenCalledWith("HQ-42", "What DB?");
@@ -34,7 +34,7 @@ describe("askAndWait (fake timers)", () => {
 
   it("resolves with timeout message after 2 hours", async () => {
     const notifier = createMockNotifier();
-    const bridge = createTelegramBridge(notifier);
+    const bridge = createTelegramBridge({ notifier });
     const promise = bridge.askAndWait("HQ-42", "What DB?");
 
     await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
@@ -48,7 +48,7 @@ describe("askAndWait (fake timers)", () => {
 
   it("resolves all pending questions with shutdown message on stop", async () => {
     const notifier = createMockNotifier();
-    const bridge = createTelegramBridge(notifier);
+    const bridge = createTelegramBridge({ notifier });
 
     const promise1 = bridge.askAndWait("HQ-1", "Q1");
     const promise2 = bridge.askAndWait("HQ-2", "Q2");
@@ -67,7 +67,7 @@ describe("askAndWait (fake timers)", () => {
 describe("HTTP answer server", () => {
   it("resolves pending question when POST /answers/{taskId} received", async () => {
     const notifier = createMockNotifier();
-    const bridge = createTelegramBridge(notifier);
+    const bridge = createTelegramBridge({ notifier });
     bridge.startAnswerServer();
 
     // Small delay to let server start
@@ -91,7 +91,7 @@ describe("HTTP answer server", () => {
 
   it("returns 404 for unknown taskId", async () => {
     const notifier = createMockNotifier();
-    const bridge = createTelegramBridge(notifier);
+    const bridge = createTelegramBridge({ notifier });
     bridge.startAnswerServer();
     await new Promise((r) => setTimeout(r, 50));
 
@@ -107,7 +107,7 @@ describe("HTTP answer server", () => {
 
   it("GET /health returns status", async () => {
     const notifier = createMockNotifier();
-    const bridge = createTelegramBridge(notifier);
+    const bridge = createTelegramBridge({ notifier });
     bridge.startAnswerServer();
     await new Promise((r) => setTimeout(r, 50));
 

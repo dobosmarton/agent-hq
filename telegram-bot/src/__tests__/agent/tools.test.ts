@@ -1,13 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  makeProject,
-  makeIssue,
-  makeState,
-  makeComment,
-  makePlaneConfig,
-} from "../fixtures/plane.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeComment, makeIssue, makePlaneConfig, makeProject, makeState } from "../fixtures/plane";
 
-vi.mock("../../plane.js", () => ({
+vi.mock("../../plane", () => ({
   listProjects: vi.fn(),
   findProjectByIdentifier: vi.fn(),
   listIssues: vi.fn(),
@@ -22,21 +16,21 @@ vi.mock("../../plane.js", () => ({
   updateIssueState: vi.fn(),
 }));
 
+import { createPlaneTools } from "../../agent/tools";
 import {
-  listProjects,
-  findProjectByIdentifier,
-  listIssues,
+  addIssueComment,
   buildStateMap,
   createIssue,
-  listStates,
-  parseIssueIdentifier,
   findIssueBySequenceId,
+  findProjectByIdentifier,
   getIssue,
   listIssueComments,
-  addIssueComment,
+  listIssues,
+  listProjects,
+  listStates,
+  parseIssueIdentifier,
   updateIssueState,
-} from "../../plane.js";
-import { createPlaneTools } from "../../agent/tools.js";
+} from "../../plane";
 
 const mockedListProjects = vi.mocked(listProjects);
 const mockedFindProject = vi.mocked(findProjectByIdentifier);

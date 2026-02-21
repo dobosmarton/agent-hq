@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { EnvSchema, PlaneProjectSchema, PlaneIssueSchema, PlanePaginatedSchema } from "../types.js";
+import { describe, expect, it } from "vitest";
+import { EnvSchema, PlaneIssueSchema, PlanePaginatedSchema, PlaneProjectSchema } from "../types";
 
 describe("EnvSchema", () => {
   const validEnv = {

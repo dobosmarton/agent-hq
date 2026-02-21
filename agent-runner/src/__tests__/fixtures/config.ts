@@ -1,4 +1,4 @@
-import type { Config, Env, PlaneConfig } from "../../config.js";
+import type { Config, Env, PlaneConfig } from "../../config";
 
 export const makeConfig = (overrides?: Partial<Config>): Config => ({
   plane: {
@@ -18,6 +18,9 @@ export const makeConfig = (overrides?: Partial<Config>): Config => ({
     maxDailyBudget: 20,
     maxTurns: 200,
     pollIntervalMs: 30000,
+    spawnDelayMs: 15000,
+    maxRetries: 2,
+    retryBaseDelayMs: 60000,
     labelName: "agent",
   },
   ...overrides,

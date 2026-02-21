@@ -1,10 +1,4 @@
-import type {
-  PlaneProject,
-  PlaneState,
-  PlaneIssue,
-  PlaneComment,
-  PlaneConfig,
-} from "../../types.js";
+import type { PlaneComment, PlaneConfig, PlaneIssue, PlaneProject, PlaneState } from "../../types";
 
 export const makeProject = (overrides?: Partial<PlaneProject>): PlaneProject => ({
   id: "proj-uuid-1",

@@ -1,8 +1,8 @@
 import { Bot } from "grammy";
-import { EnvSchema, type PlaneConfig } from "./types.js";
-import { handleStart, handleHelp } from "./commands/help.js";
-import { createAgentHQ } from "./agent/index.js";
-import { extractTaskId, chunkMessage } from "./utils.js";
+import { createAgentHQ } from "./agent/index";
+import { handleHelp, handleStart } from "./commands/help";
+import { EnvSchema, type PlaneConfig } from "./types";
+import { chunkMessage, extractTaskId } from "./utils";
 
 const env = EnvSchema.parse(process.env);
 
@@ -12,7 +12,11 @@ const planeConfig: PlaneConfig = {
   workspaceSlug: env.PLANE_WORKSPACE_SLUG,
 };
 
-const agent = createAgentHQ(planeConfig, `anthropic/${env.ANTHROPIC_MODEL}`);
+const agent = createAgentHQ({
+  planeConfig,
+  model: `anthropic/${env.ANTHROPIC_MODEL}`,
+  agentRunnerUrl: env.AGENT_RUNNER_URL,
+});
 
 const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
 

@@ -1,5 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { z } from "zod";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // We test the Zod schemas directly by importing and parsing,
 // and test loadConfig by mocking fs
@@ -8,8 +7,8 @@ vi.mock("node:fs", () => ({
 }));
 
 import { readFileSync } from "node:fs";
-import { loadConfig, loadEnv, buildPlaneConfig } from "../config.js";
-import { makeConfig, makeEnv } from "./fixtures/config.js";
+import { buildPlaneConfig, loadConfig, loadEnv } from "../config";
+import { makeConfig, makeEnv } from "./fixtures/config";
 
 const mockedReadFileSync = vi.mocked(readFileSync);
 
@@ -50,6 +49,9 @@ describe("loadConfig", () => {
       maxDailyBudget: 20,
       maxTurns: 200,
       pollIntervalMs: 30000,
+      spawnDelayMs: 15000,
+      maxRetries: 2,
+      retryBaseDelayMs: 60000,
       labelName: "agent",
     });
   });

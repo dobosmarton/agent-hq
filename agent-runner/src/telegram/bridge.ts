@@ -1,6 +1,8 @@
-import { z } from "zod";
 import { createServer, type Server } from "node:http";
-import type { Notifier } from "./notifier.js";
+import { z } from "zod";
+import type { AgentManager } from "../agent/manager";
+import type { TaskQueue } from "../queue/task-queue";
+import type { Notifier } from "./notifier";
 
 type PendingQuestion = {
   taskId: string;
@@ -16,12 +18,87 @@ const AnswerBodySchema = z.object({
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
 const ANSWER_PORT = 3847;
 
-export const createTelegramBridge = (notifier: Notifier) => {
+type BridgeDeps = {
+  notifier: Notifier;
+  queue?: TaskQueue;
+  agentManager?: AgentManager;
+};
+
+export const createTelegramBridge = (deps: BridgeDeps) => {
   const pending = new Map<string, PendingQuestion>();
   let server: Server | null = null;
 
   const startAnswerServer = (): void => {
     server = createServer(async (req, res) => {
+      const setCors = () => {
+        res.setHeader("Content-Type", "application/json");
+      };
+
+      // GET /status — queue + active agents + daily spend
+      if (req.method === "GET" && req.url === "/status") {
+        setCors();
+        const queueEntries = (deps.queue?.entries() ?? []).map((e) => ({
+          issueId: e.task.issueId,
+          projectIdentifier: e.task.projectIdentifier,
+          sequenceId: e.task.sequenceId,
+          title: e.task.title,
+          retryCount: e.retryCount,
+          nextAttemptAt: e.nextAttemptAt,
+          enqueuedAt: e.enqueuedAt,
+        }));
+
+        const activeAgents = (deps.agentManager?.getActiveAgents() ?? []).map(
+          (a) => ({
+            issueId: a.task.issueId,
+            projectIdentifier: a.task.projectIdentifier,
+            sequenceId: a.task.sequenceId,
+            title: a.task.title,
+            phase: a.phase,
+            status: a.status,
+            startedAt: a.startedAt,
+            costUsd: a.costUsd,
+            retryCount: a.retryCount,
+          }),
+        );
+
+        res.writeHead(200);
+        res.end(
+          JSON.stringify({
+            queue: queueEntries,
+            active: activeAgents,
+            dailySpend: deps.agentManager?.getDailySpend() ?? 0,
+            dailyBudget: deps.agentManager?.getDailyBudget() ?? 0,
+          }),
+        );
+        return;
+      }
+
+      // DELETE /queue/{issueId} — remove task from queue
+      if (req.method === "DELETE" && req.url?.startsWith("/queue/")) {
+        setCors();
+        const issueId = req.url.slice("/queue/".length);
+
+        if (deps.agentManager?.isTaskActive(issueId)) {
+          res.writeHead(409);
+          res.end(
+            JSON.stringify({
+              error: "Task is currently active and cannot be removed",
+            }),
+          );
+          return;
+        }
+
+        const removed = deps.queue?.remove(issueId) ?? false;
+        if (removed) {
+          res.writeHead(200);
+          res.end(JSON.stringify({ ok: true }));
+        } else {
+          res.writeHead(404);
+          res.end(JSON.stringify({ error: "Task not found in queue" }));
+        }
+        return;
+      }
+
       // POST /answers/{taskId}
       if (req.method === "POST" && req.url?.startsWith("/answers/")) {
         const taskId = req.url.slice("/answers/".length);
@@ -72,7 +149,7 @@ export const createTelegramBridge = (notifier: Notifier) => {
     taskId: string,
     question: string,
   ): Promise<string> => {
-    const messageId = await notifier.agentBlocked(taskId, question);
+    const messageId = await deps.notifier.agentBlocked(taskId, question);
 
     return new Promise<string>((resolve) => {
       const timeoutHandle = setTimeout(() => {

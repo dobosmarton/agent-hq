@@ -1,6 +1,6 @@
-import type { AgentTask } from "../types.js";
-import type { PlaneComment } from "../plane/types.js";
-import { PLAN_MARKER } from "./phase.js";
+import type { PlaneComment } from "../plane/types";
+import type { AgentTask } from "../types";
+import { PLAN_MARKER } from "./phase";
 
 const taskDisplayId = (task: AgentTask): string =>
   `${task.projectIdentifier}-${task.sequenceId}`;

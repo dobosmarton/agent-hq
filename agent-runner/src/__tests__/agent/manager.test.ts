@@ -1,30 +1,31 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Notifier } from "../../telegram/notifier.js";
-import type { TaskPoller } from "../../poller/task-poller.js";
-import type { StatePersistence } from "../../state/persistence.js";
-import type { AgentTask, RunnerState } from "../../types.js";
-import { makeConfig, makePlaneConfig } from "../fixtures/config.js";
-import { PLAN_MARKER } from "../../agent/phase.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PLAN_MARKER } from "../../agent/phase";
+import type { OnAgentDone } from "../../agent/manager";
+import type { TaskPoller } from "../../poller/task-poller";
+import type { StatePersistence } from "../../state/persistence";
+import type { Notifier } from "../../telegram/notifier";
+import type { AgentTask, RunnerState } from "../../types";
+import { makeConfig, makePlaneConfig } from "../fixtures/config";
 
-vi.mock("../../worktree/manager.js", () => ({
+vi.mock("../../worktree/manager", () => ({
   createWorktree: vi.fn(),
   removeWorktree: vi.fn(),
 }));
 
-vi.mock("../../agent/runner.js", () => ({
+vi.mock("../../agent/runner", () => ({
   runAgent: vi.fn(),
 }));
 
-vi.mock("../../plane/client.js", () => ({
+vi.mock("../../plane/client", () => ({
   listComments: vi.fn(),
   addComment: vi.fn(),
   updateIssue: vi.fn(),
 }));
 
-import { createWorktree, removeWorktree } from "../../worktree/manager.js";
-import { runAgent } from "../../agent/runner.js";
-import { listComments } from "../../plane/client.js";
-import { createAgentManager } from "../../agent/manager.js";
+import { createAgentManager } from "../../agent/manager";
+import { runAgent } from "../../agent/runner";
+import { listComments } from "../../plane/client";
+import { createWorktree, removeWorktree } from "../../worktree/manager";
 
 const mockedCreateWorktree = vi.mocked(createWorktree);
 const mockedRemoveWorktree = vi.mocked(removeWorktree);
@@ -72,12 +73,14 @@ const makePersistence = (state?: Partial<RunnerState>): StatePersistence => ({
 const makeDeps = (overrides?: {
   notifier?: Notifier;
   persistence?: StatePersistence;
+  onAgentDone?: OnAgentDone;
 }) => ({
   planeConfig: makePlaneConfig(),
   config: makeConfig(),
   notifier: overrides?.notifier ?? makeNotifier(),
   taskPoller: makeTaskPoller(),
   statePersistence: overrides?.persistence ?? makePersistence(),
+  onAgentDone: overrides?.onAgentDone ?? vi.fn(),
 });
 
 beforeEach(() => {
@@ -91,33 +94,28 @@ describe("budget checking", () => {
     const deps = makeDeps({
       persistence: makePersistence({ dailySpendUsd: 10 }),
     });
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
 
     const manager = createAgentManager(deps);
-    await manager.spawnAgent(makeTask());
+    const result = await manager.spawnAgent(makeTask());
 
+    expect(result.outcome).toBe("started");
     expect(mockedRunAgent).toHaveBeenCalled();
   });
 
-  it("blocks spawning when budget exceeded", async () => {
-    const notifier = makeNotifier();
+  it("returns budget_exceeded when budget exceeded", async () => {
     const deps = makeDeps({
-      notifier,
       persistence: makePersistence({ dailySpendUsd: 16 }), // 16 + 5 > 20
     });
 
     const manager = createAgentManager(deps);
-    await manager.spawnAgent(makeTask());
+    const result = await manager.spawnAgent(makeTask());
 
+    expect(result).toEqual({
+      outcome: "rejected",
+      reason: "budget_exceeded",
+    });
     expect(mockedRunAgent).not.toHaveBeenCalled();
-    expect(notifier.sendMessage).toHaveBeenCalledWith(
-      expect.stringContaining("Budget limit reached"),
-    );
-    expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
   });
 
   it("resets spend on new day", async () => {
@@ -129,9 +127,9 @@ describe("budget checking", () => {
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
 
     const manager = createAgentManager(deps);
-    // Should pass budget check because date was reset
-    await manager.spawnAgent(makeTask());
+    const result = await manager.spawnAgent(makeTask());
 
+    expect(result.outcome).toBe("started");
     expect(mockedRunAgent).toHaveBeenCalled();
   });
 });
@@ -145,13 +143,11 @@ describe("phase detection", () => {
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    // Planning phase: should NOT create worktree
     expect(mockedCreateWorktree).not.toHaveBeenCalled();
-    // Should call runAgent with "planning" phase
     expect(mockedRunAgent).toHaveBeenCalledWith(
       expect.anything(),
       "planning",
-      "/repos/hq", // repo path directly
+      "/repos/hq",
       "",
       [],
       expect.anything(),
@@ -176,9 +172,7 @@ describe("phase detection", () => {
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    // Implementation phase: should create worktree
     expect(mockedCreateWorktree).toHaveBeenCalled();
-    // Should call runAgent with "implementation" phase
     expect(mockedRunAgent).toHaveBeenCalledWith(
       expect.anything(),
       "implementation",
@@ -195,17 +189,22 @@ describe("phase detection", () => {
 });
 
 describe("spawnAgent", () => {
-  it("returns early for missing project config", async () => {
+  it("returns no_project_config for missing project config", async () => {
     const deps = makeDeps();
     const manager = createAgentManager(deps);
 
-    await manager.spawnAgent(makeTask({ projectIdentifier: "UNKNOWN" }));
+    const result = await manager.spawnAgent(
+      makeTask({ projectIdentifier: "UNKNOWN" }),
+    );
 
-    expect(mockedCreateWorktree).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      outcome: "rejected",
+      reason: "no_project_config",
+    });
     expect(mockedRunAgent).not.toHaveBeenCalled();
   });
 
-  it("handles worktree creation failure in implementation phase", async () => {
+  it("returns error on worktree creation failure", async () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
     mockedListComments.mockResolvedValue([
@@ -218,8 +217,12 @@ describe("spawnAgent", () => {
     mockedCreateWorktree.mockRejectedValue(new Error("git error"));
 
     const manager = createAgentManager(deps);
-    await manager.spawnAgent(makeTask());
+    const result = await manager.spawnAgent(makeTask());
 
+    expect(result).toEqual({
+      outcome: "error",
+      reason: expect.stringContaining("Worktree creation failed"),
+    });
     expect(notifier.agentErrored).toHaveBeenCalledWith(
       "HQ-42",
       "Fix the bug",
@@ -231,27 +234,19 @@ describe("spawnAgent", () => {
 
   it("registers agent as active on successful spawn", async () => {
     const deps = makeDeps();
-    mockedRunAgent.mockReturnValue(new Promise(() => {})); // never resolves
+    mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
-    await manager.spawnAgent(makeTask());
+    const result = await manager.spawnAgent(makeTask());
 
+    expect(result.outcome).toBe("started");
     expect(manager.activeCount()).toBe(1);
     expect(manager.isTaskActive("issue-1")).toBe(true);
   });
 
-  it("persists state after registering agent", async () => {
-    const deps = makeDeps();
-    mockedRunAgent.mockReturnValue(new Promise(() => {}));
-
-    const manager = createAgentManager(deps);
-    await manager.spawnAgent(makeTask());
-
-    expect(deps.statePersistence.save).toHaveBeenCalled();
-  });
-
-  it("updates daily spend on agent completion", async () => {
-    const deps = makeDeps();
+  it("calls onAgentDone when agent completes", async () => {
+    const onAgentDone = vi.fn();
+    const deps = makeDeps({ onAgentDone });
     let resolveAgent: (v: { costUsd: number }) => void;
     const agentPromise = new Promise<{ costUsd: number }>((r) => {
       resolveAgent = r;
@@ -265,11 +260,17 @@ describe("spawnAgent", () => {
     resolveAgent!({ costUsd: 2.5 });
     await new Promise((r) => setTimeout(r, 10));
 
+    expect(onAgentDone).toHaveBeenCalledWith(
+      expect.objectContaining({ issueId: "issue-1" }),
+      expect.objectContaining({ costUsd: 2.5 }),
+      0,
+    );
     expect(manager.getDailySpend()).toBe(2.5);
   });
 
-  it("does not clean worktree on agent error", async () => {
-    const deps = makeDeps();
+  it("calls onAgentDone with crashed flag when agent throws", async () => {
+    const onAgentDone = vi.fn();
+    const deps = makeDeps({ onAgentDone });
     let rejectAgent: (e: Error) => void;
     const agentPromise = new Promise<{ costUsd: number }>((_, rej) => {
       rejectAgent = rej;
@@ -294,8 +295,26 @@ describe("spawnAgent", () => {
     rejectAgent!(new Error("agent crashed"));
     await new Promise((r) => setTimeout(r, 10));
 
+    expect(onAgentDone).toHaveBeenCalledWith(
+      expect.objectContaining({ issueId: "issue-1" }),
+      expect.objectContaining({ crashed: true, error: "agent crashed" }),
+      0,
+    );
     expect(mockedRemoveWorktree).not.toHaveBeenCalled();
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
+  });
+
+  it("exposes state via getState()", async () => {
+    const deps = makeDeps();
+    mockedRunAgent.mockReturnValue(new Promise(() => {}));
+
+    const manager = createAgentManager(deps);
+    await manager.spawnAgent(makeTask());
+
+    const state = manager.getState();
+    expect(state.activeAgents).toHaveProperty("issue-1");
+    expect(typeof state.dailySpendUsd).toBe("number");
+    expect(typeof state.dailySpendDate).toBe("string");
   });
 });
 

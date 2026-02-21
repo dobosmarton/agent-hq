@@ -1,30 +1,30 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  makeComment,
+  makeIssue,
   makePlaneConfig,
   makeProject,
   makeState,
-  makeIssue,
-  makeComment,
   paginate,
-} from "./fixtures/plane.js";
+} from "./fixtures/plane";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
 import {
-  listProjects,
-  listStates,
-  listIssues,
-  createIssue,
-  findProjectByIdentifier,
+  addIssueComment,
   buildStateMap,
-  parseIssueIdentifier,
+  createIssue,
   findIssueBySequenceId,
+  findProjectByIdentifier,
   getIssue,
   listIssueComments,
-  addIssueComment,
+  listIssues,
+  listProjects,
+  listStates,
+  parseIssueIdentifier,
   updateIssueState,
-} from "../plane.js";
+} from "../plane";
 
 const config = makePlaneConfig();
 

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makePlaneConfig } from "../fixtures/config.js";
-import { makeIssue, makeComment } from "../fixtures/plane.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makePlaneConfig } from "../fixtures/config";
+import { makeComment, makeIssue } from "../fixtures/plane";
 
-vi.mock("../../plane/client.js", () => ({
+vi.mock("../../plane/client", () => ({
   updateIssue: vi.fn(),
   addComment: vi.fn(),
   addLink: vi.fn(),
@@ -19,8 +19,8 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   }),
 }));
 
-import { updateIssue, addComment, addLink } from "../../plane/client.js";
-import { createAgentMcpServer } from "../../agent/mcp-tools.js";
+import { createAgentMcpServer } from "../../agent/mcp-tools";
+import { addComment, addLink, updateIssue } from "../../plane/client";
 
 const mockedUpdateIssue = vi.mocked(updateIssue);
 const mockedAddComment = vi.mocked(addComment);

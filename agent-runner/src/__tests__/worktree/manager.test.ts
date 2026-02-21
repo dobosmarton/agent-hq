@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:child_process", () => ({
   execFile: vi.fn(),
@@ -11,13 +11,13 @@ vi.mock("node:fs", () => ({
 }));
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import {
   createWorktree,
-  removeWorktree,
-  listWorktrees,
   ensureWorktreeGitignore,
-} from "../../worktree/manager.js";
+  listWorktrees,
+  removeWorktree,
+} from "../../worktree/manager";
 
 const mockedExecFile = vi.mocked(execFile);
 const mockedExistsSync = vi.mocked(existsSync);
