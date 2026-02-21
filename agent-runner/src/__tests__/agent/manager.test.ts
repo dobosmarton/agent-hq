@@ -78,6 +78,8 @@ const makeQueue = (): TaskQueue => ({
   entries: vi.fn().mockReturnValue([]),
   size: vi.fn().mockReturnValue(0),
   has: vi.fn().mockReturnValue(false),
+  toJSON: vi.fn().mockReturnValue([]),
+  hydrate: vi.fn(),
 });
 
 const makeDeps = (overrides?: {

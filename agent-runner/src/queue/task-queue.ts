@@ -7,7 +7,10 @@ export type QueueEntry = {
   enqueuedAt: number;
 };
 
-export const createTaskQueue = (retryBaseDelayMs: number) => {
+export const createTaskQueue = (
+  retryBaseDelayMs: number,
+  onChanged?: () => void,
+) => {
   const queue = new Map<string, QueueEntry>();
 
   const enqueue = (task: AgentTask): boolean => {
@@ -19,6 +22,7 @@ export const createTaskQueue = (retryBaseDelayMs: number) => {
       nextAttemptAt: Date.now(),
       enqueuedAt: Date.now(),
     });
+    onChanged?.();
     return true;
   };
 
@@ -27,6 +31,7 @@ export const createTaskQueue = (retryBaseDelayMs: number) => {
     for (const [id, entry] of queue) {
       if (entry.nextAttemptAt <= now) {
         queue.delete(id);
+        onChanged?.();
         return entry;
       }
     }
@@ -41,10 +46,13 @@ export const createTaskQueue = (retryBaseDelayMs: number) => {
       nextAttemptAt: Date.now() + delay,
       enqueuedAt: Date.now(),
     });
+    onChanged?.();
   };
 
   const remove = (issueId: string): boolean => {
-    return queue.delete(issueId);
+    const result = queue.delete(issueId);
+    if (result) onChanged?.();
+    return result;
   };
 
   const entries = (): QueueEntry[] => [...queue.values()];
@@ -53,7 +61,25 @@ export const createTaskQueue = (retryBaseDelayMs: number) => {
 
   const has = (issueId: string): boolean => queue.has(issueId);
 
-  return { enqueue, dequeue, requeue, remove, entries, size, has };
+  const toJSON = (): QueueEntry[] => [...queue.values()];
+
+  const hydrate = (savedEntries: QueueEntry[]): void => {
+    for (const entry of savedEntries) {
+      queue.set(entry.task.issueId, entry);
+    }
+  };
+
+  return {
+    enqueue,
+    dequeue,
+    requeue,
+    remove,
+    entries,
+    size,
+    has,
+    toJSON,
+    hydrate,
+  };
 };
 
 export type TaskQueue = ReturnType<typeof createTaskQueue>;

@@ -28,8 +28,16 @@ export type ActiveAgent = {
   retryCount: number;
 };
 
+export type SerializedQueueEntry = {
+  task: AgentTask;
+  retryCount: number;
+  nextAttemptAt: number;
+  enqueuedAt: number;
+};
+
 export type RunnerState = {
   activeAgents: Record<string, ActiveAgent>;
   dailySpendUsd: number;
   dailySpendDate: string;
+  queuedTasks?: SerializedQueueEntry[];
 };

@@ -156,4 +156,131 @@ describe("createTaskQueue", () => {
       expect(queue.entries()).toHaveLength(0);
     });
   });
+
+  describe("toJSON / hydrate", () => {
+    it("toJSON returns serializable queue entries", () => {
+      queue.enqueue(makeTask({ issueId: "a" }));
+      queue.enqueue(makeTask({ issueId: "b" }));
+      const json = queue.toJSON();
+      expect(json).toHaveLength(2);
+      expect(json[0]!.task.issueId).toBe("a");
+      expect(json[1]!.task.issueId).toBe("b");
+    });
+
+    it("hydrate restores queue from saved entries", () => {
+      const saved = [
+        {
+          task: makeTask({ issueId: "x" }),
+          retryCount: 1,
+          nextAttemptAt: Date.now() + 60000,
+          enqueuedAt: Date.now(),
+        },
+        {
+          task: makeTask({ issueId: "y" }),
+          retryCount: 0,
+          nextAttemptAt: Date.now(),
+          enqueuedAt: Date.now(),
+        },
+      ];
+
+      queue.hydrate(saved);
+      expect(queue.size()).toBe(2);
+      expect(queue.has("x")).toBe(true);
+      expect(queue.has("y")).toBe(true);
+    });
+
+    it("hydrate preserves retry state", () => {
+      vi.useFakeTimers();
+      const saved = [
+        {
+          task: makeTask(),
+          retryCount: 2,
+          nextAttemptAt: Date.now() + 30000,
+          enqueuedAt: Date.now(),
+        },
+      ];
+
+      queue.hydrate(saved);
+
+      // Not ready yet
+      expect(queue.dequeue()).toBeNull();
+
+      // Advance past delay
+      vi.advanceTimersByTime(31000);
+      const entry = queue.dequeue();
+      expect(entry).not.toBeNull();
+      expect(entry!.retryCount).toBe(2);
+
+      vi.useRealTimers();
+    });
+
+    it("roundtrips through toJSON and hydrate", () => {
+      queue.enqueue(makeTask({ issueId: "a" }));
+      queue.requeue(makeTask({ issueId: "b" }), 1);
+
+      const json = queue.toJSON();
+      const newQueue = createTaskQueue(RETRY_BASE_DELAY);
+      newQueue.hydrate(json);
+
+      expect(newQueue.size()).toBe(2);
+      expect(newQueue.has("a")).toBe(true);
+      expect(newQueue.has("b")).toBe(true);
+    });
+  });
+
+  describe("onChanged callback", () => {
+    it("fires on enqueue", () => {
+      const cb = vi.fn();
+      const q = createTaskQueue(RETRY_BASE_DELAY, cb);
+      q.enqueue(makeTask());
+      expect(cb).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fire on duplicate enqueue", () => {
+      const cb = vi.fn();
+      const q = createTaskQueue(RETRY_BASE_DELAY, cb);
+      q.enqueue(makeTask());
+      q.enqueue(makeTask());
+      expect(cb).toHaveBeenCalledTimes(1);
+    });
+
+    it("fires on dequeue", () => {
+      const cb = vi.fn();
+      const q = createTaskQueue(RETRY_BASE_DELAY, cb);
+      q.enqueue(makeTask());
+      cb.mockClear();
+      q.dequeue();
+      expect(cb).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fire on empty dequeue", () => {
+      const cb = vi.fn();
+      const q = createTaskQueue(RETRY_BASE_DELAY, cb);
+      q.dequeue();
+      expect(cb).not.toHaveBeenCalled();
+    });
+
+    it("fires on requeue", () => {
+      const cb = vi.fn();
+      const q = createTaskQueue(RETRY_BASE_DELAY, cb);
+      q.requeue(makeTask(), 1);
+      expect(cb).toHaveBeenCalledTimes(1);
+    });
+
+    it("fires on successful remove", () => {
+      const cb = vi.fn();
+      const q = createTaskQueue(RETRY_BASE_DELAY, cb);
+      q.enqueue(makeTask());
+      cb.mockClear();
+      q.remove("issue-1");
+      expect(cb).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fire on failed remove", () => {
+      const cb = vi.fn();
+      const q = createTaskQueue(RETRY_BASE_DELAY, cb);
+      q.remove("unknown");
+      expect(cb).not.toHaveBeenCalled();
+    });
+  });
 });

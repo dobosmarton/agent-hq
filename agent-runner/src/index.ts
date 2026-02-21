@@ -44,8 +44,21 @@ const main = async (): Promise<void> => {
     env.STATE_PATH ?? resolve(process.cwd(), "state/runner-state.json");
   const statePersistence = createStatePersistence(statePath);
 
-  // Initialize task queue
-  const queue = createTaskQueue(config.agent.retryBaseDelayMs);
+  // Initialize task queue with persistence callback
+  const queue = createTaskQueue(config.agent.retryBaseDelayMs, () => {
+    const currentState = statePersistence.load();
+    currentState.queuedTasks = queue.toJSON();
+    statePersistence.save(currentState);
+  });
+
+  // Restore queued tasks from previous run
+  const savedState = statePersistence.load();
+  if (savedState.queuedTasks?.length) {
+    queue.hydrate(savedState.queuedTasks);
+    console.log(
+      `Restored ${savedState.queuedTasks.length} queued tasks from state`,
+    );
+  }
 
   // Initialize agent manager
   const agentManager = createAgentManager({
