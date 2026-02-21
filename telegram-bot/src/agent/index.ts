@@ -1,8 +1,8 @@
 import { Agent } from "@mastra/core/agent";
 import { LibSQLStore } from "@mastra/libsql";
 import { Memory } from "@mastra/memory";
-import type { PlaneConfig } from "../types.js";
-import { createPlaneTools, createRunnerTools } from "./tools.js";
+import type { PlaneConfig } from "../types";
+import { createPlaneTools, createRunnerTools } from "./tools";
 
 const SYSTEM_PROMPT = `You are a project management assistant integrated with Plane (a project tracking tool) via Telegram. You help manage tasks across multiple software projects.
 

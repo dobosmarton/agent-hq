@@ -1,23 +1,23 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import type { PlaneConfig } from "../types.js";
 import {
-  listProjects,
-  listIssues,
+  addIssueComment,
   buildStateMap,
-  findProjectByIdentifier,
   createIssue,
-  listStates,
-  parseIssueIdentifier,
   findIssueBySequenceId,
+  findLabelByName,
+  findProjectByIdentifier,
   getIssue,
   listIssueComments,
-  addIssueComment,
-  updateIssueState,
+  listIssues,
   listLabels,
-  findLabelByName,
+  listProjects,
+  listStates,
+  parseIssueIdentifier,
   updateIssue,
-} from "../plane.js";
+  updateIssueState,
+} from "../plane";
+import type { PlaneConfig } from "../types";
 
 export const createRunnerTools = (runnerUrl: string) => ({
   agentQueueStatus: createTool({

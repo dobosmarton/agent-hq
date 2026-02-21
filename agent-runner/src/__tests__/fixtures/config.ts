@@ -1,4 +1,4 @@
-import type { Config, Env, PlaneConfig } from "../../config.js";
+import type { Config, Env, PlaneConfig } from "../../config";
 
 export const makeConfig = (overrides?: Partial<Config>): Config => ({
   plane: {

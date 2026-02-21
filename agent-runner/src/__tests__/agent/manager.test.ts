@@ -1,31 +1,31 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Notifier } from "../../telegram/notifier.js";
-import type { TaskPoller } from "../../poller/task-poller.js";
-import type { StatePersistence } from "../../state/persistence.js";
-import type { AgentTask, RunnerState } from "../../types.js";
-import type { TaskQueue } from "../../queue/task-queue.js";
-import { makeConfig, makePlaneConfig } from "../fixtures/config.js";
-import { PLAN_MARKER } from "../../agent/phase.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PLAN_MARKER } from "../../agent/phase";
+import type { TaskPoller } from "../../poller/task-poller";
+import type { TaskQueue } from "../../queue/task-queue";
+import type { StatePersistence } from "../../state/persistence";
+import type { Notifier } from "../../telegram/notifier";
+import type { AgentTask, RunnerState } from "../../types";
+import { makeConfig, makePlaneConfig } from "../fixtures/config";
 
-vi.mock("../../worktree/manager.js", () => ({
+vi.mock("../../worktree/manager", () => ({
   createWorktree: vi.fn(),
   removeWorktree: vi.fn(),
 }));
 
-vi.mock("../../agent/runner.js", () => ({
+vi.mock("../../agent/runner", () => ({
   runAgent: vi.fn(),
 }));
 
-vi.mock("../../plane/client.js", () => ({
+vi.mock("../../plane/client", () => ({
   listComments: vi.fn(),
   addComment: vi.fn(),
   updateIssue: vi.fn(),
 }));
 
-import { createWorktree, removeWorktree } from "../../worktree/manager.js";
-import { runAgent } from "../../agent/runner.js";
-import { listComments } from "../../plane/client.js";
-import { createAgentManager } from "../../agent/manager.js";
+import { createAgentManager } from "../../agent/manager";
+import { runAgent } from "../../agent/runner";
+import { listComments } from "../../plane/client";
+import { createWorktree, removeWorktree } from "../../worktree/manager";
 
 const mockedCreateWorktree = vi.mocked(createWorktree);
 const mockedRemoveWorktree = vi.mocked(removeWorktree);

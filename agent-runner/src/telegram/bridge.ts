@@ -1,8 +1,8 @@
-import { z } from "zod";
 import { createServer, type Server } from "node:http";
-import type { Notifier } from "./notifier.js";
-import type { TaskQueue } from "../queue/task-queue.js";
-import type { AgentManager } from "../agent/manager.js";
+import { z } from "zod";
+import type { AgentManager } from "../agent/manager";
+import type { TaskQueue } from "../queue/task-queue";
+import type { Notifier } from "./notifier";
 
 type PendingQuestion = {
   taskId: string;

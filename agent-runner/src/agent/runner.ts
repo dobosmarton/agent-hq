@@ -1,17 +1,16 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { PlaneConfig } from "../config.js";
-import type { Config } from "../config.js";
-import type { AgentTask, AgentErrorType } from "../types.js";
-import type { AgentPhase } from "./phase.js";
-import type { PlaneComment } from "../plane/types.js";
-import type { Notifier } from "../telegram/notifier.js";
-import type { TaskPoller } from "../poller/task-poller.js";
-import { createAgentMcpServer } from "./mcp-tools.js";
+import type { Config, PlaneConfig } from "../config";
+import { addComment } from "../plane/client";
+import type { PlaneComment } from "../plane/types";
+import type { TaskPoller } from "../poller/task-poller";
+import type { Notifier } from "../telegram/notifier";
+import type { AgentErrorType, AgentTask } from "../types";
+import { createAgentMcpServer } from "./mcp-tools";
+import type { AgentPhase } from "./phase";
 import {
-  buildPlanningPrompt,
   buildImplementationPrompt,
-} from "./prompt-builder.js";
-import { addComment } from "../plane/client.js";
+  buildPlanningPrompt,
+} from "./prompt-builder";
 
 type RunnerDeps = {
   planeConfig: PlaneConfig;

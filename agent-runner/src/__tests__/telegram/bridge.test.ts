@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTelegramBridge } from "../../telegram/bridge.js";
-import type { Notifier } from "../../telegram/notifier.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTelegramBridge } from "../../telegram/bridge";
+import type { Notifier } from "../../telegram/notifier";
 
 const createMockNotifier = (): Notifier => ({
   sendMessage: vi.fn().mockResolvedValue(0),

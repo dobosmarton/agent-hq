@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { detectPhase, PLAN_MARKER } from "../../agent/phase.js";
-import type { PlaneComment } from "../../plane/types.js";
+import { describe, expect, it } from "vitest";
+import { detectPhase, PLAN_MARKER } from "../../agent/phase";
+import type { PlaneComment } from "../../plane/types";
 
 const makeComment = (html: string): PlaneComment => ({
   id: "comment-1",

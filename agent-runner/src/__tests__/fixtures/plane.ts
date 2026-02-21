@@ -1,10 +1,10 @@
 import type {
-  PlaneProject,
-  PlaneIssue,
-  PlaneState,
-  PlaneLabel,
   PlaneComment,
-} from "../../plane/types.js";
+  PlaneIssue,
+  PlaneLabel,
+  PlaneProject,
+  PlaneState,
+} from "../../plane/types";
 
 export const makeProject = (
   overrides?: Partial<PlaneProject>,

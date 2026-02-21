@@ -1,11 +1,11 @@
 import { resolve } from "node:path";
-import { loadConfig, loadEnv, buildPlaneConfig } from "./config.js";
-import { createTaskPoller } from "./poller/task-poller.js";
-import { createAgentManager } from "./agent/manager.js";
-import { createNotifier, createNoopNotifier } from "./telegram/notifier.js";
-import { ensureWorktreeGitignore } from "./worktree/manager.js";
-import { createStatePersistence } from "./state/persistence.js";
-import { createTaskQueue } from "./queue/task-queue.js";
+import { createAgentManager } from "./agent/manager";
+import { buildPlaneConfig, loadConfig, loadEnv } from "./config";
+import { createTaskPoller } from "./poller/task-poller";
+import { createTaskQueue } from "./queue/task-queue";
+import { createStatePersistence } from "./state/persistence";
+import { createNoopNotifier, createNotifier } from "./telegram/notifier";
+import { ensureWorktreeGitignore } from "./worktree/manager";
 
 const main = async (): Promise<void> => {
   console.log("Agent Runner starting...");

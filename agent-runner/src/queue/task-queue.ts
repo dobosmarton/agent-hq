@@ -1,4 +1,4 @@
-import type { AgentTask } from "../types.js";
+import type { AgentTask } from "../types";
 
 export type QueueEntry = {
   task: AgentTask;

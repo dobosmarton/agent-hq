@@ -1,14 +1,13 @@
-import type { PlaneConfig } from "../config.js";
-import type { Config } from "../config.js";
-import type { AgentTask } from "../types.js";
+import type { Config, PlaneConfig } from "../config";
 import {
-  listProjects,
   listIssues,
   listLabels,
+  listProjects,
   listStates,
   updateIssue,
-} from "../plane/client.js";
-import type { PlaneProject } from "../plane/types.js";
+} from "../plane/client";
+import type { PlaneProject } from "../plane/types";
+import type { AgentTask } from "../types";
 
 type ProjectCache = {
   project: PlaneProject;

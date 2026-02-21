@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/bot.js",
+    "start": "node dist/bot",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",

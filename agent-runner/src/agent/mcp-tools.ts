@@ -1,7 +1,7 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import type { PlaneConfig } from "../config.js";
-import { updateIssue, addComment, addLink } from "../plane/client.js";
+import type { PlaneConfig } from "../config";
+import { addComment, addLink, updateIssue } from "../plane/client";
 
 type McpToolsContext = {
   planeConfig: PlaneConfig;

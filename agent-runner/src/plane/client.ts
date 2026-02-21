@@ -1,19 +1,19 @@
-import type { PlaneConfig } from "../config.js";
+import type { PlaneConfig } from "../config";
 import {
-  type PlaneProject,
-  type PlaneState,
-  type PlaneIssue,
-  type PlaneLabel,
   type PlaneComment,
-  type PlaneLink,
-  PlaneProjectSchema,
-  PlaneStateSchema,
-  PlaneIssueSchema,
-  PlaneLabelSchema,
   PlaneCommentSchema,
+  type PlaneIssue,
+  PlaneIssueSchema,
+  type PlaneLabel,
+  PlaneLabelSchema,
+  type PlaneLink,
   PlaneLinkSchema,
   PlanePaginatedSchema,
-} from "./types.js";
+  type PlaneProject,
+  PlaneProjectSchema,
+  type PlaneState,
+  PlaneStateSchema,
+} from "./types";
 
 const headers = (config: PlaneConfig): Record<string, string> => ({
   "X-API-Key": config.apiKey,

@@ -1,13 +1,13 @@
-import type { Config, PlaneConfig } from "../config.js";
-import type { AgentTask, ActiveAgent } from "../types.js";
-import type { Notifier } from "../telegram/notifier.js";
-import type { TaskPoller } from "../poller/task-poller.js";
-import type { StatePersistence } from "../state/persistence.js";
-import type { TaskQueue } from "../queue/task-queue.js";
-import { createWorktree, removeWorktree } from "../worktree/manager.js";
-import { listComments, updateIssue } from "../plane/client.js";
-import { detectPhase } from "./phase.js";
-import { runAgent } from "./runner.js";
+import type { Config, PlaneConfig } from "../config";
+import { listComments, updateIssue } from "../plane/client";
+import type { TaskPoller } from "../poller/task-poller";
+import type { TaskQueue } from "../queue/task-queue";
+import type { StatePersistence } from "../state/persistence";
+import type { Notifier } from "../telegram/notifier";
+import type { ActiveAgent, AgentTask } from "../types";
+import { createWorktree, removeWorktree } from "../worktree/manager";
+import { detectPhase } from "./phase";
+import { runAgent } from "./runner";
 
 type ManagerDeps = {
   planeConfig: PlaneConfig;

@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import { PLAN_MARKER } from "../../agent/phase";
 import {
-  buildPlanningPrompt,
   buildImplementationPrompt,
-} from "../../agent/prompt-builder.js";
-import { PLAN_MARKER } from "../../agent/phase.js";
-import type { AgentTask } from "../../types.js";
-import type { PlaneComment } from "../../plane/types.js";
+  buildPlanningPrompt,
+} from "../../agent/prompt-builder";
+import type { PlaneComment } from "../../plane/types";
+import type { AgentTask } from "../../types";
 
 const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
   issueId: "issue-1",

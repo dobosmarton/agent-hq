@@ -1,8 +1,8 @@
 import { Bot } from "grammy";
-import { EnvSchema, type PlaneConfig } from "./types.js";
-import { handleStart, handleHelp } from "./commands/help.js";
-import { createAgentHQ } from "./agent/index.js";
-import { extractTaskId, chunkMessage } from "./utils.js";
+import { createAgentHQ } from "./agent/index";
+import { handleHelp, handleStart } from "./commands/help";
+import { EnvSchema, type PlaneConfig } from "./types";
+import { chunkMessage, extractTaskId } from "./utils";
 
 const env = EnvSchema.parse(process.env);
 
