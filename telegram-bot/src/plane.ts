@@ -4,10 +4,12 @@ import {
   type PlaneState,
   type PlaneIssue,
   type PlaneComment,
+  type PlaneLabel,
   PlaneProjectSchema,
   PlaneStateSchema,
   PlaneIssueSchema,
   PlaneCommentSchema,
+  PlaneLabelSchema,
   PlanePaginatedSchema,
 } from "./types.js";
 
@@ -256,4 +258,58 @@ export const updateIssueState = async (
 
   const data: unknown = await res.json();
   return PlaneIssueSchema.parse(data);
+};
+
+/**
+ * Generic function to update any issue fields
+ */
+export const updateIssue = async (
+  config: PlaneConfig,
+  projectId: string,
+  issueId: string,
+  updates: Partial<PlaneIssue>
+): Promise<PlaneIssue> => {
+  const res = await fetch(`${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`, {
+    method: "PATCH",
+    headers: planeHeaders(config),
+    body: JSON.stringify(updates),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Plane API error: ${res.status} ${body}`);
+  }
+
+  const data: unknown = await res.json();
+  return PlaneIssueSchema.parse(data);
+};
+
+/**
+ * List all labels for a project
+ */
+export const listLabels = async (config: PlaneConfig, projectId: string): Promise<PlaneLabel[]> => {
+  const res = await fetch(`${workspaceUrl(config)}/projects/${projectId}/issue-labels/`, {
+    headers: planeHeaders(config),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Plane API error: ${res.status} ${res.statusText}`);
+  }
+
+  const data: unknown = await res.json();
+  const parsed = PlanePaginatedSchema(PlaneLabelSchema).parse(data);
+  return parsed.results;
+};
+
+/**
+ * Find a label by name (case-insensitive)
+ */
+export const findLabelByName = async (
+  config: PlaneConfig,
+  projectId: string,
+  labelName: string
+): Promise<PlaneLabel | null> => {
+  const labels = await listLabels(config, projectId);
+  const normalizedName = labelName.toLowerCase().trim();
+  return labels.find((l) => l.name.toLowerCase().trim() === normalizedName) ?? null;
 };

@@ -50,8 +50,12 @@ You send a natural language message to `@my_agent_hq_bot` on Telegram. A [Mastra
 - "What tasks are open in Verdandi?"
 - "Create a task in Style-swipe about fixing the onboarding flow"
 - "What workflow states does Verdandi have?"
+- "Add the agent label to VERDANDI-5"
+- "Start implementing AGENTHQ-2" (auto-adds "agent" label + moves to "Todo")
 
 When creating tasks, the agent proactively enriches your brief description into a structured issue with acceptance criteria, technical considerations, and edge cases.
+
+**Implementation-Start Convention:** When you say phrases like "start implementing TASK-ID", "begin work on TASK-ID", or "let's implement TASK-ID", the agent automatically adds the "agent" label and moves the task to "Todo" state. This standardizes the workflow for agent-driven task implementation.
 
 ### Tech stack
 
@@ -86,7 +90,7 @@ telegram-bot/
 
 ### Agent tools
 
-The LLM agent has four tools for interacting with Plane:
+The LLM agent has these tools for interacting with Plane:
 
 | Tool | Description |
 |------|-------------|
@@ -94,6 +98,12 @@ The LLM agent has four tools for interacting with Plane:
 | `list_tasks` | Lists open tasks (backlog/todo/in progress) for a project with state names |
 | `create_task` | Creates a task with an enriched HTML description |
 | `get_project_states` | Lists workflow states for a project |
+| `get_task_details` | Gets full details of a specific task (description, metadata, URL) |
+| `list_task_comments` | Lists all comments on a task |
+| `add_task_comment` | Adds a comment to a task (HTML formatted) |
+| `move_task_state` | Moves a task to a different workflow state |
+| `add_labels_to_task` | Adds one or more labels to a task (idempotent, validates against existing labels) |
+| `remove_labels_from_task` | Removes one or more labels from a task (idempotent) |
 
 ### Environment variables
 
