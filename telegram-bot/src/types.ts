@@ -39,6 +39,15 @@ export const PlaneStateSchema = z.object({
 
 export type PlaneState = z.infer<typeof PlaneStateSchema>;
 
+export const PlaneLabelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export type PlaneLabel = z.infer<typeof PlaneLabelSchema>;
+
 export const PlaneIssueSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -50,6 +59,7 @@ export const PlaneIssueSchema = z.object({
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
   project: z.string().optional(),
+  labels: z.array(z.string()).optional(),
 });
 
 export type PlaneIssue = z.infer<typeof PlaneIssueSchema>;

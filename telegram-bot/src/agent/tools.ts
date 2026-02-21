@@ -14,6 +14,9 @@ import {
   listIssueComments,
   addIssueComment,
   updateIssueState,
+  listLabels,
+  findLabelByName,
+  updateIssue,
 } from "../plane.js";
 
 export const createPlaneTools = (config: PlaneConfig) => ({
@@ -379,6 +382,157 @@ export const createPlaneTools = (config: PlaneConfig) => ({
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to update state",
+        };
+      }
+    },
+  }),
+
+  addLabelsToTask: createTool({
+    id: "add_labels_to_task",
+    description:
+      "Add one or more labels to a task. Labels must exist in the project. This operation is idempotent (adding the same label twice is safe).",
+    inputSchema: z.object({
+      task_id: z
+        .string()
+        .describe("The task identifier in format PROJECT-NUMBER (e.g. 'VERDANDI-5')."),
+      label_names: z
+        .array(z.string())
+        .describe(
+          "Array of label names to add (e.g. ['agent', 'bug', 'urgent']). Case-insensitive."
+        ),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      added_labels: z.array(z.string()).optional(),
+      error: z.string().optional(),
+    }),
+    execute: async ({ task_id, label_names }) => {
+      const parsed = parseIssueIdentifier(task_id);
+      if (!parsed) {
+        return {
+          success: false,
+          error: `Invalid task ID format. Expected format: PROJECT-NUMBER (e.g. HQ-42)`,
+        };
+      }
+
+      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      if (!project) {
+        return { success: false, error: `Project "${parsed.projectIdentifier}" not found` };
+      }
+
+      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      if (!issue) {
+        return { success: false, error: `Task ${task_id} not found` };
+      }
+
+      // Fetch full issue details to get current labels
+      const fullIssue = await getIssue(config, project.id, issue.id);
+      const currentLabelIds = new Set(fullIssue.labels ?? []);
+
+      // Validate and resolve label names to IDs
+      const labelsToAdd: string[] = [];
+      const notFound: string[] = [];
+
+      for (const labelName of label_names) {
+        const label = await findLabelByName(config, project.id, labelName);
+        if (!label) {
+          notFound.push(labelName);
+        } else {
+          labelsToAdd.push(label.name);
+          currentLabelIds.add(label.id);
+        }
+      }
+
+      if (notFound.length > 0) {
+        const allLabels = await listLabels(config, project.id);
+        const availableLabels = allLabels.map((l) => l.name).join(", ");
+        return {
+          success: false,
+          error: `Labels not found: ${notFound.join(", ")}. Available labels: ${availableLabels}`,
+        };
+      }
+
+      // Update issue with merged label IDs
+      try {
+        await updateIssue(config, project.id, issue.id, {
+          labels: Array.from(currentLabelIds),
+        });
+        return {
+          success: true,
+          added_labels: labelsToAdd,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to add labels",
+        };
+      }
+    },
+  }),
+
+  removeLabelsFromTask: createTool({
+    id: "remove_labels_from_task",
+    description:
+      "Remove one or more labels from a task. This operation is idempotent (removing a non-existent label is safe).",
+    inputSchema: z.object({
+      task_id: z
+        .string()
+        .describe("The task identifier in format PROJECT-NUMBER (e.g. 'VERDANDI-5')."),
+      label_names: z
+        .array(z.string())
+        .describe("Array of label names to remove (e.g. ['agent', 'bug']). Case-insensitive."),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      removed_labels: z.array(z.string()).optional(),
+      error: z.string().optional(),
+    }),
+    execute: async ({ task_id, label_names }) => {
+      const parsed = parseIssueIdentifier(task_id);
+      if (!parsed) {
+        return {
+          success: false,
+          error: `Invalid task ID format. Expected format: PROJECT-NUMBER (e.g. HQ-42)`,
+        };
+      }
+
+      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      if (!project) {
+        return { success: false, error: `Project "${parsed.projectIdentifier}" not found` };
+      }
+
+      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      if (!issue) {
+        return { success: false, error: `Task ${task_id} not found` };
+      }
+
+      // Fetch full issue details to get current labels
+      const fullIssue = await getIssue(config, project.id, issue.id);
+      const currentLabelIds = new Set(fullIssue.labels ?? []);
+
+      // Resolve label names to IDs and remove them
+      const labelsToRemove: string[] = [];
+      for (const labelName of label_names) {
+        const label = await findLabelByName(config, project.id, labelName);
+        if (label && currentLabelIds.has(label.id)) {
+          currentLabelIds.delete(label.id);
+          labelsToRemove.push(label.name);
+        }
+      }
+
+      // Update issue with remaining labels
+      try {
+        await updateIssue(config, project.id, issue.id, {
+          labels: Array.from(currentLabelIds),
+        });
+        return {
+          success: true,
+          removed_labels: labelsToRemove,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to remove labels",
         };
       }
     },
