@@ -93,6 +93,55 @@ describe("loadConfig", () => {
     const config = loadConfig("/fake/config.json");
     expect(config.projects["HQ"]!.defaultBranch).toBe("main");
   });
+
+  it("parses ciChecks when provided", () => {
+    const rawConfig = {
+      plane: { baseUrl: "http://plane.local/api/v1", workspaceSlug: "ws" },
+      projects: {
+        HQ: {
+          repoPath: "/repos/hq",
+          repoUrl: "https://github.com/test/hq",
+          ciChecks: ["pnpm lint", "pnpm test"],
+        },
+      },
+    };
+    mockedReadFileSync.mockReturnValue(JSON.stringify(rawConfig));
+
+    const config = loadConfig("/fake/config.json");
+    expect(config.projects["HQ"]!.ciChecks).toEqual(["pnpm lint", "pnpm test"]);
+  });
+
+  it("allows ciChecks to be omitted", () => {
+    const rawConfig = {
+      plane: { baseUrl: "http://plane.local/api/v1", workspaceSlug: "ws" },
+      projects: {
+        HQ: {
+          repoPath: "/repos/hq",
+          repoUrl: "https://github.com/test/hq",
+        },
+      },
+    };
+    mockedReadFileSync.mockReturnValue(JSON.stringify(rawConfig));
+
+    const config = loadConfig("/fake/config.json");
+    expect(config.projects["HQ"]!.ciChecks).toBeUndefined();
+  });
+
+  it("throws when ciChecks contains non-strings", () => {
+    const rawConfig = {
+      plane: { baseUrl: "http://plane.local/api/v1", workspaceSlug: "ws" },
+      projects: {
+        HQ: {
+          repoPath: "/repos/hq",
+          repoUrl: "https://github.com/test/hq",
+          ciChecks: [123, true],
+        },
+      },
+    };
+    mockedReadFileSync.mockReturnValue(JSON.stringify(rawConfig));
+
+    expect(() => loadConfig("/fake/config.json")).toThrow();
+  });
 });
 
 describe("loadEnv", () => {

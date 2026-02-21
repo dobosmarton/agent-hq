@@ -6,6 +6,7 @@ const ProjectConfigSchema = z.object({
   repoPath: z.string(),
   repoUrl: z.string().url(),
   defaultBranch: z.string().default("main"),
+  ciChecks: z.array(z.string()).optional(),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;

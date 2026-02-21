@@ -16,12 +16,17 @@ vi.mock("../../agent/runner", () => ({
   runAgent: vi.fn(),
 }));
 
+vi.mock("../../agent/ci-discovery", () => ({
+  readCiWorkflows: vi.fn().mockReturnValue({ workflowFiles: {} }),
+}));
+
 vi.mock("../../plane/client", () => ({
   listComments: vi.fn(),
   addComment: vi.fn(),
   updateIssue: vi.fn(),
 }));
 
+import { readCiWorkflows } from "../../agent/ci-discovery";
 import { createAgentManager } from "../../agent/manager";
 import { runAgent } from "../../agent/runner";
 import { listComments } from "../../plane/client";
@@ -31,6 +36,7 @@ const mockedCreateWorktree = vi.mocked(createWorktree);
 const mockedRemoveWorktree = vi.mocked(removeWorktree);
 const mockedRunAgent = vi.mocked(runAgent);
 const mockedListComments = vi.mocked(listComments);
+const mockedReadCiWorkflows = vi.mocked(readCiWorkflows);
 
 const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
   issueId: "issue-1",
@@ -87,6 +93,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   // Default: no comments (planning phase)
   mockedListComments.mockResolvedValue([]);
+  mockedReadCiWorkflows.mockReturnValue({ workflowFiles: {} });
 });
 
 describe("budget checking", () => {
@@ -150,6 +157,7 @@ describe("phase detection", () => {
       "/repos/hq",
       "",
       [],
+      expect.objectContaining({ workflowFiles: expect.any(Object) }),
       expect.anything(),
     );
   });
@@ -183,6 +191,7 @@ describe("phase detection", () => {
           comment_html: expect.stringContaining(PLAN_MARKER),
         }),
       ]),
+      expect.objectContaining({ workflowFiles: expect.any(Object) }),
       expect.anything(),
     );
   });

@@ -5,6 +5,7 @@ import type { PlaneComment } from "../plane/types";
 import type { TaskPoller } from "../poller/task-poller";
 import type { Notifier } from "../telegram/notifier";
 import type { AgentErrorType, AgentTask } from "../types";
+import type { CiContext } from "./ci-discovery";
 import { createAgentMcpServer } from "./mcp-tools";
 import type { AgentPhase } from "./phase";
 import {
@@ -64,6 +65,7 @@ export const runAgent = async (
   workingDir: string,
   branchName: string,
   comments: PlaneComment[],
+  ciContext: CiContext,
   deps: RunnerDeps,
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
@@ -98,7 +100,7 @@ export const runAgent = async (
   const prompt =
     phase === "planning"
       ? buildPlanningPrompt(task)
-      : buildImplementationPrompt(task, branchName, comments);
+      : buildImplementationPrompt(task, branchName, comments, ciContext);
 
   // Phase-specific settings
   const maxTurns = phase === "planning" ? 50 : deps.config.agent.maxTurns;

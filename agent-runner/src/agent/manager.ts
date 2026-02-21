@@ -10,6 +10,7 @@ import type {
   SpawnResult,
 } from "../types";
 import { createWorktree, removeWorktree } from "../worktree/manager";
+import { readCiWorkflows } from "./ci-discovery";
 import { detectPhase } from "./phase";
 import { runAgent } from "./runner";
 
@@ -140,6 +141,11 @@ export const createAgentManager = (deps: ManagerDeps) => {
       }
     }
 
+    // Build CI context for validation
+    const ciContext = projectConfig.ciChecks
+      ? { workflowFiles: {}, overrideCommands: projectConfig.ciChecks }
+      : readCiWorkflows(projectConfig.repoPath);
+
     // Register as active
     const agent: ActiveAgent = {
       task,
@@ -153,7 +159,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
     activeAgents.set(task.issueId, agent);
 
     // Run agent in background — notify caller via onAgentDone
-    runAgent(task, phase, workingDir, branchName, comments, {
+    runAgent(task, phase, workingDir, branchName, comments, ciContext, {
       planeConfig: deps.planeConfig,
       config: deps.config,
       notifier: deps.notifier,
