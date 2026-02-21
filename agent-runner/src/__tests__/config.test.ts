@@ -50,6 +50,9 @@ describe("loadConfig", () => {
       maxDailyBudget: 20,
       maxTurns: 200,
       pollIntervalMs: 30000,
+      spawnDelayMs: 15000,
+      maxRetries: 2,
+      retryBaseDelayMs: 60000,
       labelName: "agent",
     });
   });

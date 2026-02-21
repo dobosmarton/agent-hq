@@ -4,6 +4,11 @@ services:
     env_file: .env
     network_mode: host
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+          cpus: "3"
     volumes:
       - /home/deploy/repos:/repos
       - runner-state:/app/state

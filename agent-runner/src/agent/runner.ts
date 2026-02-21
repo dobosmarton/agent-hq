@@ -1,7 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PlaneConfig } from "../config.js";
 import type { Config } from "../config.js";
-import type { AgentTask } from "../types.js";
+import type { AgentTask, AgentErrorType } from "../types.js";
 import type { AgentPhase } from "./phase.js";
 import type { PlaneComment } from "../plane/types.js";
 import type { Notifier } from "../telegram/notifier.js";
@@ -22,6 +22,7 @@ type RunnerDeps = {
 
 export type AgentResult = {
   costUsd: number;
+  errorType?: AgentErrorType;
 };
 
 const PLANNING_TOOLS = [
@@ -147,11 +148,23 @@ export const runAgent = async (
             "errors" in message && Array.isArray(message.errors)
               ? message.errors.join(", ")
               : "";
+          const subtype = String(message.subtype ?? "");
           const errorText =
             errors ||
-            `result subtype: ${message.subtype}, cost: $${totalCostUsd.toFixed(2)}`;
+            `result subtype: ${subtype}, cost: $${totalCostUsd.toFixed(2)}`;
+
+          // Classify error type for retry decisions
+          let errorType: AgentErrorType = "unknown";
+          if (!errors && subtype !== "success") {
+            errorType = "rate_limited";
+          } else if (subtype.includes("budget")) {
+            errorType = "budget_exceeded";
+          } else if (subtype.includes("turns")) {
+            errorType = "max_turns";
+          }
+
           console.error(
-            `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${message.subtype}): ${errorText}`,
+            `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${subtype}, type=${errorType}): ${errorText}`,
           );
           await deps.notifier.agentErrored(
             taskDisplayId,
@@ -164,6 +177,8 @@ export const runAgent = async (
             task.issueId,
             `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`,
           );
+
+          return { costUsd: totalCostUsd, errorType };
         }
 
         // Return immediately after processing the result message.

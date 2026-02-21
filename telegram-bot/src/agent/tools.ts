@@ -19,6 +19,141 @@ import {
   updateIssue,
 } from "../plane.js";
 
+export const createRunnerTools = (runnerUrl: string) => ({
+  agentQueueStatus: createTool({
+    id: "agent_queue_status",
+    description:
+      "Get the current agent runner status: queued tasks, active agents, and daily spend. Use when the user asks about the agent queue, running agents, or agent status.",
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      queue: z.array(
+        z.object({
+          taskId: z.string(),
+          title: z.string(),
+          retryCount: z.number(),
+          waitingUntil: z.string().optional(),
+        })
+      ),
+      active: z.array(
+        z.object({
+          taskId: z.string(),
+          title: z.string(),
+          phase: z.string(),
+          status: z.string(),
+          runtimeMinutes: z.number(),
+          costUsd: z.number().optional(),
+          retryCount: z.number(),
+        })
+      ),
+      dailySpend: z.number(),
+      dailyBudget: z.number(),
+      error: z.string().optional(),
+    }),
+    execute: async () => {
+      try {
+        const res = await fetch(`${runnerUrl}/status`);
+        if (!res.ok) {
+          return {
+            queue: [],
+            active: [],
+            dailySpend: 0,
+            dailyBudget: 0,
+            error: `Agent runner returned ${res.status}`,
+          };
+        }
+        const data = (await res.json()) as {
+          queue: Array<{
+            projectIdentifier: string;
+            sequenceId: number;
+            title: string;
+            retryCount: number;
+            nextAttemptAt: number;
+          }>;
+          active: Array<{
+            projectIdentifier: string;
+            sequenceId: number;
+            title: string;
+            phase: string;
+            status: string;
+            startedAt: number;
+            costUsd?: number;
+            retryCount: number;
+          }>;
+          dailySpend: number;
+          dailyBudget: number;
+        };
+
+        const now = Date.now();
+        return {
+          queue: data.queue.map((q) => ({
+            taskId: `${q.projectIdentifier}-${q.sequenceId}`,
+            title: q.title,
+            retryCount: q.retryCount,
+            waitingUntil:
+              q.nextAttemptAt > now ? new Date(q.nextAttemptAt).toISOString() : undefined,
+          })),
+          active: data.active.map((a) => ({
+            taskId: `${a.projectIdentifier}-${a.sequenceId}`,
+            title: a.title,
+            phase: a.phase,
+            status: a.status,
+            runtimeMinutes: Math.round((now - a.startedAt) / 60000),
+            costUsd: a.costUsd,
+            retryCount: a.retryCount,
+          })),
+          dailySpend: data.dailySpend,
+          dailyBudget: data.dailyBudget,
+        };
+      } catch (error) {
+        return {
+          queue: [],
+          active: [],
+          dailySpend: 0,
+          dailyBudget: 0,
+          error: error instanceof Error ? error.message : "Failed to reach agent runner",
+        };
+      }
+    },
+  }),
+
+  removeFromAgentQueue: createTool({
+    id: "remove_from_agent_queue",
+    description:
+      "Remove a task from the agent queue. Only works if the task is queued (not currently running). Use when the user wants to cancel a queued agent task.",
+    inputSchema: z.object({
+      issue_id: z
+        .string()
+        .describe(
+          "The Plane issue UUID to remove from the queue. Get this from agent_queue_status first."
+        ),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      error: z.string().optional(),
+    }),
+    execute: async ({ issue_id }) => {
+      try {
+        const res = await fetch(`${runnerUrl}/queue/${issue_id}`, {
+          method: "DELETE",
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+        };
+        if (res.ok) {
+          return { success: true };
+        }
+        return { success: false, error: data.error ?? `HTTP ${res.status}` };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to reach agent runner",
+        };
+      }
+    },
+  }),
+});
+
 export const createPlaneTools = (config: PlaneConfig) => ({
   listProjects: createTool({
     id: "list_projects",

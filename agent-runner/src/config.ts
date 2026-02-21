@@ -16,6 +16,9 @@ const AgentConfigSchema = z.object({
   maxDailyBudget: z.number().positive().default(20.0),
   maxTurns: z.number().int().positive().default(200),
   pollIntervalMs: z.number().int().positive().default(30000),
+  spawnDelayMs: z.number().int().positive().default(15000),
+  maxRetries: z.number().int().min(0).default(2),
+  retryBaseDelayMs: z.number().int().positive().default(60000),
   labelName: z.string().default("agent"),
 });
 

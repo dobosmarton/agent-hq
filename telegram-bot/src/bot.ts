@@ -12,7 +12,11 @@ const planeConfig: PlaneConfig = {
   workspaceSlug: env.PLANE_WORKSPACE_SLUG,
 };
 
-const agent = createAgentHQ(planeConfig, `anthropic/${env.ANTHROPIC_MODEL}`);
+const agent = createAgentHQ({
+  planeConfig,
+  model: `anthropic/${env.ANTHROPIC_MODEL}`,
+  agentRunnerUrl: env.AGENT_RUNNER_URL,
+});
 
 const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
 

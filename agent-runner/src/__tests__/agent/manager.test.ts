@@ -3,6 +3,7 @@ import type { Notifier } from "../../telegram/notifier.js";
 import type { TaskPoller } from "../../poller/task-poller.js";
 import type { StatePersistence } from "../../state/persistence.js";
 import type { AgentTask, RunnerState } from "../../types.js";
+import type { TaskQueue } from "../../queue/task-queue.js";
 import { makeConfig, makePlaneConfig } from "../fixtures/config.js";
 import { PLAN_MARKER } from "../../agent/phase.js";
 
@@ -69,6 +70,16 @@ const makePersistence = (state?: Partial<RunnerState>): StatePersistence => ({
   save: vi.fn(),
 });
 
+const makeQueue = (): TaskQueue => ({
+  enqueue: vi.fn().mockReturnValue(true),
+  dequeue: vi.fn().mockReturnValue(null),
+  requeue: vi.fn(),
+  remove: vi.fn().mockReturnValue(true),
+  entries: vi.fn().mockReturnValue([]),
+  size: vi.fn().mockReturnValue(0),
+  has: vi.fn().mockReturnValue(false),
+});
+
 const makeDeps = (overrides?: {
   notifier?: Notifier;
   persistence?: StatePersistence;
@@ -78,6 +89,7 @@ const makeDeps = (overrides?: {
   notifier: overrides?.notifier ?? makeNotifier(),
   taskPoller: makeTaskPoller(),
   statePersistence: overrides?.persistence ?? makePersistence(),
+  queue: makeQueue(),
 });
 
 beforeEach(() => {

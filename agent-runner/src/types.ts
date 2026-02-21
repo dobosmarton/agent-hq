@@ -9,6 +9,12 @@ export type AgentTask = {
   labelIds: string[];
 };
 
+export type AgentErrorType =
+  | "rate_limited"
+  | "budget_exceeded"
+  | "max_turns"
+  | "unknown";
+
 export type ActiveAgent = {
   task: AgentTask;
   phase: "planning" | "implementation";
@@ -19,6 +25,7 @@ export type ActiveAgent = {
   status: "running" | "blocked" | "completed" | "errored";
   costUsd?: number;
   alertedStale?: boolean;
+  retryCount: number;
 };
 
 export type RunnerState = {
