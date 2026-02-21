@@ -16,14 +16,19 @@ A command center for managing multiple Claude Code agents across software projec
 ┌──────────────────────────────────────────────────┐
 │  Plane (self-hosted)          → port 80          │
 │  Observability Dashboard      → port 4080        │
-│  Agent Runner (Docker)        → polls Plane       │
-│  Telegram Bot (Docker)        → long polling      │
+│  Agent Runner (Docker)        → polls Plane      │
+│    ├─ task queue (persist to disk)               │
+│    ├─ parallel agents (plan → implement)         │
+│    └─ HTTP API (status, queue control, answers)  │
+│  Telegram Bot (Docker)        → long polling     │
+│    └─ queries Agent Runner for queue status      │
 └──────────────────────────────────────────────────┘
                         │
                         │ Telegram API
                         ▼
 ┌──────────────────────────────────────────────────┐
 │  Phone → @my_agent_hq_bot → natural language     │
+│  "What's the agent queue status?"                │
 │  "Create a task in Verdandi about rate limiting"  │
 └──────────────────────────────────────────────────┘
 ```
@@ -52,6 +57,8 @@ You send a natural language message to `@my_agent_hq_bot` on Telegram. A [Mastra
 - "What workflow states does Verdandi have?"
 - "Add the agent label to VERDANDI-5"
 - "Start implementing AGENTHQ-2" (auto-adds "agent" label + moves to "Todo")
+- "What's the agent queue status?" (shows queued tasks, active agents, daily spend)
+- "Remove VERDANDI-3 from the agent queue"
 
 When creating tasks, the agent proactively enriches your brief description into a structured issue with acceptance criteria, technical considerations, and edge cases.
 
@@ -64,6 +71,7 @@ When creating tasks, the agent proactively enriches your brief description into 
 - **[@ai-sdk/anthropic](https://sdk.vercel.ai)** — Claude model provider
 - **[LibSQL](https://turso.tech/libsql)** — SQLite-based persistent storage for conversation history
 - **[Zod](https://zod.dev)** — Runtime type validation at API boundaries
+- **[Vitest](https://vitest.dev)** — Unit testing
 - **TypeScript** — Strict mode, arrow functions, types over interfaces
 
 ### Project structure
@@ -77,10 +85,10 @@ telegram-bot/
 │   ├── utils.ts            # Pure utilities — extractTaskId, chunkMessage
 │   ├── agent/
 │   │   ├── index.ts        # Mastra agent setup — system prompt, memory, model config
-│   │   └── tools.ts        # Four Plane tools: list_projects, list_tasks, create_task, get_project_states
+│   │   └── tools.ts        # Plane tools + agent runner tools for queue visibility and control
 │   ├── commands/
 │   │   └── help.ts         # /start and /help command handlers
-│   └── __tests__/          # Vitest unit tests (50 tests)
+│   └── __tests__/          # Vitest unit tests
 ├── Dockerfile              # Multi-stage build (compile TS → run JS)
 ├── docker-compose.yml      # Docker Compose with bot-data volume for SQLite persistence
 ├── tsconfig.json           # Strict TypeScript config
@@ -90,7 +98,9 @@ telegram-bot/
 
 ### Agent tools
 
-The LLM agent has these tools for interacting with Plane:
+The LLM agent has these tools for interacting with Plane and the agent runner:
+
+**Plane tools:**
 
 | Tool | Description |
 |------|-------------|
@@ -105,6 +115,13 @@ The LLM agent has these tools for interacting with Plane:
 | `add_labels_to_task` | Adds one or more labels to a task (idempotent, validates against existing labels) |
 | `remove_labels_from_task` | Removes one or more labels from a task (idempotent) |
 
+**Agent runner tools:**
+
+| Tool | Description |
+|------|-------------|
+| `agent_queue_status` | Shows queued tasks, active agents, runtime, cost, and daily budget usage |
+| `remove_from_agent_queue` | Removes a queued (not active) task from the agent queue |
+
 ### Environment variables
 
 Copy `env.example` to `.env` and fill in the values:
@@ -118,6 +135,7 @@ Copy `env.example` to `.env` and fill in the values:
 | `PLANE_WORKSPACE_SLUG` | Plane workspace slug |
 | `ANTHROPIC_API_KEY` | Anthropic API key for Claude |
 | `ANTHROPIC_MODEL` | Model ID (default: `claude-haiku-4-5-20251001`) |
+| `AGENT_RUNNER_URL` | Agent runner HTTP URL for queue tools (optional, e.g. `http://127.0.0.1:3847`) |
 
 ### Local development
 
@@ -164,22 +182,34 @@ ssh -i ~/.ssh/<ssh-key-name> deploy@<vps-ip> "cd ~/telegram-bot && docker compos
 
 ## Agent Runner
 
-The agent runner lives in [`agent-runner/`](./agent-runner/) and is an autonomous task execution system. It polls Plane for tasks labeled `agent`, spawns Claude Code agents to work on them, and reports progress back via Telegram.
+The agent runner lives in [`agent-runner/`](./agent-runner/) and is an autonomous task execution system. It polls Plane for tasks labeled `agent`, queues them, spawns Claude Code agents to work on them in parallel, and reports progress back via Telegram.
 
 ### How it works
 
-1. Polls Plane for issues with the `agent` label in configured projects
-2. Claims a task by moving it to "In Progress"
-3. Creates a git worktree with a dedicated branch (`agent/<task-id>`)
-4. Spawns a Claude Code agent (via the Agent SDK) with MCP tools for updating task status, adding comments, and asking humans questions
-5. On completion, cleans up the worktree and notifies via Telegram
+1. **Discovery loop** (every 30s) — polls Plane for issues with the `agent` label, claims them by moving to "In Progress", and enqueues them
+2. **Processing loop** (every 15s) — dequeues ready tasks and spawns agents up to the concurrency limit
+3. Each agent runs a two-phase workflow: **planning** (on the main branch) then **implementation** (on a git worktree with a dedicated `agent/<task-id>` branch)
+4. Agents have MCP tools for updating task status, adding comments, and asking humans questions via Telegram
+5. On completion, cleans up the worktree, pushes the branch, and notifies via Telegram
 6. Manages daily budget limits to control API spend
+
+### Queue and retry system
+
+The runner uses an in-memory task queue persisted to disk (`state/runner-state.json`). This ensures no tasks are lost across container restarts.
+
+- **Deduplication** — a task can only be queued once (keyed by issue ID)
+- **Exponential backoff** — failed tasks are requeued with increasing delays (base delay * 2^retry)
+- **Configurable retries** — transient errors (rate limits, crashes) are retried up to `maxRetries` times
+- **Orphan recovery** — on startup, agents that were "running" in a previous process are automatically re-enqueued and their Plane state reset to "Todo"
+- **Budget protection** — when the daily budget is reached, tasks are re-enqueued instead of dropped
+- **Graceful shutdown** — on SIGINT/SIGTERM, state is saved and active agents are reported via Telegram
+- **Clean boundaries** — the queue is a pure data structure; all orchestration (retry logic, state persistence, lifecycle management) is owned by the central orchestrator
 
 ### Tech stack
 
 - **[Claude Agent SDK](https://docs.anthropic.com/en/docs/agents)** — Spawns Claude Code agents with tool use
 - **[Zod](https://zod.dev)** — Runtime config and API response validation
-- **[Vitest](https://vitest.dev)** — Unit testing (104 tests)
+- **[Vitest](https://vitest.dev)** — Unit testing
 - **TypeScript** — Strict mode
 
 ### Project structure
@@ -187,12 +217,13 @@ The agent runner lives in [`agent-runner/`](./agent-runner/) and is an autonomou
 ```
 agent-runner/
 ├── src/
-│   ├── index.ts              # Entry point — config loading, polling loop, graceful shutdown
+│   ├── index.ts              # Orchestrator — discovery/process loops, retry logic, state persistence, shutdown
 │   ├── config.ts             # Zod schemas for config.json and environment variables
-│   ├── types.ts              # Shared type definitions
+│   ├── types.ts              # Shared type definitions (AgentTask, SpawnResult, RunnerState, etc.)
 │   ├── agent/
 │   │   ├── manager.ts        # Agent lifecycle — spawning, budget tracking, stale detection
 │   │   ├── runner.ts         # Claude Agent SDK integration — runs the agent process
+│   │   ├── phase.ts          # Detects planning vs implementation phase from comments
 │   │   ├── mcp-tools.ts      # MCP tools: update_task_status, add_task_comment, ask_human
 │   │   └── prompt-builder.ts # Builds the system prompt for each agent
 │   ├── plane/
@@ -200,20 +231,38 @@ agent-runner/
 │   │   └── types.ts          # Zod schemas for Plane API responses
 │   ├── poller/
 │   │   └── task-poller.ts    # Polls Plane for agent-labeled tasks, manages claim/release
+│   ├── queue/
+│   │   └── task-queue.ts     # In-memory task queue with dedup, backoff, and serialization
 │   ├── state/
-│   │   └── persistence.ts    # JSON file persistence for agent state across restarts
+│   │   └── persistence.ts    # JSON file persistence for runner state across restarts
 │   ├── telegram/
 │   │   ├── notifier.ts       # Telegram message sender (start/complete/error/blocked notifications)
-│   │   └── bridge.ts         # Human-in-the-loop — agents ask questions, humans reply via Telegram
+│   │   └── bridge.ts         # HTTP API for human-in-the-loop, queue status, and queue control
 │   ├── worktree/
 │   │   └── manager.ts        # Git worktree creation/cleanup for isolated agent workspaces
-│   └── __tests__/            # Vitest unit tests (104 tests)
+│   └── __tests__/            # Vitest unit tests
 ├── config.json               # Project mappings and agent settings
 ├── Dockerfile                # Multi-stage build with git support
 ├── docker-compose.yml        # Docker Compose with repo volumes and state persistence
 ├── entrypoint.sh             # Container entrypoint
 └── env.example               # Required environment variables
 ```
+
+### Configuration
+
+Agent behavior is configured in `config.json`:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `agent.maxConcurrent` | 2 | Max agents running in parallel |
+| `agent.maxBudgetPerTask` | $5.00 | Budget ceiling per individual task |
+| `agent.maxDailyBudget` | $20.00 | Total daily spend limit |
+| `agent.maxTurns` | 200 | Max agent turns per task |
+| `agent.pollIntervalMs` | 30000 | Discovery cycle interval |
+| `agent.spawnDelayMs` | 15000 | Processing cycle interval |
+| `agent.maxRetries` | 2 | Retry count for transient failures |
+| `agent.retryBaseDelayMs` | 60000 | Base delay for exponential backoff |
+| `agent.labelName` | `agent` | Plane label that triggers agent pickup |
 
 ### Environment variables
 
@@ -223,9 +272,10 @@ Copy `env.example` to `.env` and fill in the values:
 |----------|-------------|
 | `PLANE_API_KEY` | Plane workspace API token |
 | `ANTHROPIC_API_KEY` | Anthropic API key for Claude agents |
-| `TELEGRAM_BOT_TOKEN` | Bot token (same as telegram-bot) |
-| `TELEGRAM_CHAT_ID` | Telegram chat ID for notifications |
+| `TELEGRAM_BOT_TOKEN` | Bot token (same as telegram-bot, optional) |
+| `TELEGRAM_CHAT_ID` | Telegram chat ID for notifications (optional) |
 | `GITHUB_PAT` | GitHub PAT for git push in worktrees |
+| `STATE_PATH` | Path to state file (default: `state/runner-state.json`) |
 
 ### Scripts
 
