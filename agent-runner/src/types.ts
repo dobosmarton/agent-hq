@@ -28,6 +28,18 @@ export type ActiveAgent = {
   retryCount: number;
 };
 
+export type SpawnResult =
+  | { outcome: "started" }
+  | { outcome: "rejected"; reason: "no_project_config" | "budget_exceeded" }
+  | { outcome: "error"; reason: string };
+
+export type AgentDoneResult = {
+  costUsd: number;
+  errorType?: AgentErrorType;
+  crashed?: boolean;
+  error?: string;
+};
+
 export type SerializedQueueEntry = {
   task: AgentTask;
   retryCount: number;

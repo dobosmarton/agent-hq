@@ -1,13 +1,23 @@
 import type { Config, PlaneConfig } from "../config";
-import { listComments, updateIssue } from "../plane/client";
+import { listComments } from "../plane/client";
 import type { TaskPoller } from "../poller/task-poller";
-import type { TaskQueue } from "../queue/task-queue";
 import type { StatePersistence } from "../state/persistence";
 import type { Notifier } from "../telegram/notifier";
-import type { ActiveAgent, AgentTask } from "../types";
+import type {
+  ActiveAgent,
+  AgentDoneResult,
+  AgentTask,
+  SpawnResult,
+} from "../types";
 import { createWorktree, removeWorktree } from "../worktree/manager";
 import { detectPhase } from "./phase";
 import { runAgent } from "./runner";
+
+export type OnAgentDone = (
+  task: AgentTask,
+  result: AgentDoneResult,
+  retryCount: number,
+) => void;
 
 type ManagerDeps = {
   planeConfig: PlaneConfig;
@@ -15,29 +25,27 @@ type ManagerDeps = {
   notifier: Notifier;
   taskPoller: TaskPoller;
   statePersistence: StatePersistence;
-  queue: TaskQueue;
+  onAgentDone: OnAgentDone;
 };
 
 const STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-const RETRYABLE_ERRORS = new Set(["rate_limited", "unknown"]);
-
 export const createAgentManager = (deps: ManagerDeps) => {
   const activeAgents = new Map<string, ActiveAgent>();
-  let state = deps.statePersistence.load();
+  let dailySpendUsd = 0;
+  let dailySpendDate = new Date().toISOString().slice(0, 10);
+
+  // Load persisted state
+  const savedState = deps.statePersistence.load();
+  dailySpendUsd = savedState.dailySpendUsd;
+  dailySpendDate = savedState.dailySpendDate;
 
   // Reset daily spend if date changed
   const today = new Date().toISOString().slice(0, 10);
-  if (state.dailySpendDate !== today) {
-    state.dailySpendUsd = 0;
-    state.dailySpendDate = today;
-    deps.statePersistence.save(state);
+  if (dailySpendDate !== today) {
+    dailySpendUsd = 0;
+    dailySpendDate = today;
   }
-
-  const persistState = (): void => {
-    state.activeAgents = Object.fromEntries(activeAgents);
-    deps.statePersistence.save(state);
-  };
 
   const activeCount = (): number => activeAgents.size;
 
@@ -45,13 +53,13 @@ export const createAgentManager = (deps: ManagerDeps) => {
 
   const checkBudget = (): boolean => {
     const currentDay = new Date().toISOString().slice(0, 10);
-    if (state.dailySpendDate !== currentDay) {
-      state.dailySpendUsd = 0;
-      state.dailySpendDate = currentDay;
+    if (dailySpendDate !== currentDay) {
+      dailySpendUsd = 0;
+      dailySpendDate = currentDay;
     }
 
     return (
-      state.dailySpendUsd + deps.config.agent.maxBudgetPerTask <=
+      dailySpendUsd + deps.config.agent.maxBudgetPerTask <=
       deps.config.agent.maxDailyBudget
     );
   };
@@ -62,7 +70,6 @@ export const createAgentManager = (deps: ManagerDeps) => {
     repoPath: string,
     phase: "planning" | "implementation",
   ): Promise<void> => {
-    // Only clean up worktree for implementation phase
     if (phase === "implementation") {
       try {
         await removeWorktree(repoPath, taskSlug);
@@ -73,29 +80,24 @@ export const createAgentManager = (deps: ManagerDeps) => {
     }
     activeAgents.delete(issueId);
     deps.taskPoller.releaseTask(issueId);
-    persistState();
   };
 
   const spawnAgent = async (
     task: AgentTask,
     retryCount: number = 0,
-  ): Promise<void> => {
+  ): Promise<SpawnResult> => {
     const projectConfig = deps.config.projects[task.projectIdentifier];
     if (!projectConfig) {
       console.error(`No project config for ${task.projectIdentifier}`);
-      return;
+      return { outcome: "rejected", reason: "no_project_config" };
     }
 
     if (!checkBudget()) {
       const taskSlug = `${task.projectIdentifier}-${task.sequenceId}`;
       console.warn(
-        `Daily budget limit reached ($${state.dailySpendUsd.toFixed(2)}/$${deps.config.agent.maxDailyBudget}), skipping ${taskSlug}`,
+        `Daily budget limit reached ($${dailySpendUsd.toFixed(2)}/$${deps.config.agent.maxDailyBudget}), skipping ${taskSlug}`,
       );
-      await deps.notifier.sendMessage(
-        `<b>Budget limit reached</b>\nDaily spend: $${state.dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}\nSkipping <code>${taskSlug}</code>: ${task.title}`,
-      );
-      deps.taskPoller.releaseTask(task.issueId);
-      return;
+      return { outcome: "rejected", reason: "budget_exceeded" };
     }
 
     const taskSlug = `${task.projectIdentifier}-${task.sequenceId}`;
@@ -114,11 +116,9 @@ export const createAgentManager = (deps: ManagerDeps) => {
     let branchName: string;
 
     if (phase === "planning") {
-      // Planning runs in the repo dir directly (read-only)
       workingDir = projectConfig.repoPath;
       branchName = "";
     } else {
-      // Implementation creates a worktree
       try {
         const result = await createWorktree(
           projectConfig.repoPath,
@@ -136,7 +136,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
           `Worktree creation failed: ${msg}`,
         );
         deps.taskPoller.releaseTask(task.issueId);
-        return;
+        return { outcome: "error", reason: `Worktree creation failed: ${msg}` };
       }
     }
 
@@ -151,9 +151,8 @@ export const createAgentManager = (deps: ManagerDeps) => {
       retryCount,
     };
     activeAgents.set(task.issueId, agent);
-    persistState();
 
-    // Run agent in background (don't await — it runs concurrently)
+    // Run agent in background — notify caller via onAgentDone
     runAgent(task, phase, workingDir, branchName, comments, {
       planeConfig: deps.planeConfig,
       config: deps.config,
@@ -162,76 +161,42 @@ export const createAgentManager = (deps: ManagerDeps) => {
     })
       .then(async (result) => {
         agent.costUsd = result.costUsd;
-        state.dailySpendUsd += result.costUsd;
-
-        // Check if this is a retryable error
-        if (
-          result.errorType &&
-          RETRYABLE_ERRORS.has(result.errorType) &&
-          retryCount < deps.config.agent.maxRetries
-        ) {
-          const nextRetry = retryCount + 1;
-          const delay = Math.round(
-            deps.config.agent.retryBaseDelayMs * Math.pow(2, retryCount),
-          );
-          console.log(
-            `Agent ${taskSlug} failed with ${result.errorType}, scheduling retry ${nextRetry}/${deps.config.agent.maxRetries} in ${delay / 1000}s`,
-          );
-          await deps.notifier.sendMessage(
-            `<b>Retrying ${taskSlug}</b>\nError: ${result.errorType}\nAttempt ${nextRetry}/${deps.config.agent.maxRetries} in ${delay / 1000}s`,
-          );
-          // Move task back to Todo for re-pickup
-          const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
-          if (cache) {
-            await updateIssue(deps.planeConfig, task.projectId, task.issueId, {
-              state: cache.todoStateId,
-            });
-          }
-          activeAgents.delete(task.issueId);
-          deps.taskPoller.releaseTask(task.issueId);
-          deps.queue.requeue(task, nextRetry);
-          persistState();
-          return;
-        }
+        dailySpendUsd += result.costUsd;
 
         agent.status = result.errorType ? "errored" : "completed";
-        persistState();
         console.log(
-          `Daily spend: $${state.dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}`,
+          `Daily spend: $${dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}`,
         );
-        await cleanup(task.issueId, taskSlug, projectConfig.repoPath, phase);
-      })
-      .catch(async (err) => {
-        agent.status = "errored";
-        console.error(`Agent ${taskSlug} (${phase}) failed:`, err);
 
-        // Retry on crash if within limits
-        if (retryCount < deps.config.agent.maxRetries) {
-          const nextRetry = retryCount + 1;
-          const delay = Math.round(
-            deps.config.agent.retryBaseDelayMs * Math.pow(2, retryCount),
-          );
-          console.log(
-            `Agent ${taskSlug} crashed, scheduling retry ${nextRetry}/${deps.config.agent.maxRetries} in ${delay / 1000}s`,
-          );
-          await deps.notifier.sendMessage(
-            `<b>Retrying ${taskSlug}</b>\nCrashed: ${err instanceof Error ? err.message : String(err)}\nAttempt ${nextRetry}/${deps.config.agent.maxRetries} in ${delay / 1000}s`,
-          );
-          const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
-          if (cache) {
-            await updateIssue(deps.planeConfig, task.projectId, task.issueId, {
-              state: cache.todoStateId,
-            });
-          }
-          activeAgents.delete(task.issueId);
-          deps.taskPoller.releaseTask(task.issueId);
-          deps.queue.requeue(task, nextRetry);
+        if (!result.errorType) {
+          await cleanup(task.issueId, taskSlug, projectConfig.repoPath, phase);
         } else {
           activeAgents.delete(task.issueId);
           deps.taskPoller.releaseTask(task.issueId);
         }
-        persistState();
+
+        deps.onAgentDone(
+          task,
+          { costUsd: result.costUsd, errorType: result.errorType },
+          retryCount,
+        );
+      })
+      .catch(async (err) => {
+        agent.status = "errored";
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`Agent ${taskSlug} (${phase}) failed:`, err);
+
+        activeAgents.delete(task.issueId);
+        deps.taskPoller.releaseTask(task.issueId);
+
+        deps.onAgentDone(
+          task,
+          { costUsd: 0, crashed: true, error: errMsg },
+          retryCount,
+        );
       });
+
+    return { outcome: "started" };
   };
 
   const checkStaleAgents = async (): Promise<void> => {
@@ -249,16 +214,24 @@ export const createAgentManager = (deps: ManagerDeps) => {
           `<b>Stale agent detected</b>\n<code>${taskSlug}</code>: ${agent.task.title}\nRunning for ${hours}h with no completion.`,
         );
         agent.alertedStale = true;
-        persistState();
       }
     }
   };
 
   const getActiveAgents = (): ActiveAgent[] => [...activeAgents.values()];
 
-  const getDailySpend = (): number => state.dailySpendUsd;
+  const getDailySpend = (): number => dailySpendUsd;
 
   const getDailyBudget = (): number => deps.config.agent.maxDailyBudget;
+
+  const getState = () => ({
+    activeAgents: Object.fromEntries(activeAgents) as Record<
+      string,
+      ActiveAgent
+    >,
+    dailySpendUsd,
+    dailySpendDate,
+  });
 
   return {
     activeCount,
@@ -268,6 +241,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
     checkStaleAgents,
     getDailySpend,
     getDailyBudget,
+    getState,
   };
 };
 

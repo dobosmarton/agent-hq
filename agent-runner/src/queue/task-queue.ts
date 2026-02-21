@@ -7,10 +7,7 @@ export type QueueEntry = {
   enqueuedAt: number;
 };
 
-export const createTaskQueue = (
-  retryBaseDelayMs: number,
-  onChanged?: () => void,
-) => {
+export const createTaskQueue = (retryBaseDelayMs: number) => {
   const queue = new Map<string, QueueEntry>();
 
   const enqueue = (task: AgentTask): boolean => {
@@ -22,7 +19,6 @@ export const createTaskQueue = (
       nextAttemptAt: Date.now(),
       enqueuedAt: Date.now(),
     });
-    onChanged?.();
     return true;
   };
 
@@ -31,7 +27,6 @@ export const createTaskQueue = (
     for (const [id, entry] of queue) {
       if (entry.nextAttemptAt <= now) {
         queue.delete(id);
-        onChanged?.();
         return entry;
       }
     }
@@ -46,13 +41,10 @@ export const createTaskQueue = (
       nextAttemptAt: Date.now() + delay,
       enqueuedAt: Date.now(),
     });
-    onChanged?.();
   };
 
   const remove = (issueId: string): boolean => {
-    const result = queue.delete(issueId);
-    if (result) onChanged?.();
-    return result;
+    return queue.delete(issueId);
   };
 
   const entries = (): QueueEntry[] => [...queue.values()];
