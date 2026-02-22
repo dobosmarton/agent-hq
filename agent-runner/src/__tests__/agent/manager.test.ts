@@ -313,6 +313,26 @@ describe("spawnAgent", () => {
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
   });
 
+  it("passes retryContext to runAgent", async () => {
+    const deps = makeDeps();
+    mockedRunAgent.mockReturnValue(new Promise(() => {}));
+
+    const manager = createAgentManager(deps);
+    await manager.spawnAgent(makeTask(), 2);
+
+    expect(mockedRunAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      "planning",
+      expect.any(String),
+      expect.any(String),
+      expect.any(Array),
+      expect.anything(),
+      expect.objectContaining({
+        retryContext: { retryCount: 2, maxRetries: 2 },
+      }),
+    );
+  });
+
   it("exposes state via getState()", async () => {
     const deps = makeDeps();
     mockedRunAgent.mockReturnValue(new Promise(() => {}));

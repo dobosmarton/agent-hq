@@ -18,6 +18,10 @@ type RunnerDeps = {
   config: Config;
   notifier: Notifier;
   taskPoller: TaskPoller;
+  retryContext: {
+    retryCount: number;
+    maxRetries: number;
+  };
 };
 
 export type AgentResult = {
@@ -69,6 +73,8 @@ export const runAgent = async (
   deps: RunnerDeps,
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
+  const hasRetriesRemaining =
+    deps.retryContext.retryCount < deps.retryContext.maxRetries;
   const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
 
   console.log(`Starting ${phase} agent for ${taskDisplayId}: "${task.title}"`);
@@ -138,15 +144,19 @@ export const runAgent = async (
         }
 
         if (message.subtype === "success") {
+          const retryNote =
+            deps.retryContext.retryCount > 0
+              ? ` (succeeded after ${deps.retryContext.retryCount} ${deps.retryContext.retryCount === 1 ? "retry" : "retries"})`
+              : "";
           console.log(
-            `Agent ${taskDisplayId} (${phase}) completed successfully (cost: $${totalCostUsd.toFixed(2)})`,
+            `Agent ${taskDisplayId} (${phase}) completed successfully${retryNote} (cost: $${totalCostUsd.toFixed(2)})`,
           );
           await deps.notifier.agentCompleted(taskDisplayId, task.title);
           await addComment(
             deps.planeConfig,
             task.projectId,
             task.issueId,
-            `<p><strong>Agent completed ${phaseLabel}</strong>.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`,
+            `<p><strong>Agent completed ${phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`,
           );
         } else {
           const errors =
@@ -171,17 +181,23 @@ export const runAgent = async (
           console.error(
             `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${subtype}, type=${errorType}): ${errorText}`,
           );
-          await deps.notifier.agentErrored(
-            taskDisplayId,
-            task.title,
-            errorText,
-          );
-          await addComment(
-            deps.planeConfig,
-            task.projectId,
-            task.issueId,
-            `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`,
-          );
+
+          // Suppress notifications for retryable errors when retries remain
+          const isRetryableError =
+            errorType === "rate_limited" || errorType === "unknown";
+          if (!(isRetryableError && hasRetriesRemaining)) {
+            await deps.notifier.agentErrored(
+              taskDisplayId,
+              task.title,
+              errorText,
+            );
+            await addComment(
+              deps.planeConfig,
+              task.projectId,
+              task.issueId,
+              `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`,
+            );
+          }
 
           return { costUsd: totalCostUsd, errorType };
         }
@@ -197,13 +213,15 @@ export const runAgent = async (
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`Agent ${taskDisplayId} (${phase}) crashed: ${errorMsg}`);
-    await deps.notifier.agentErrored(taskDisplayId, task.title, errorMsg);
-    await addComment(
-      deps.planeConfig,
-      task.projectId,
-      task.issueId,
-      `<p><strong>Agent crashed during ${phaseLabel}:</strong></p><pre>${errorMsg.slice(0, 1000)}</pre>`,
-    );
+    if (!hasRetriesRemaining) {
+      await deps.notifier.agentErrored(taskDisplayId, task.title, errorMsg);
+      await addComment(
+        deps.planeConfig,
+        task.projectId,
+        task.issueId,
+        `<p><strong>Agent crashed during ${phaseLabel}:</strong></p><pre>${errorMsg.slice(0, 1000)}</pre>`,
+      );
+    }
     throw err;
   }
 };

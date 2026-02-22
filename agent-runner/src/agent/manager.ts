@@ -164,6 +164,10 @@ export const createAgentManager = (deps: ManagerDeps) => {
       config: deps.config,
       notifier: deps.notifier,
       taskPoller: deps.taskPoller,
+      retryContext: {
+        retryCount,
+        maxRetries: deps.config.agent.maxRetries,
+      },
     })
       .then(async (result) => {
         agent.costUsd = result.costUsd;
