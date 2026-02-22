@@ -522,6 +522,41 @@ export const createPlaneTools = (config: PlaneConfig) => ({
     },
   }),
 
+  listLabels: createTool({
+    id: "list_labels",
+    description:
+      "List all available labels for a project. Use this to discover which labels exist before adding them to tasks.",
+    inputSchema: z.object({
+      project_identifier: z
+        .string()
+        .describe("The project identifier (e.g. 'AGENTHQ', 'VERDANDI')."),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      labels: z.array(z.object({ name: z.string(), color: z.string().optional() })).optional(),
+      error: z.string().optional(),
+    }),
+    execute: async ({ project_identifier }) => {
+      const project = await findProjectByIdentifier(config, project_identifier);
+      if (!project) {
+        return { success: false, error: `Project "${project_identifier}" not found` };
+      }
+
+      try {
+        const labels = await listLabels(config, project.id);
+        return {
+          success: true,
+          labels: labels.map((l) => ({ name: l.name, color: l.color })),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to list labels",
+        };
+      }
+    },
+  }),
+
   addLabelsToTask: createTool({
     id: "add_labels_to_task",
     description:

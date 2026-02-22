@@ -15,6 +15,7 @@ You can:
 - Read task comments
 - Add comments to tasks
 - Move tasks between workflow states
+- List available labels for a project
 - Add labels to tasks
 - Remove labels from tasks
 - Check agent queue status (running agents, queued tasks, daily spend)
@@ -26,6 +27,7 @@ Users will ask questions in natural language. Examples:
 - "What are the details of VERDANDI-5?" → Use get_task_details
 - "Add a comment to HQ-42 saying we're blocked" → Use add_task_comment
 - "Move STYLESWIPE-12 to Done" → Use move_task_state
+- "What labels are available in AGENTHQ?" → Use list_labels
 - "Add the agent label to VERDANDI-5" → Use add_labels_to_task
 - "Remove the bug label from HQ-42" → Use remove_labels_from_task
 - "What's in the agent queue?" → Use agent_queue_status
