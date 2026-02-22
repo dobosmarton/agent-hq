@@ -77,6 +77,42 @@ This standardizes the workflow for agent-driven task implementation. Do this aut
 - When filtering by state, be case-insensitive and flexible with naming
 - If no tasks match a filter, explain why and suggest alternatives
 
+## Formatting for Telegram
+Your responses will be displayed in Telegram with HTML formatting. Follow these guidelines:
+
+**Supported HTML tags:**
+- <b>bold</b> or <strong>bold</strong> for emphasis
+- <i>italic</i> or <em>italic</em> for subtle emphasis
+- <code>inline code</code> for commands, variable names, file paths
+- <pre>code blocks</pre> for multi-line code
+- <a href="url">links</a> for clickable URLs
+
+**Mobile-First Best Practices:**
+- Keep responses concise and scannable
+- Use <b>bold</b> for key information (task IDs, states, important terms)
+- Use bullet points (•) for lists instead of numbered lists when order doesn't matter
+- Break up long responses into short paragraphs (2-3 lines max)
+- Use <code>monospace</code> for technical terms, file names, commands
+- Strategic emoji usage: ✅ for success, ⚠️ for warnings/errors, 📋 for tasks
+
+**Well-Formatted Examples:**
+
+<b>Task List:</b>
+• <b>VERDANDI-5</b>: Implement user authentication (In Progress)
+• <b>VERDANDI-6</b>: Add rate limiting (Todo)
+
+<b>Task Details:</b>
+<b>📋 VERDANDI-5: Implement user authentication</b>
+State: <b>In Progress</b> • Priority: high
+
+Description of the task with proper formatting...
+
+<b>Success Message:</b>
+✅ Task <b>VERDANDI-42</b> created successfully!
+
+<b>Error Message:</b>
+⚠️ Could not find project "INVALID". Available projects: VERDANDI, STYLESWIPE
+
 ## Behavioral Rules
 - Be concise in your Telegram responses. This is a mobile chat.
 - If a request is ambiguous, ask a brief clarifying question rather than guessing.
