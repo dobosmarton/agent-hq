@@ -1,7 +1,13 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { PlaneConfig } from "../config";
-import { addComment, addLink, updateIssue } from "../plane/client";
+import {
+  addComment,
+  addLink,
+  getIssue,
+  listLabels,
+  updateIssue,
+} from "../plane/client";
 
 type McpToolsContext = {
   planeConfig: PlaneConfig;
@@ -96,6 +102,165 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               {
                 type: "text" as const,
                 text: `Link "${title}" added to task ${ctx.taskDisplayId}.`,
+              },
+            ],
+          };
+        },
+      ),
+
+      tool(
+        "list_labels",
+        "List all available labels in the current project. Returns label names, colors, and descriptions.",
+        {},
+        async () => {
+          const labels = await listLabels(ctx.planeConfig, ctx.projectId);
+
+          if (labels.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No labels found in this project.",
+                },
+              ],
+            };
+          }
+
+          const labelList = labels
+            .map((label) => {
+              const parts = [`- ${label.name}`];
+              if (label.color) {
+                parts.push(` (color: ${label.color})`);
+              }
+              if (label.description) {
+                parts.push(`: ${label.description}`);
+              }
+              return parts.join("");
+            })
+            .join("\n");
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Available labels in this project:\n${labelList}`,
+              },
+            ],
+          };
+        },
+      ),
+
+      tool(
+        "add_labels_to_task",
+        "Add one or more labels to the current task. Label names are case-insensitive.",
+        {
+          label_names: z
+            .array(z.string())
+            .describe("Array of label names to add"),
+        },
+        async ({ label_names }) => {
+          // Fetch current issue and available labels
+          const [issue, availableLabels] = await Promise.all([
+            getIssue(ctx.planeConfig, ctx.projectId, ctx.issueId),
+            listLabels(ctx.planeConfig, ctx.projectId),
+          ]);
+
+          // Build lookup map (case-insensitive)
+          const labelMap = new Map(
+            availableLabels.map((l) => [l.name.toLowerCase(), l.id]),
+          );
+
+          // Find label IDs
+          const notFound: string[] = [];
+          const labelIdsToAdd: string[] = [];
+
+          for (const name of label_names) {
+            const labelId = labelMap.get(name.toLowerCase());
+            if (labelId) {
+              labelIdsToAdd.push(labelId);
+            } else {
+              notFound.push(name);
+            }
+          }
+
+          // If any labels not found, return helpful error
+          if (notFound.length > 0) {
+            const availableList = availableLabels.map((l) => l.name).join(", ");
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Label(s) not found: ${notFound.join(", ")}.\nAvailable labels: ${availableList}`,
+                },
+              ],
+            };
+          }
+
+          // Merge with existing labels and deduplicate
+          const currentLabels = issue.labels ?? [];
+          const mergedLabels = Array.from(
+            new Set([...currentLabels, ...labelIdsToAdd]),
+          );
+
+          // Update issue
+          await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, {
+            labels: mergedLabels,
+          });
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Added label(s) ${label_names.join(", ")} to task ${ctx.taskDisplayId}.`,
+              },
+            ],
+          };
+        },
+      ),
+
+      tool(
+        "remove_labels_from_task",
+        "Remove one or more labels from the current task. Label names are case-insensitive.",
+        {
+          label_names: z
+            .array(z.string())
+            .describe("Array of label names to remove"),
+        },
+        async ({ label_names }) => {
+          // Fetch current issue and available labels
+          const [issue, availableLabels] = await Promise.all([
+            getIssue(ctx.planeConfig, ctx.projectId, ctx.issueId),
+            listLabels(ctx.planeConfig, ctx.projectId),
+          ]);
+
+          // Build lookup map (case-insensitive)
+          const labelMap = new Map(
+            availableLabels.map((l) => [l.name.toLowerCase(), l.id]),
+          );
+
+          // Find label IDs to remove
+          const labelIdsToRemove = new Set(
+            label_names
+              .map((name) => labelMap.get(name.toLowerCase()))
+              .filter((id): id is string => id !== undefined),
+          );
+
+          // Filter out labels to remove
+          const currentLabels = issue.labels ?? [];
+          const updatedLabels = currentLabels.filter(
+            (id) => !labelIdsToRemove.has(id),
+          );
+
+          // Update issue
+          await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, {
+            labels: updatedLabels,
+          });
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Removed label(s) ${label_names.join(", ")} from task ${ctx.taskDisplayId}.`,
               },
             ],
           };

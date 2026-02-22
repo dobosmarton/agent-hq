@@ -36,6 +36,7 @@ const PLANNING_TOOLS = [
   "Task",
   "mcp__agent-plane-tools__update_task_status",
   "mcp__agent-plane-tools__add_task_comment",
+  "mcp__agent-plane-tools__list_labels",
 ];
 
 const IMPLEMENTATION_TOOLS = [
@@ -49,6 +50,9 @@ const IMPLEMENTATION_TOOLS = [
   "mcp__agent-plane-tools__update_task_status",
   "mcp__agent-plane-tools__add_task_comment",
   "mcp__agent-plane-tools__add_task_link",
+  "mcp__agent-plane-tools__list_labels",
+  "mcp__agent-plane-tools__add_labels_to_task",
+  "mcp__agent-plane-tools__remove_labels_from_task",
 ];
 
 // Blocklist for destructive commands — takes precedence over allowedTools
