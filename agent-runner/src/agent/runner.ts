@@ -74,6 +74,7 @@ export const runAgent = async (
   branchName: string,
   comments: PlaneComment[],
   ciContext: CiContext,
+  skillsSection: string | undefined,
   deps: RunnerDeps,
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
@@ -118,8 +119,14 @@ export const runAgent = async (
   // Build phase-specific prompt
   const prompt =
     phase === "planning"
-      ? buildPlanningPrompt(task)
-      : buildImplementationPrompt(task, branchName, comments, ciContext);
+      ? buildPlanningPrompt(task, skillsSection)
+      : buildImplementationPrompt(
+          task,
+          branchName,
+          comments,
+          ciContext,
+          skillsSection,
+        );
 
   // Phase-specific settings
   const maxTurns = phase === "planning" ? 50 : deps.config.agent.maxTurns;

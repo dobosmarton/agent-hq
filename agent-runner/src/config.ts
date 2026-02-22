@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { SkillsConfigSchema } from "./skills/types";
 
 const ProjectConfigSchema = z.object({
   repoPath: z.string(),
@@ -21,6 +22,7 @@ const AgentConfigSchema = z.object({
   maxRetries: z.number().int().min(0).default(2),
   retryBaseDelayMs: z.number().int().positive().default(60000),
   labelName: z.string().default("agent"),
+  skills: SkillsConfigSchema,
 });
 
 const ConfigSchema = z.object({

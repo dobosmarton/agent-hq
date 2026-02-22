@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "skills:list": "tsx src/skills/cli.ts list",
+    "skills:show": "tsx src/skills/cli.ts show",
+    "skills:validate": "tsx src/skills/cli.ts validate"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",

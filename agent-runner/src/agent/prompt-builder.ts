@@ -6,14 +6,19 @@ import { PLAN_MARKER } from "./phase";
 const taskDisplayId = (task: AgentTask): string =>
   `${task.projectIdentifier}-${task.sequenceId}`;
 
-export const buildPlanningPrompt = (task: AgentTask): string => {
+export const buildPlanningPrompt = (
+  task: AgentTask,
+  skillsSection?: string,
+): string => {
   const taskId = taskDisplayId(task);
+
+  const skillsContent = skillsSection ? `\n${skillsSection}\n` : "";
 
   return `You are an autonomous software engineer reviewing task ${taskId}: "${task.title}".
 
 ## Task Description
 ${task.descriptionHtml || "No description provided."}
-
+${skillsContent}
 ## Your Goal
 Create a detailed implementation plan for this task. Do NOT make any code changes.
 
@@ -103,6 +108,7 @@ export const buildImplementationPrompt = (
   branchName: string,
   comments: PlaneComment[],
   ciContext: CiContext,
+  skillsSection?: string,
 ): string => {
   const taskId = taskDisplayId(task);
 
@@ -114,6 +120,7 @@ export const buildImplementationPrompt = (
     .join("\n");
 
   const ciSection = buildCiValidationSection(ciContext);
+  const skillsContent = skillsSection ? `\n${skillsSection}\n` : "";
 
   return `You are an autonomous software engineer implementing task ${taskId}: "${task.title}".
 
@@ -123,7 +130,7 @@ ${task.descriptionHtml || "No description provided."}
 ## Previous Comments (Plan & Feedback)
 The following comments contain the implementation plan and any human feedback:
 ${commentsSection || "<p>No previous comments.</p>"}
-
+${skillsContent}
 ${ciSection}
 
 ## Instructions

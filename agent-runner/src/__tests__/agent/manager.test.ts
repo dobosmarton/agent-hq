@@ -167,6 +167,7 @@ describe("phase detection", () => {
       "agent/HQ-42",
       [],
       expect.objectContaining({ workflowFiles: expect.any(Object) }),
+      expect.any(String),
       expect.anything(),
     );
   });
@@ -201,6 +202,7 @@ describe("phase detection", () => {
         }),
       ]),
       expect.objectContaining({ workflowFiles: expect.any(Object) }),
+      expect.any(String),
       expect.anything(),
     );
   });
@@ -336,6 +338,7 @@ describe("spawnAgent", () => {
       expect.any(String),
       expect.any(Array),
       expect.anything(),
+      expect.any(String),
       expect.objectContaining({
         retryContext: { retryCount: 2, maxRetries: 2 },
       }),
