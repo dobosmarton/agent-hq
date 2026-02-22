@@ -81,18 +81,27 @@ export const runAgent = async (
     deps.retryContext.retryCount < deps.retryContext.maxRetries;
   const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
 
-  console.log(`Starting ${phase} agent for ${taskDisplayId}: "${task.title}"`);
+  const isRetry = deps.retryContext.retryCount > 0;
 
-  // Notify on Telegram
-  await deps.notifier.agentStarted(taskDisplayId, task.title);
+  console.log(
+    `Starting ${phase} agent for ${taskDisplayId}: "${task.title}"${isRetry ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})` : ""}`,
+  );
 
-  // Post starting comment on Plane
+  // Notify on Telegram (skip on retries to avoid duplicate notifications)
+  if (!isRetry) {
+    await deps.notifier.agentStarted(taskDisplayId, task.title);
+  }
+
+  // Post starting comment on Plane (always, but with retry info)
   const phaseLabel = phase === "planning" ? "planning" : "implementing";
+  const retryLabel = isRetry
+    ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})`
+    : "";
   await addComment(
     deps.planeConfig,
     task.projectId,
     task.issueId,
-    `<p><strong>Agent started ${phaseLabel}</strong> this task.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`,
+    `<p><strong>Agent started ${phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`,
   );
 
   // Create task-scoped MCP server
