@@ -288,7 +288,7 @@ export const updateIssue = async (
  * List all labels for a project
  */
 export const listLabels = async (config: PlaneConfig, projectId: string): Promise<PlaneLabel[]> => {
-  const res = await fetch(`${workspaceUrl(config)}/projects/${projectId}/issue-labels/`, {
+  const res = await fetch(`${workspaceUrl(config)}/projects/${projectId}/labels/`, {
     headers: planeHeaders(config),
   });
 
