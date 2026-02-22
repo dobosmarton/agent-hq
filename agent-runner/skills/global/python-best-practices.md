@@ -9,6 +9,7 @@
 ## When to Use This Skill
 
 Use this skill when:
+
 - Starting new Python projects
 - Setting up pyproject.toml with uv, ruff, mypy
 - Writing type-safe Python code
@@ -17,6 +18,7 @@ Use this skill when:
 - Reviewing Python code for type safety and reliability
 
 **Example User Requests:**
+
 - "Set up a new Python project with strict typing"
 - "Configure ruff, mypy, and pyright"
 - "Help me write this function with proper type annotations"
@@ -294,13 +296,13 @@ def process_312(value: str | int) -> str:
 
 ### Decision Table
 
-| Criterion | `dataclass` | Pydantic `BaseModel` |
-|-----------|-------------|---------------------|
-| **Use when** | Internal data, between layers | System boundaries, user input, APIs |
-| **Validation** | None (static checking only) | Full runtime validation + coercion |
-| **Performance** | Very fast instantiation | Slower (validation overhead) |
-| **Immutability** | `frozen=True` | `ConfigDict(frozen=True)` |
-| **Serialization** | `dataclasses.asdict()` | `.model_dump()`, `.model_dump_json()` |
+| Criterion         | `dataclass`                   | Pydantic `BaseModel`                  |
+| ----------------- | ----------------------------- | ------------------------------------- |
+| **Use when**      | Internal data, between layers | System boundaries, user input, APIs   |
+| **Validation**    | None (static checking only)   | Full runtime validation + coercion    |
+| **Performance**   | Very fast instantiation       | Slower (validation overhead)          |
+| **Immutability**  | `frozen=True`                 | `ConfigDict(frozen=True)`             |
+| **Serialization** | `dataclasses.asdict()`        | `.model_dump()`, `.model_dump_json()` |
 
 ### Pydantic at Boundaries
 
@@ -983,7 +985,7 @@ class LandingPage(BaseModel):
     features: list[FeatureItem]  # ✅ Works
 ```
 
-**Note:** TypedDicts used *outside* Pydantic models (e.g., plain function return types) can use `typing.TypedDict` on any Python version.
+**Note:** TypedDicts used _outside_ Pydantic models (e.g., plain function return types) can use `typing.TypedDict` on any Python version.
 
 #### Annotate empty collections explicitly
 
@@ -1164,15 +1166,14 @@ type Headers = Mapping[str, str]
 
 ### Modern Python Toolchain (2026)
 
-| Category | Tool | Replaces |
-|----------|------|----------|
-| Package manager | **uv** | pip, poetry, pipenv |
-| Linter + Formatter | **ruff** | flake8, black, isort, pyupgrade |
-| Type checker (editor) | **pyright** / Pylance | - |
-| Type checker (CI) | **mypy --strict** | - |
-| Validation (boundary) | **Pydantic v2** | marshmallow, cerberus |
-| Domain models | **dataclass(frozen=True, slots=True)** | attrs, plain dicts |
-| Testing | **pytest + hypothesis** | unittest |
+| Category              | Tool                                   | Replaces                        |
+| --------------------- | -------------------------------------- | ------------------------------- |
+| Package manager       | **uv**                                 | pip, poetry, pipenv             |
+| Linter + Formatter    | **ruff**                               | flake8, black, isort, pyupgrade |
+| Type checker (editor) | **pyright** / Pylance                  | -                               |
+| Type checker (CI)     | **mypy --strict**                      | -                               |
+| Validation (boundary) | **Pydantic v2**                        | marshmallow, cerberus           |
+| Domain models         | **dataclass(frozen=True, slots=True)** | attrs, plain dicts              |
+| Testing               | **pytest + hypothesis**                | unittest                        |
 
 ---
-

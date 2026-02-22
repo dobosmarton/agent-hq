@@ -9,6 +9,7 @@
 ## When to Use This Skill
 
 Use this skill when:
+
 - Starting new TypeScript/Node.js projects
 - Setting up TypeScript compiler configuration
 - Configuring ESLint and Prettier
@@ -17,6 +18,7 @@ Use this skill when:
 - Reviewing code for type safety issues
 
 **Example User Requests:**
+
 - "Set up a new TypeScript project"
 - "Configure strict TypeScript settings"
 - "Help me write this function with proper types"
@@ -73,14 +75,14 @@ Use this skill when:
 
 ### Key Compiler Options Explained
 
-| Option | Value | Why |
-|--------|-------|-----|
-| `strict` | `true` | Enables all strict type checking |
-| `noUncheckedIndexedAccess` | `true` | Array/object access returns `T \| undefined` |
-| `strictNullChecks` | `true` | `null` and `undefined` are distinct types |
-| `isolatedModules` | `true` | Each file must be compilable alone |
-| `moduleResolution: "Bundler"` | Modern | Works with modern bundlers |
-| `noEmit` | `true` | Only type check, bundler handles output |
+| Option                        | Value  | Why                                          |
+| ----------------------------- | ------ | -------------------------------------------- |
+| `strict`                      | `true` | Enables all strict type checking             |
+| `noUncheckedIndexedAccess`    | `true` | Array/object access returns `T \| undefined` |
+| `strictNullChecks`            | `true` | `null` and `undefined` are distinct types    |
+| `isolatedModules`             | `true` | Each file must be compilable alone           |
+| `moduleResolution: "Bundler"` | Modern | Works with modern bundlers                   |
+| `noEmit`                      | `true` | Only type check, bundler handles output      |
 
 ### Node.js Addition
 
@@ -119,7 +121,7 @@ const add = (a: number, b: number) => {
 };
 
 // ❌ BAD: Implicit any in callback
-items.map(item => item.name);
+items.map((item) => item.name);
 
 // ✅ GOOD: Typed callback
 items.map((item: Item) => item.name);
@@ -132,12 +134,12 @@ items.map((item: Item) => item.name);
 
 ### Why Arrow Functions?
 
-| Aspect | Arrow Function | Function Declaration |
-|--------|---------------|---------------------|
-| `this` binding | Lexical (predictable) | Dynamic (error-prone) |
-| Hoisting | No (explicit order) | Yes (can be confusing) |
-| Syntax | Concise | Verbose |
-| Consistency | Same style everywhere | Mixed styles |
+| Aspect         | Arrow Function        | Function Declaration   |
+| -------------- | --------------------- | ---------------------- |
+| `this` binding | Lexical (predictable) | Dynamic (error-prone)  |
+| Hoisting       | No (explicit order)   | Yes (can be confusing) |
+| Syntax         | Concise               | Verbose                |
+| Consistency    | Same style everywhere | Mixed styles           |
 
 ### Standard Pattern
 
@@ -162,7 +164,7 @@ function add(a: number, b: number): number {
 }
 
 // ❌ BAD: Named function expression
-const add = function(a: number, b: number): number {
+const add = function (a: number, b: number): number {
   return a + b;
 };
 ```
@@ -184,8 +186,8 @@ const activeUsers = users.filter((user) => user.isActive);
 const names = users.map((user) => user.name);
 
 // ❌ BAD: Function declarations in HOFs
-const createMultiplier = function(factor: number) {
-  return function(value: number): number {
+const createMultiplier = function (factor: number) {
+  return function (value: number): number {
     return value * factor;
   };
 };
@@ -231,8 +233,8 @@ const userService = {
 // This is rare and usually indicates a design issue
 
 // If you must use `this` (e.g., library callbacks):
-const handler = function(this: Context) {
-  return this.value;  // Dynamic this
+const handler = function (this: Context) {
+  return this.value; // Dynamic this
 };
 
 // ✅ BETTER: Avoid `this` entirely - pass context explicitly
@@ -292,7 +294,7 @@ const createFilter = <T>(predicate: Predicate<T>) => {
 ```typescript
 // ❌ NEVER: any defeats type safety
 const processData = (data: any) => {
-  return data.value;  // No type checking!
+  return data.value; // No type checking!
 };
 
 // ✅ GOOD: Define the actual type
@@ -302,7 +304,7 @@ type ApiResponse = {
 };
 
 const processData = (data: ApiResponse): string => {
-  return data.value;  // Type checked!
+  return data.value; // Type checked!
 };
 ```
 
@@ -324,7 +326,7 @@ type User = z.infer<typeof UserSchema>;
 
 // Parse at the boundary
 const parseUser = (data: unknown): User => {
-  return UserSchema.parse(data);  // Throws if invalid
+  return UserSchema.parse(data); // Throws if invalid
 };
 
 // Or with result type
@@ -339,7 +341,7 @@ const safeParseUser = (data: unknown): User | null => {
 ```typescript
 // ❌ BAD: Leaving unknown unnarrowed
 const handleError = (error: unknown) => {
-  console.log(error.message);  // Error: unknown type
+  console.log(error.message); // Error: unknown type
 };
 
 // ✅ GOOD: Narrow immediately
@@ -444,7 +446,7 @@ const config: Readonly<Config> = {
 
 // ✅ GOOD: as const for literal types
 const STATUSES = ["pending", "active", "completed"] as const;
-type Status = typeof STATUSES[number];  // "pending" | "active" | "completed"
+type Status = (typeof STATUSES)[number]; // "pending" | "active" | "completed"
 
 // ✅ GOOD: Return new objects instead of mutating
 const updateUser = (user: User, name: string): User => {
@@ -453,7 +455,7 @@ const updateUser = (user: User, name: string): User => {
 
 // ❌ BAD: Mutation
 const updateUser = (user: User, name: string): User => {
-  user.name = name;  // Mutating input!
+  user.name = name; // Mutating input!
   return user;
 };
 ```
@@ -555,9 +557,9 @@ const handleState = <T>(state: AsyncState<T>): string => {
     case "loading":
       return "Loading...";
     case "success":
-      return `Got ${state.data}`;  // TypeScript knows data exists
+      return `Got ${state.data}`; // TypeScript knows data exists
     case "error":
-      return `Error: ${state.error}`;  // TypeScript knows error exists
+      return `Error: ${state.error}`; // TypeScript knows error exists
   }
 };
 ```
@@ -566,9 +568,7 @@ const handleState = <T>(state: AsyncState<T>): string => {
 
 ```typescript
 // ✅ GOOD: Result type for error handling
-type Result<T, E = string> =
-  | { ok: true; value: T }
-  | { ok: false; error: E };
+type Result<T, E = string> = { ok: true; value: T } | { ok: false; error: E };
 
 const divide = (a: number, b: number): Result<number> => {
   if (b === 0) {
@@ -580,9 +580,9 @@ const divide = (a: number, b: number): Result<number> => {
 // Usage
 const result = divide(10, 2);
 if (result.ok) {
-  console.log(result.value);  // TypeScript knows value exists
+  console.log(result.value); // TypeScript knows value exists
 } else {
-  console.error(result.error);  // TypeScript knows error exists
+  console.error(result.error); // TypeScript knows error exists
 }
 ```
 
@@ -669,10 +669,13 @@ export default [
       "prefer-const": "error",
 
       // No unused variables
-      "@typescript-eslint/no-unused-vars": ["error", {
-        argsIgnorePattern: "^_",
-        varsIgnorePattern: "^_",
-      }],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   {
@@ -872,7 +875,10 @@ const addItem = (arr: readonly string[], item: string): string[] => {
 ```typescript
 // ❌ BAD
 class Point {
-  constructor(public x: number, public y: number) {}
+  constructor(
+    public x: number,
+    public y: number,
+  ) {}
 }
 
 // ✅ GOOD
@@ -901,7 +907,7 @@ function processUser(user: User): void {
 }
 
 // ❌ BAD: Named function expression
-const processUser = function(user: User): void {
+const processUser = function (user: User): void {
   // ...
 };
 
