@@ -49,6 +49,7 @@ const makeContext = (overrides?: Record<string, unknown>) => ({
   planReviewStateId: "plan-review-state" as string | null,
   inReviewStateId: "review-state" as string | null,
   doneStateId: "done-state" as string | null,
+  skills: [] as import("../../skills/types").Skill[],
   ...overrides,
 });
 
@@ -544,5 +545,62 @@ describe("remove_labels_from_task", () => {
       "issue-1",
       { labels: [] },
     );
+  });
+});
+
+describe("load_skill", () => {
+  const makeSkill = (
+    overrides?: Partial<import("../../skills/types").Skill>,
+  ): import("../../skills/types").Skill => ({
+    id: "test-skill",
+    name: "Test Skill",
+    description: "A test skill",
+    category: "best-practices",
+    priority: 80,
+    content: `<!-- skill:name = Test Skill -->
+<!-- skill:description = A test skill -->
+
+# Test Skill
+
+This is the content.`,
+    appliesTo: "both",
+    enabled: true,
+    filePath: "/path/to/test-skill.md",
+    isProjectSkill: false,
+    ...overrides,
+  });
+
+  it("returns full skill content with metadata stripped", async () => {
+    const skill = makeSkill();
+    const ctx = makeContext({ skills: [skill] });
+    createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("load_skill")!;
+    const result = await handler({ skill_id: "test-skill" });
+
+    expect(result.content[0].text).toContain("# Test Skill");
+    expect(result.content[0].text).toContain("This is the content.");
+    expect(result.content[0].text).not.toContain("<!-- skill:name");
+  });
+
+  it("returns not found for unknown skill ID", async () => {
+    const ctx = makeContext({ skills: [makeSkill()] });
+    createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("load_skill")!;
+    const result = await handler({ skill_id: "unknown" });
+
+    expect(result.content[0].text).toContain('Skill "unknown" not found');
+    expect(result.content[0].text).toContain("test-skill");
+  });
+
+  it("returns not found with empty skills list", async () => {
+    const ctx = makeContext({ skills: [] });
+    createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("load_skill")!;
+    const result = await handler({ skill_id: "test-skill" });
+
+    expect(result.content[0].text).toContain("not found");
   });
 });

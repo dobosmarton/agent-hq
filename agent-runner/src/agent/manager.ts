@@ -14,7 +14,7 @@ import { readCiWorkflows } from "./ci-discovery";
 import { detectPhase } from "./phase";
 import { runAgent } from "./runner";
 import { loadSkills } from "../skills/loader";
-import { formatSkillsForPrompt } from "../skills/formatter";
+import { formatSkillsCatalog } from "../skills/formatter";
 
 export type OnAgentDone = (
   task: AgentTask,
@@ -147,7 +147,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
       deps.config.agent.skills,
     );
     const skillsSection =
-      skills.length > 0 ? formatSkillsForPrompt(skills) : undefined;
+      skills.length > 0 ? formatSkillsCatalog(skills) : undefined;
 
     if (skills.length > 0) {
       console.log(
@@ -176,6 +176,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
       comments,
       ciContext,
       skillsSection,
+      skills,
       {
         planeConfig: deps.planeConfig,
         config: deps.config,

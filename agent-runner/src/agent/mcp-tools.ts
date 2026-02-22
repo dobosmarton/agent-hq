@@ -8,6 +8,8 @@ import {
   listLabels,
   updateIssue,
 } from "../plane/client";
+import type { Skill } from "../skills/types";
+import { stripSkillMetadata } from "../skills/formatter";
 
 type McpToolsContext = {
   planeConfig: PlaneConfig;
@@ -17,6 +19,7 @@ type McpToolsContext = {
   planReviewStateId: string | null;
   inReviewStateId: string | null;
   doneStateId: string | null;
+  skills: Skill[];
 };
 
 export const createAgentMcpServer = (ctx: McpToolsContext) => {
@@ -261,6 +264,39 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               {
                 type: "text" as const,
                 text: `Removed label(s) ${label_names.join(", ")} from task ${ctx.taskDisplayId}.`,
+              },
+            ],
+          };
+        },
+      ),
+
+      tool(
+        "load_skill",
+        "Load the full content of a coding standards skill. Call this at the start of your work to load skills relevant to the project's language and task. Use the skill IDs from the Available Coding Skills section in your instructions.",
+        {
+          skill_id: z
+            .string()
+            .describe("The skill ID from the available skills list"),
+        },
+        async ({ skill_id }) => {
+          const skill = ctx.skills.find((s) => s.id === skill_id);
+          if (!skill) {
+            const available = ctx.skills.map((s) => s.id).join(", ");
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Skill "${skill_id}" not found. Available skills: ${available}`,
+                },
+              ],
+            };
+          }
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: stripSkillMetadata(skill.content),
               },
             ],
           };

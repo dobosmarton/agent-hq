@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   formatSkillsForPrompt,
+  formatSkillsCatalog,
+  stripSkillMetadata,
   formatSkillsList,
   formatSkillDetail,
 } from "../formatter";
@@ -68,6 +70,54 @@ This is the content.`,
       const lines = result.split("\n");
       // Should have blank lines between skills
       expect(lines.filter((l) => l === "").length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("formatSkillsCatalog", () => {
+    it("should return empty string for empty array", () => {
+      const result = formatSkillsCatalog([]);
+      expect(result).toBe("");
+    });
+
+    it("should produce a markdown table with skill IDs and descriptions", () => {
+      const result = formatSkillsCatalog([mockSkill]);
+      expect(result).toContain("## Available Coding Skills");
+      expect(result).toContain("load_skill");
+      expect(result).toContain("| ID | Name | Description |");
+      expect(result).toContain("| test-skill | Test Skill | A test skill |");
+    });
+
+    it("should include all skills in the table", () => {
+      const skill2: Skill = {
+        ...mockSkill,
+        id: "python-best-practices",
+        name: "Python Best Practices",
+        description: "Python 3.12+ patterns",
+      };
+
+      const result = formatSkillsCatalog([mockSkill, skill2]);
+      expect(result).toContain("| test-skill |");
+      expect(result).toContain("| python-best-practices |");
+    });
+
+    it("should not include full skill content", () => {
+      const result = formatSkillsCatalog([mockSkill]);
+      expect(result).not.toContain("This is the content.");
+    });
+  });
+
+  describe("stripSkillMetadata", () => {
+    it("should remove metadata comments", () => {
+      const result = stripSkillMetadata(mockSkill.content);
+      expect(result).not.toContain("<!-- skill:name");
+      expect(result).not.toContain("<!-- skill:description");
+      expect(result).toContain("# Test Skill");
+      expect(result).toContain("This is the content.");
+    });
+
+    it("should handle content without metadata", () => {
+      const result = stripSkillMetadata("# Just content\n\nNo metadata.");
+      expect(result).toBe("# Just content\n\nNo metadata.");
     });
   });
 

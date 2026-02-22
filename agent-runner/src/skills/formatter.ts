@@ -16,19 +16,44 @@ export const formatSkillsForPrompt = (skills: Skill[]): string => {
   ];
 
   for (const skill of skills) {
-    // Remove metadata comments from content for cleaner display
-    const cleanContent = skill.content
-      .split("\n")
-      .filter((line) => !line.trim().startsWith("<!-- skill:"))
-      .join("\n")
-      .trim();
-
-    sections.push(cleanContent);
+    sections.push(stripSkillMetadata(skill.content));
     sections.push(""); // Blank line between skills
   }
 
   return sections.join("\n");
 };
+
+/**
+ * Format a compact skill catalog for prompt injection.
+ * Only includes skill IDs and descriptions — full content
+ * is loaded on-demand via the load_skill MCP tool.
+ */
+export const formatSkillsCatalog = (skills: Skill[]): string => {
+  if (skills.length === 0) {
+    return "";
+  }
+
+  const rows = skills
+    .map((s) => `| ${s.id} | ${s.name} | ${s.description} |`)
+    .join("\n");
+
+  return `## Available Coding Skills
+Load relevant skills using the load_skill tool before starting work.
+
+| ID | Name | Description |
+|----|------|-------------|
+${rows}`;
+};
+
+/**
+ * Strip skill metadata comments from content
+ */
+export const stripSkillMetadata = (content: string): string =>
+  content
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("<!-- skill:"))
+    .join("\n")
+    .trim();
 
 /**
  * Format skills list for CLI display
