@@ -69,15 +69,12 @@ export const createAgentManager = (deps: ManagerDeps) => {
     issueId: string,
     taskSlug: string,
     repoPath: string,
-    phase: "planning" | "implementation",
   ): Promise<void> => {
-    if (phase === "implementation") {
-      try {
-        await removeWorktree(repoPath, taskSlug);
-        console.log(`Cleaned up worktree for ${taskSlug}`);
-      } catch (err) {
-        console.error(`Failed to cleanup worktree for ${taskSlug}:`, err);
-      }
+    try {
+      await removeWorktree(repoPath, taskSlug);
+      console.log(`Cleaned up worktree for ${taskSlug}`);
+    } catch (err) {
+      console.error(`Failed to cleanup worktree for ${taskSlug}:`, err);
     }
     activeAgents.delete(issueId);
     deps.taskPoller.releaseTask(issueId);
@@ -116,29 +113,24 @@ export const createAgentManager = (deps: ManagerDeps) => {
     let workingDir: string;
     let branchName: string;
 
-    if (phase === "planning") {
-      workingDir = projectConfig.repoPath;
-      branchName = "";
-    } else {
-      try {
-        const result = await createWorktree(
-          projectConfig.repoPath,
-          taskSlug,
-          projectConfig.defaultBranch,
-        );
-        workingDir = result.worktreePath;
-        branchName = result.branchName;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`Failed to create worktree for ${taskSlug}: ${msg}`);
-        await deps.notifier.agentErrored(
-          taskSlug,
-          task.title,
-          `Worktree creation failed: ${msg}`,
-        );
-        deps.taskPoller.releaseTask(task.issueId);
-        return { outcome: "error", reason: `Worktree creation failed: ${msg}` };
-      }
+    try {
+      const result = await createWorktree(
+        projectConfig.repoPath,
+        taskSlug,
+        projectConfig.defaultBranch,
+      );
+      workingDir = result.worktreePath;
+      branchName = result.branchName;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`Failed to create worktree for ${taskSlug}: ${msg}`);
+      await deps.notifier.agentErrored(
+        taskSlug,
+        task.title,
+        `Worktree creation failed: ${msg}`,
+      );
+      deps.taskPoller.releaseTask(task.issueId);
+      return { outcome: "error", reason: `Worktree creation failed: ${msg}` };
     }
 
     // Build CI context for validation
@@ -179,7 +171,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
         );
 
         if (!result.errorType) {
-          await cleanup(task.issueId, taskSlug, projectConfig.repoPath, phase);
+          await cleanup(task.issueId, taskSlug, projectConfig.repoPath);
         } else {
           activeAgents.delete(task.issueId);
           deps.taskPoller.releaseTask(task.issueId);

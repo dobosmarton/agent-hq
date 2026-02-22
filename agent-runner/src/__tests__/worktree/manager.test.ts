@@ -48,11 +48,12 @@ const mockGitSequence = (
   });
 };
 
-// Happy path: fetch ok, pull ok, rev-parse fails (branch doesn't exist), worktree add ok
+// Happy path: fetch ok, reset ok, clean ok, rev-parse fails (branch doesn't exist), worktree add ok
 const mockCreateHappyPath = () => {
   mockGitSequence([
     { stdout: "" }, // fetch
-    { stdout: "" }, // pull
+    { stdout: "" }, // reset --hard
+    { stdout: "" }, // clean -fd
     { error: new Error("fatal: Needed a single revision") }, // rev-parse (no branch)
     { stdout: "" }, // worktree add
   ]);
@@ -71,14 +72,14 @@ describe("createWorktree", () => {
     expect(result.worktreePath).toContain(".worktrees/agent-HQ-42");
   });
 
-  it("fetches and pulls main before creating worktree", async () => {
+  it("fetches and resets main before creating worktree", async () => {
     const calls: string[][] = [];
     let callIndex = 0;
     mockedExecFile.mockImplementation((_cmd, args, callback: any) => {
       calls.push(args as string[]);
       callIndex++;
-      // rev-parse (3rd call) should fail — branch doesn't exist
-      if (callIndex === 3) {
+      // rev-parse (4th call) should fail — branch doesn't exist
+      if (callIndex === 4) {
         callback(new Error("fatal: Needed a single revision"), {
           stdout: "",
           stderr: "",
@@ -96,19 +97,23 @@ describe("createWorktree", () => {
     expect(calls[0]).toContain("origin");
     expect(calls[0]).toContain("main");
 
-    // 2nd call: pull
-    expect(calls[1]).toContain("pull");
-    expect(calls[1]).toContain("origin");
-    expect(calls[1]).toContain("main");
+    // 2nd call: reset --hard
+    expect(calls[1]).toContain("reset");
+    expect(calls[1]).toContain("--hard");
+    expect(calls[1]).toContain("origin/main");
 
-    // 3rd call: rev-parse (branch check)
-    expect(calls[2]).toContain("rev-parse");
-    expect(calls[2]).toContain("--verify");
-    expect(calls[2]).toContain("agent/HQ-42");
+    // 3rd call: clean -fd
+    expect(calls[2]).toContain("clean");
+    expect(calls[2]).toContain("-fd");
 
-    // 4th call: worktree add
-    expect(calls[3]).toContain("worktree");
-    expect(calls[3]).toContain("add");
+    // 4th call: rev-parse (branch check)
+    expect(calls[3]).toContain("rev-parse");
+    expect(calls[3]).toContain("--verify");
+    expect(calls[3]).toContain("agent/HQ-42");
+
+    // 5th call: worktree add
+    expect(calls[4]).toContain("worktree");
+    expect(calls[4]).toContain("add");
   });
 
   it("passes correct args to git worktree add", async () => {
@@ -117,7 +122,7 @@ describe("createWorktree", () => {
     mockedExecFile.mockImplementation((_cmd, args, callback: any) => {
       calls.push(args as string[]);
       callIndex++;
-      if (callIndex === 3) {
+      if (callIndex === 4) {
         callback(new Error("fatal: Needed a single revision"), {
           stdout: "",
           stderr: "",
@@ -130,17 +135,18 @@ describe("createWorktree", () => {
 
     await createWorktree("/repos/hq", "HQ-42", "main");
 
-    // worktree add is the 4th call (index 3)
-    expect(calls[3]).toContain("-b");
-    expect(calls[3]).toContain("agent/HQ-42");
-    expect(calls[3]).toContain("origin/main");
+    // worktree add is the 5th call (index 4)
+    expect(calls[4]).toContain("-b");
+    expect(calls[4]).toContain("agent/HQ-42");
+    expect(calls[4]).toContain("origin/main");
   });
 
   it("throws if worktree path already exists", async () => {
     mockedExistsSync.mockReturnValue(true);
     mockGitSequence([
       { stdout: "" }, // fetch
-      { stdout: "" }, // pull
+      { stdout: "" }, // reset --hard
+      { stdout: "" }, // clean -fd
     ]);
 
     await expect(createWorktree("/repos/hq", "HQ-42", "main")).rejects.toThrow(
@@ -151,7 +157,8 @@ describe("createWorktree", () => {
   it("throws if branch already exists", async () => {
     mockGitSequence([
       { stdout: "" }, // fetch
-      { stdout: "" }, // pull
+      { stdout: "" }, // reset --hard
+      { stdout: "" }, // clean -fd
       { stdout: "abc123" }, // rev-parse succeeds — branch exists
     ]);
 

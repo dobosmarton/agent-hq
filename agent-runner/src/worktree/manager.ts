@@ -23,9 +23,10 @@ export const createWorktree = async (
   const branchName = `agent/${taskSlug}`;
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
 
-  // Fetch and pull latest main
+  // Fetch and reset to latest main (reset --hard handles dirty state from planning agents)
   await git(repoPath, ["fetch", "origin", defaultBranch]);
-  await git(repoPath, ["pull", "origin", defaultBranch]);
+  await git(repoPath, ["reset", "--hard", `origin/${defaultBranch}`]);
+  await git(repoPath, ["clean", "-fd", "--exclude", WORKTREE_DIR]);
 
   // If worktree already exists, someone is working on this task
   if (existsSync(wtPath)) {

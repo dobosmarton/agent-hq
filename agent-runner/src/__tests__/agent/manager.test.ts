@@ -94,6 +94,11 @@ beforeEach(() => {
   // Default: no comments (planning phase)
   mockedListComments.mockResolvedValue([]);
   mockedReadCiWorkflows.mockReturnValue({ workflowFiles: {} });
+  // Default: worktree creation succeeds (both phases use worktrees)
+  mockedCreateWorktree.mockResolvedValue({
+    worktreePath: "/wt",
+    branchName: "agent/HQ-42",
+  });
 });
 
 describe("budget checking", () => {
@@ -145,17 +150,21 @@ describe("phase detection", () => {
   it("runs planning phase when no plan comment exists", async () => {
     const deps = makeDeps();
     mockedListComments.mockResolvedValue([]);
+    mockedCreateWorktree.mockResolvedValue({
+      worktreePath: "/wt",
+      branchName: "agent/HQ-42",
+    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    expect(mockedCreateWorktree).not.toHaveBeenCalled();
+    expect(mockedCreateWorktree).toHaveBeenCalled();
     expect(mockedRunAgent).toHaveBeenCalledWith(
       expect.anything(),
       "planning",
-      "/repos/hq",
-      "",
+      "/wt",
+      "agent/HQ-42",
       [],
       expect.objectContaining({ workflowFiles: expect.any(Object) }),
       expect.anything(),
