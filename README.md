@@ -188,8 +188,8 @@ The agent runner lives in [`agent-runner/`](./agent-runner/) and is an autonomou
 
 1. **Discovery loop** (every 30s) — polls Plane for issues with the `agent` label, claims them by moving to "In Progress", and enqueues them
 2. **Processing loop** (every 15s) — dequeues ready tasks and spawns agents up to the concurrency limit
-3. Each agent runs a two-phase workflow: **planning** (on the main branch) then **implementation** (on a git worktree with a dedicated `agent/<task-id>` branch)
-4. Agents have MCP tools for updating task status, adding comments, and asking humans questions via Telegram
+3. Each agent runs a two-phase workflow: **planning** (read-only exploration) then **implementation** (on a git worktree with a dedicated `agent/<task-id>` branch)
+4. Agents have MCP tools for updating task status, adding comments, loading coding skills on-demand, and asking humans questions via Telegram
 5. On completion, cleans up the worktree, pushes the branch, and notifies via Telegram
 6. Manages daily budget limits to control API spend
 
@@ -212,6 +212,42 @@ The runner uses an in-memory task queue persisted to disk (`state/runner-state.j
 - **[Vitest](https://vitest.dev)** — Unit testing
 - **TypeScript** — Strict mode
 
+### Skills system
+
+Skills are reusable coding standards and best practices that agents can load on-demand. Instead of injecting all skill content into every prompt, the agent receives a compact catalog of available skills and selectively loads the ones relevant to the current task via the `load_skill` MCP tool.
+
+**Global skills** (`agent-runner/skills/global/`):
+
+| Skill | Description | Phase |
+|-------|-------------|-------|
+| `commit-messages` | Git commit message standards | Implementation only |
+| `typescript-nodejs-best-practices` | TypeScript/Node.js patterns and type safety | Both |
+| `python-best-practices` | Python 3.12+ typing, tooling, and patterns | Both |
+| `testing-standards` | Vitest testing guidelines | Both |
+
+**Project skills** are loaded from `.claude/skills/` within each project repo. They override global skills with the same ID.
+
+Skills are markdown files with metadata in HTML comments:
+
+```markdown
+<!-- skill:name = TypeScript Node.js Best Practices -->
+<!-- skill:description = TypeScript and Node.js project setup and type-safe coding patterns -->
+<!-- skill:category = best-practices -->
+<!-- skill:priority = 80 -->
+<!-- skill:appliesTo = both -->
+
+# Content here...
+```
+
+**CLI commands:**
+
+```bash
+cd agent-runner
+npm run skills:list [project-path]      # List all available skills
+npm run skills:show <id> [project-path] # Show skill details
+npm run skills:validate [project-path]  # Validate skill files
+```
+
 ### Project structure
 
 ```
@@ -224,8 +260,14 @@ agent-runner/
 │   │   ├── manager.ts        # Agent lifecycle — spawning, budget tracking, stale detection
 │   │   ├── runner.ts         # Claude Agent SDK integration — runs the agent process
 │   │   ├── phase.ts          # Detects planning vs implementation phase from comments
-│   │   ├── mcp-tools.ts      # MCP tools: update_task_status, add_task_comment, ask_human
+│   │   ├── mcp-tools.ts      # MCP tools: update_task_status, add_task_comment, load_skill
+│   │   ├── ci-discovery.ts   # Reads CI workflow files for validation instructions
 │   │   └── prompt-builder.ts # Builds the system prompt for each agent
+│   ├── skills/
+│   │   ├── types.ts          # Skill schema, phase, and category definitions
+│   │   ├── loader.ts         # Loads, merges, and filters skills from global + project dirs
+│   │   ├── formatter.ts      # Formats skills as catalog (prompt) or detail (CLI)
+│   │   └── cli.ts            # CLI commands: list, show, validate
 │   ├── plane/
 │   │   ├── client.ts         # Typed Plane API client (projects, states, labels, issues, comments)
 │   │   └── types.ts          # Zod schemas for Plane API responses
@@ -241,6 +283,12 @@ agent-runner/
 │   ├── worktree/
 │   │   └── manager.ts        # Git worktree creation/cleanup for isolated agent workspaces
 │   └── __tests__/            # Vitest unit tests
+├── skills/
+│   └── global/               # Global coding skills (loaded for all projects)
+│       ├── commit-messages.md
+│       ├── typescript-nodejs-best-practices.md
+│       ├── python-best-practices.md
+│       └── testing-standards.md
 ├── config.json               # Project mappings and agent settings
 ├── Dockerfile                # Multi-stage build with git support
 ├── docker-compose.yml        # Docker Compose with repo volumes and state persistence
@@ -263,6 +311,9 @@ Agent behavior is configured in `config.json`:
 | `agent.maxRetries` | 2 | Retry count for transient failures |
 | `agent.retryBaseDelayMs` | 60000 | Base delay for exponential backoff |
 | `agent.labelName` | `agent` | Plane label that triggers agent pickup |
+| `agent.skills.enabled` | `true` | Enable/disable the skills system |
+| `agent.skills.maxSkillsPerPrompt` | 10 | Max skills available per agent session |
+| `agent.skills.globalSkillsPath` | `skills/global` | Path to global skills directory |
 
 ### Environment variables
 
@@ -288,6 +339,9 @@ Copy `env.example` to `.env` and fill in the values:
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run format` | Format code with Prettier |
 | `npm run format:check` | Check formatting (CI) |
+| `npm run skills:list` | List all global and project skills |
+| `npm run skills:show <id>` | Show detailed skill content |
+| `npm run skills:validate` | Validate skill file syntax |
 
 ### Deployment
 

@@ -13,6 +13,8 @@ import { createWorktree, removeWorktree } from "../worktree/manager";
 import { readCiWorkflows } from "./ci-discovery";
 import { detectPhase } from "./phase";
 import { runAgent } from "./runner";
+import { loadSkills } from "../skills/loader";
+import { formatSkillsCatalog } from "../skills/formatter";
 
 export type OnAgentDone = (
   task: AgentTask,
@@ -138,6 +140,21 @@ export const createAgentManager = (deps: ManagerDeps) => {
       ? { workflowFiles: {}, overrideCommands: projectConfig.ciChecks }
       : readCiWorkflows(projectConfig.repoPath);
 
+    // Load skills for the phase
+    const skills = loadSkills(
+      phase,
+      projectConfig.repoPath,
+      deps.config.agent.skills,
+    );
+    const skillsSection =
+      skills.length > 0 ? formatSkillsCatalog(skills) : undefined;
+
+    if (skills.length > 0) {
+      console.log(
+        `Loaded ${skills.length} skill(s) for ${taskSlug} (${phase} phase): ${skills.map((s) => s.name).join(", ")}`,
+      );
+    }
+
     // Register as active
     const agent: ActiveAgent = {
       task,
@@ -151,16 +168,26 @@ export const createAgentManager = (deps: ManagerDeps) => {
     activeAgents.set(task.issueId, agent);
 
     // Run agent in background — notify caller via onAgentDone
-    runAgent(task, phase, workingDir, branchName, comments, ciContext, {
-      planeConfig: deps.planeConfig,
-      config: deps.config,
-      notifier: deps.notifier,
-      taskPoller: deps.taskPoller,
-      retryContext: {
-        retryCount,
-        maxRetries: deps.config.agent.maxRetries,
+    runAgent(
+      task,
+      phase,
+      workingDir,
+      branchName,
+      comments,
+      ciContext,
+      skillsSection,
+      skills,
+      {
+        planeConfig: deps.planeConfig,
+        config: deps.config,
+        notifier: deps.notifier,
+        taskPoller: deps.taskPoller,
+        retryContext: {
+          retryCount,
+          maxRetries: deps.config.agent.maxRetries,
+        },
       },
-    })
+    )
       .then(async (result) => {
         agent.costUsd = result.costUsd;
         dailySpendUsd += result.costUsd;

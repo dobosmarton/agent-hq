@@ -4,6 +4,7 @@ import { addComment } from "../plane/client";
 import type { PlaneComment } from "../plane/types";
 import type { TaskPoller } from "../poller/task-poller";
 import type { Notifier } from "../telegram/notifier";
+import type { Skill } from "../skills/types";
 import type { AgentErrorType, AgentTask } from "../types";
 import type { CiContext } from "./ci-discovery";
 import { createAgentMcpServer } from "./mcp-tools";
@@ -37,6 +38,7 @@ const PLANNING_TOOLS = [
   "mcp__agent-plane-tools__update_task_status",
   "mcp__agent-plane-tools__add_task_comment",
   "mcp__agent-plane-tools__list_labels",
+  "mcp__agent-plane-tools__load_skill",
 ];
 
 const IMPLEMENTATION_TOOLS = [
@@ -53,6 +55,7 @@ const IMPLEMENTATION_TOOLS = [
   "mcp__agent-plane-tools__list_labels",
   "mcp__agent-plane-tools__add_labels_to_task",
   "mcp__agent-plane-tools__remove_labels_from_task",
+  "mcp__agent-plane-tools__load_skill",
 ];
 
 // Blocklist for destructive commands — takes precedence over allowedTools
@@ -74,6 +77,8 @@ export const runAgent = async (
   branchName: string,
   comments: PlaneComment[],
   ciContext: CiContext,
+  skillsSection: string | undefined,
+  skills: Skill[],
   deps: RunnerDeps,
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
@@ -113,13 +118,20 @@ export const runAgent = async (
     planReviewStateId: cache?.planReviewStateId ?? null,
     inReviewStateId: cache?.inReviewStateId ?? null,
     doneStateId: cache?.doneStateId ?? null,
+    skills,
   });
 
   // Build phase-specific prompt
   const prompt =
     phase === "planning"
-      ? buildPlanningPrompt(task)
-      : buildImplementationPrompt(task, branchName, comments, ciContext);
+      ? buildPlanningPrompt(task, skillsSection)
+      : buildImplementationPrompt(
+          task,
+          branchName,
+          comments,
+          ciContext,
+          skillsSection,
+        );
 
   // Phase-specific settings
   const maxTurns = phase === "planning" ? 50 : deps.config.agent.maxTurns;
