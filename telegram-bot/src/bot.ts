@@ -3,7 +3,7 @@ import { createAgentHQ } from "./agent/index";
 import { handleHelp, handleStart } from "./commands/help";
 import { smartChunkMessage } from "./formatter";
 import { EnvSchema, type PlaneConfig } from "./types";
-import { extractTaskId } from "./utils";
+import { extractTaskId, sendReply } from "./utils";
 
 const env = EnvSchema.parse(process.env);
 
@@ -98,7 +98,7 @@ bot.on("message:text", async (ctx) => {
     // Telegram has a 4096 char limit — split if needed
     // Use smart chunking that respects formatting boundaries
     for (const chunk of smartChunkMessage(reply)) {
-      await ctx.reply(chunk, { parse_mode: "HTML" });
+      await sendReply(ctx, chunk);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

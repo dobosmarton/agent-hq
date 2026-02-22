@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { chunkMessage, extractTaskId } from "../utils";
+import { describe, expect, it, vi } from "vitest";
+import type { Context } from "grammy";
+import { chunkMessage, extractTaskId, sendReply } from "../utils";
 
 describe("extractTaskId", () => {
   it("extracts standard task ID", () => {
@@ -20,6 +21,42 @@ describe("extractTaskId", () => {
 
   it("picks first match when multiple IDs present", () => {
     expect(extractTaskId("HQ-1 and HQ-2")).toBe("HQ-1");
+  });
+});
+
+describe("sendReply", () => {
+  const mockCtx = (replyFn: ReturnType<typeof vi.fn>) => ({ reply: replyFn }) as unknown as Context;
+
+  it("sends with HTML parse_mode on valid HTML", async () => {
+    const reply = vi.fn().mockResolvedValue(undefined);
+    await sendReply(mockCtx(reply), "<b>Hello</b>");
+
+    expect(reply).toHaveBeenCalledOnce();
+    expect(reply).toHaveBeenCalledWith("<b>Hello</b>", { parse_mode: "HTML" });
+  });
+
+  it("falls back to plain text when Telegram rejects HTML", async () => {
+    const reply = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error(
+          "Call to 'sendMessage' failed! (400: Bad Request: can't parse entities: Unsupported start tag \"50ms\")"
+        )
+      )
+      .mockResolvedValueOnce(undefined);
+
+    await sendReply(mockCtx(reply), "Response took <50ms");
+
+    expect(reply).toHaveBeenCalledTimes(2);
+    expect(reply).toHaveBeenNthCalledWith(1, "Response took <50ms", { parse_mode: "HTML" });
+    expect(reply).toHaveBeenNthCalledWith(2, "Response took <50ms");
+  });
+
+  it("rethrows non-parse errors", async () => {
+    const reply = vi.fn().mockRejectedValue(new Error("Network error"));
+
+    await expect(sendReply(mockCtx(reply), "Hello")).rejects.toThrow("Network error");
+    expect(reply).toHaveBeenCalledOnce();
   });
 });
 
