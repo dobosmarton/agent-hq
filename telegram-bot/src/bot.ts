@@ -1,8 +1,9 @@
 import { Bot } from "grammy";
 import { createAgentHQ } from "./agent/index";
 import { handleHelp, handleStart } from "./commands/help";
+import { smartChunkMessage } from "./formatter";
 import { EnvSchema, type PlaneConfig } from "./types";
-import { chunkMessage, extractTaskId } from "./utils";
+import { extractTaskId } from "./utils";
 
 const env = EnvSchema.parse(process.env);
 
@@ -32,7 +33,9 @@ bot.use(async (ctx, next) => {
 bot.command("start", (ctx) => handleStart(ctx));
 bot.command("help", (ctx) => handleHelp(ctx));
 bot.command("clear", async (ctx) => {
-  await ctx.reply("Conversation cleared. Send a new message to start fresh.");
+  await ctx.reply("Conversation cleared. Send a new message to start fresh.", {
+    parse_mode: "HTML",
+  });
 });
 
 // Reply relay: forward replies to agent questions to the agent-runner
@@ -52,14 +55,20 @@ bot.on("message:text").filter(
       });
 
       if (res.ok) {
-        await ctx.reply(`Answer relayed to agent working on ${taskId}.`);
+        await ctx.reply(`✅ Answer relayed to agent working on ${taskId}.`, {
+          parse_mode: "HTML",
+        });
       } else {
-        await ctx.reply(`Could not relay answer (agent may not be waiting).`);
+        await ctx.reply(`⚠️ Could not relay answer (agent may not be waiting).`, {
+          parse_mode: "HTML",
+        });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       console.error(`Failed to relay answer for ${taskId}: ${msg}`);
-      await ctx.reply(`Failed to reach agent runner.`);
+      await ctx.reply(`⚠️ Failed to reach agent runner.`, {
+        parse_mode: "HTML",
+      });
     }
   }
 );
@@ -87,13 +96,17 @@ bot.on("message:text", async (ctx) => {
     const reply = result.text || "Done.";
 
     // Telegram has a 4096 char limit — split if needed
-    for (const chunk of chunkMessage(reply)) {
-      await ctx.reply(chunk);
+    // Use smart chunking that respects formatting boundaries
+    for (const chunk of smartChunkMessage(reply)) {
+      await ctx.reply(chunk, { parse_mode: "HTML" });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("LLM error:", message);
-    await ctx.reply("Something went wrong processing your message. Try again or /help for info.");
+    await ctx.reply(
+      "⚠️ Something went wrong processing your message. Try again or /help for info.",
+      { parse_mode: "HTML" }
+    );
   }
 });
 
