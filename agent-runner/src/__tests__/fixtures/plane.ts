@@ -36,6 +36,8 @@ export const makeIssue = (overrides?: Partial<PlaneIssue>): PlaneIssue => ({
 export const makeLabel = (overrides?: Partial<PlaneLabel>): PlaneLabel => ({
   id: "label-uuid-1",
   name: "agent",
+  color: "#FF6B6B",
+  description: "Tasks being worked on by agents",
   ...overrides,
 });
 
