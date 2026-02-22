@@ -74,6 +74,8 @@ const makePersistence = (state?: Partial<RunnerState>): StatePersistence => ({
     ...state,
   }),
   save: vi.fn(),
+  loadCache: vi.fn().mockReturnValue(null),
+  saveCache: vi.fn(),
 });
 
 const makeDeps = (overrides?: {

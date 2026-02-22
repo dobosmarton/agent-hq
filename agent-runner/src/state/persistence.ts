@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import type { RunnerState } from "../types.js";
+import type { SerializedCache } from "../cache/types.js";
 
 const DEFAULT_STATE: RunnerState = {
   activeAgents: {},
@@ -11,6 +12,8 @@ const DEFAULT_STATE: RunnerState = {
 export type StatePersistence = ReturnType<typeof createStatePersistence>;
 
 export const createStatePersistence = (statePath: string) => {
+  const cacheFilePath = join(dirname(statePath), "context-cache.json");
+
   const load = (): RunnerState => {
     if (!existsSync(statePath)) {
       return { ...DEFAULT_STATE };
@@ -31,5 +34,26 @@ export const createStatePersistence = (statePath: string) => {
     writeFileSync(statePath, JSON.stringify(state, null, 2));
   };
 
-  return { load, save };
+  const loadCache = (): SerializedCache | null => {
+    if (!existsSync(cacheFilePath)) {
+      return null;
+    }
+    try {
+      const raw = readFileSync(cacheFilePath, "utf-8");
+      return JSON.parse(raw) as SerializedCache;
+    } catch (err) {
+      console.warn("[Persistence] Failed to load cache, starting fresh:", err);
+      return null;
+    }
+  };
+
+  const saveCache = (cache: SerializedCache): void => {
+    const dir = dirname(cacheFilePath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(cacheFilePath, JSON.stringify(cache, null, 2));
+  };
+
+  return { load, save, loadCache, saveCache };
 };
