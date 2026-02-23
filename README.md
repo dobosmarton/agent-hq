@@ -212,6 +212,27 @@ The runner uses an in-memory task queue persisted to disk (`state/runner-state.j
 - **[Vitest](https://vitest.dev)** — Unit testing
 - **TypeScript** — Strict mode
 
+### Context caching
+
+The agent runner includes a two-tier context caching system that reduces token costs and speeds up context retrieval.
+
+**Tier 1 — Anthropic Prompt Caching:** Static context (task description, CI workflows, approved plan) is placed first in prompts so the SDK can apply `cache_control` markers automatically. Cached tokens cost 90% less (5-minute TTL on Anthropic's side).
+
+**Tier 2 — In-Memory Cache:** A local cache with per-type TTLs and LRU eviction stores project metadata, file contents, conventions, and more. Hard limit of 10MB with automatic pruning every 60 seconds. Persisted to disk (`context-cache.json`) across restarts.
+
+| Context Type | TTL | Max Size |
+|---|---|---|
+| `project_metadata` | 30 min | 500KB |
+| `project_conventions` | 60 min | 1MB |
+| `file_content` | 10 min | 5MB |
+| `ci_workflows` | Permanent | 100KB |
+| `task_history` | 24 hours | 2MB |
+| `codebase_map` | 60 min | 500KB |
+
+**Context Composer** — Context items are prioritized based on agent phase (planning vs implementation) and turn number (early vs late). A token budget (default 20K) controls how much context is included. Critical items (e.g. the approved plan during implementation) are always included.
+
+**Metrics** — Cache hit rate, token savings, and cost-per-task are tracked in real time and exposed via the `/status` HTTP endpoint and agent completion summaries.
+
 ### Skills system
 
 Skills are reusable coding standards and best practices that agents can load on-demand. Instead of injecting all skill content into every prompt, the agent receives a compact catalog of available skills and selectively loads the ones relevant to the current task via the `load_skill` MCP tool.
@@ -261,8 +282,14 @@ agent-runner/
 │   │   ├── runner.ts         # Claude Agent SDK integration — runs the agent process
 │   │   ├── phase.ts          # Detects planning vs implementation phase from comments
 │   │   ├── mcp-tools.ts      # MCP tools: update_task_status, add_task_comment, load_skill
+│   │   ├── context-composer.ts # Phase-aware context prioritization and token budgeting
 │   │   ├── ci-discovery.ts   # Reads CI workflow files for validation instructions
 │   │   └── prompt-builder.ts # Builds the system prompt for each agent
+│   ├── cache/
+│   │   ├── context-cache.ts  # In-memory cache with TTL, LRU eviction, and disk persistence
+│   │   └── types.ts          # Cache entry, config, and stats type definitions
+│   ├── metrics/
+│   │   └── context-metrics.ts # Cache effectiveness, token savings, and cost tracking
 │   ├── skills/
 │   │   ├── types.ts          # Skill schema, phase, and category definitions
 │   │   ├── loader.ts         # Loads, merges, and filters skills from global + project dirs
