@@ -25,17 +25,9 @@ type RunnerDeps = {
   };
 };
 
-export type CacheMetrics = {
-  cacheCreationInputTokens?: number;
-  cacheReadInputTokens?: number;
-  inputTokens: number;
-  outputTokens?: number;
-};
-
 export type AgentResult = {
   costUsd: number;
   errorType?: AgentErrorType;
-  cacheMetrics?: CacheMetrics;
 };
 
 const PLANNING_TOOLS = [
@@ -150,7 +142,6 @@ export const runAgent = async (
   const permissionMode = phase === "planning" ? "plan" : "acceptEdits";
 
   let totalCostUsd = 0;
-  let cacheMetrics: CacheMetrics | undefined;
 
   try {
     for await (const message of query({
@@ -175,33 +166,6 @@ export const runAgent = async (
           typeof message.total_cost_usd === "number"
         ) {
           totalCostUsd = message.total_cost_usd;
-        }
-
-        // Extract cache metrics from usage data
-        if ("usage" in message && message.usage) {
-          const usage = message.usage as Record<string, number>;
-          cacheMetrics = {
-            cacheCreationInputTokens: usage.cache_creation_input_tokens,
-            cacheReadInputTokens: usage.cache_read_input_tokens,
-            inputTokens: usage.input_tokens || 0,
-            outputTokens: usage.output_tokens,
-          };
-
-          // Log cache effectiveness
-          if (
-            cacheMetrics.cacheReadInputTokens ||
-            cacheMetrics.cacheCreationInputTokens
-          ) {
-            const cacheCreation = cacheMetrics.cacheCreationInputTokens || 0;
-            const cacheRead = cacheMetrics.cacheReadInputTokens || 0;
-            const uncached = cacheMetrics.inputTokens;
-            const total = cacheCreation + cacheRead + uncached;
-            const hitRate =
-              total > 0 ? ((cacheRead / total) * 100).toFixed(1) : "0.0";
-            console.log(
-              `Cache metrics for ${taskDisplayId}: ${cacheRead} cached (${hitRate}% hit rate), ${cacheCreation} cache writes, ${uncached} uncached`,
-            );
-          }
         }
 
         if (message.subtype === "success") {
@@ -260,17 +224,17 @@ export const runAgent = async (
             );
           }
 
-          return { costUsd: totalCostUsd, errorType, cacheMetrics };
+          return { costUsd: totalCostUsd, errorType };
         }
 
         // Return immediately after processing the result message.
         // The Claude Code process may exit with a non-zero code after
         // yielding the result, which would throw if we continue iterating.
-        return { costUsd: totalCostUsd, cacheMetrics };
+        return { costUsd: totalCostUsd };
       }
     }
 
-    return { costUsd: totalCostUsd, cacheMetrics };
+    return { costUsd: totalCostUsd };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`Agent ${taskDisplayId} (${phase}) crashed: ${errorMsg}`);
