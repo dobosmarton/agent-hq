@@ -193,6 +193,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
         dailySpendUsd += result.costUsd;
 
         agent.status = result.errorType ? "errored" : "completed";
+
         console.log(
           `Daily spend: $${dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}`,
         );
