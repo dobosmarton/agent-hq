@@ -9,6 +9,7 @@ import type {
   AgentTask,
   SpawnResult,
 } from "../types";
+import { resolve } from "node:path";
 import { createWorktree, removeWorktree } from "../worktree/manager";
 import { readCiWorkflows } from "./ci-discovery";
 import { detectPhase } from "./phase";
@@ -187,6 +188,8 @@ export const createAgentManager = (deps: ManagerDeps) => {
           maxRetries: deps.config.agent.maxRetries,
         },
       },
+      projectConfig.repoPath,
+      resolve(process.cwd()),
     )
       .then(async (result) => {
         agent.costUsd = result.costUsd;

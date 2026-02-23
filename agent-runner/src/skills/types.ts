@@ -20,6 +20,7 @@ export const SkillCategorySchema = z.enum([
   "patterns",
   "commit-standards",
   "api-usage",
+  "learned",
 ]);
 export type SkillCategory = z.infer<typeof SkillCategorySchema>;
 

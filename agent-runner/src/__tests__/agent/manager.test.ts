@@ -170,6 +170,8 @@ describe("phase detection", () => {
       expect.any(String),
       expect.any(Array),
       expect.anything(),
+      expect.any(String),
+      expect.any(String),
     );
   });
 
@@ -206,6 +208,8 @@ describe("phase detection", () => {
       expect.any(String),
       expect.any(Array),
       expect.anything(),
+      expect.any(String),
+      expect.any(String),
     );
   });
 });
@@ -345,6 +349,8 @@ describe("spawnAgent", () => {
       expect.objectContaining({
         retryContext: { retryCount: 2, maxRetries: 2 },
       }),
+      expect.any(String),
+      expect.any(String),
     );
   });
 

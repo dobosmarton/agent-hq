@@ -1,4 +1,5 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
+import { join } from "node:path";
 import { z } from "zod";
 import type { PlaneConfig } from "../config";
 import {
@@ -8,8 +9,11 @@ import {
   listLabels,
   updateIssue,
 } from "../plane/client";
-import type { Skill } from "../skills/types";
+import { createSkillFile } from "../skills/creator";
 import { stripSkillMetadata } from "../skills/formatter";
+import { clearSkillCache } from "../skills/loader";
+import type { Skill } from "../skills/types";
+import { SkillCategorySchema, SkillPhaseSchema } from "../skills/types";
 
 type McpToolsContext = {
   planeConfig: PlaneConfig;
@@ -20,6 +24,8 @@ type McpToolsContext = {
   inReviewStateId: string | null;
   doneStateId: string | null;
   skills: Skill[];
+  projectRepoPath: string;
+  agentRunnerRoot: string;
 };
 
 export const createAgentMcpServer = (ctx: McpToolsContext) => {
@@ -300,6 +306,103 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
+        },
+      ),
+
+      tool(
+        "create_skill",
+        "Record a learning or best practice as a reusable skill file. Use this when you discover a project-specific pattern, convention, workaround, or important context that would help future agents working on the same codebase. The skill is saved as a markdown file and automatically loaded for future tasks. Prefer project scope for project-specific learnings.",
+        {
+          name: z
+            .string()
+            .min(3)
+            .max(80)
+            .describe("Short descriptive name for this learning"),
+          description: z
+            .string()
+            .min(10)
+            .max(200)
+            .describe("One-sentence description of what this skill covers"),
+          content: z
+            .string()
+            .min(20)
+            .describe(
+              "Full markdown content explaining the learning, pattern, or best practice. Include code examples where helpful.",
+            ),
+          category: SkillCategorySchema.optional().describe(
+            "Category (defaults to 'learned')",
+          ),
+          priority: z
+            .number()
+            .int()
+            .min(0)
+            .max(100)
+            .optional()
+            .describe("Priority 0-100 (defaults to 30)"),
+          applies_to: SkillPhaseSchema.optional().describe(
+            "When to apply: 'planning', 'implementation', or 'both' (defaults to 'both')",
+          ),
+          scope: z
+            .enum(["project", "global"])
+            .optional()
+            .describe(
+              "Where to save: 'project' for this repo only, 'global' for all repos (defaults to 'project')",
+            ),
+        },
+        async ({
+          name,
+          description,
+          content,
+          category,
+          priority,
+          applies_to,
+          scope,
+        }) => {
+          const effectiveCategory = category ?? "learned";
+          const effectivePriority = priority ?? 30;
+          const effectiveAppliesTo = applies_to ?? "both";
+          const effectiveScope = scope ?? "project";
+
+          const baseDir =
+            effectiveScope === "project"
+              ? join(ctx.projectRepoPath, ".claude", "skills")
+              : join(ctx.agentRunnerRoot, "skills");
+
+          try {
+            const { filePath } = createSkillFile(
+              {
+                name,
+                description,
+                content,
+                category: effectiveCategory,
+                priority: effectivePriority,
+                appliesTo: effectiveAppliesTo,
+              },
+              { baseDir, subdirectory: "learned" },
+            );
+
+            clearSkillCache();
+
+            const scopeLabel =
+              effectiveScope === "project" ? "project" : "global";
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Skill "${name}" saved as ${scopeLabel} learned skill at ${filePath}. It will be automatically loaded for future tasks.`,
+                },
+              ],
+            };
+          } catch (err) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Failed to create skill: ${err instanceof Error ? err.message : String(err)}`,
+                },
+              ],
+            };
+          }
         },
       ),
     ],

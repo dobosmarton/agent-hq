@@ -50,6 +50,8 @@ const makeContext = (overrides?: Record<string, unknown>) => ({
   inReviewStateId: "review-state" as string | null,
   doneStateId: "done-state" as string | null,
   skills: [] as import("../../skills/types").Skill[],
+  projectRepoPath: "/tmp/test-repo",
+  agentRunnerRoot: "/tmp/test-agent-runner",
   ...overrides,
 });
 

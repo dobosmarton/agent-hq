@@ -271,6 +271,77 @@ Content here`,
       const skills = loadSkills("both", projectDir, defaultConfig);
       expect(skills).toHaveLength(0);
     });
+
+    it("should load skills from subdirectories (one level)", () => {
+      const learnedDir = join(globalDir, "learned");
+      mkdirSync(learnedDir, { recursive: true });
+
+      writeFileSync(
+        join(learnedDir, "learned-skill.md"),
+        `<!-- skill:name = Learned Skill -->
+<!-- skill:description = A learned skill -->
+<!-- skill:category = learned -->
+<!-- skill:priority = 30 -->
+
+# Learned Skill
+Content here`,
+      );
+
+      const skills = loadSkills("both", projectDir, defaultConfig);
+      expect(skills).toHaveLength(1);
+      expect(skills[0]?.id).toBe("learned-skill");
+      expect(skills[0]?.category).toBe("learned");
+    });
+
+    it("should merge top-level and subdirectory skills", () => {
+      writeFileSync(
+        join(globalDir, "top-level.md"),
+        `<!-- skill:name = Top Level -->
+<!-- skill:description = Top level skill -->
+<!-- skill:category = best-practices -->
+<!-- skill:priority = 80 -->
+
+# Top Level`,
+      );
+
+      const learnedDir = join(globalDir, "learned");
+      mkdirSync(learnedDir, { recursive: true });
+
+      writeFileSync(
+        join(learnedDir, "sub-skill.md"),
+        `<!-- skill:name = Sub Skill -->
+<!-- skill:description = Subdirectory skill -->
+<!-- skill:category = learned -->
+<!-- skill:priority = 30 -->
+
+# Sub Skill`,
+      );
+
+      const skills = loadSkills("both", projectDir, defaultConfig);
+      expect(skills).toHaveLength(2);
+      // Higher priority first
+      expect(skills[0]?.id).toBe("top-level");
+      expect(skills[1]?.id).toBe("sub-skill");
+    });
+
+    it("should load project skills from subdirectories", () => {
+      const learnedDir = join(projectSkillsDir, "learned");
+      mkdirSync(learnedDir, { recursive: true });
+
+      writeFileSync(
+        join(learnedDir, "project-learned.md"),
+        `<!-- skill:name = Project Learned -->
+<!-- skill:description = A project learned skill -->
+<!-- skill:category = learned -->
+
+# Project Learned`,
+      );
+
+      const skills = loadSkills("both", projectDir, defaultConfig);
+      expect(skills).toHaveLength(1);
+      expect(skills[0]?.id).toBe("project-learned");
+      expect(skills[0]?.isProjectSkill).toBe(true);
+    });
   });
 
   describe("listAllSkills", () => {

@@ -33,6 +33,7 @@ Evaluate whether this task should be implemented, and if so, create a detailed p
 - Do NOT modify any files — this is a read-only exploration phase
 - Be thorough in your codebase exploration before writing the plan
 - The plan should be detailed enough for another agent to implement it
+- If you discover important patterns, conventions, or architectural decisions during exploration, use the create_skill tool to record them for future agents
 `;
 };
 
@@ -136,5 +137,6 @@ ${ciSection}
 - Follow the approved plan — do not deviate significantly without documenting why
 - Do NOT ask questions — if something is unclear, make your best judgment and document the decision in a task comment and in the PR description
 - Document any open questions or deviations from the plan in the PR description
+- If you discover important patterns, workarounds, or project-specific conventions during implementation, use the create_skill tool to record them for future agents
 `;
 };
