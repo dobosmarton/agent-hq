@@ -5,6 +5,7 @@
 The context caching system reduces token costs and improves agent performance by intelligently caching and reusing project context across agent sessions.
 
 **Impact:**
+
 - **60-80% token cost reduction** via Anthropic Prompt Caching
 - **<100ms context retrieval** from in-memory cache
 - **Automatic cache invalidation** with TTL and LRU eviction
@@ -40,14 +41,14 @@ The context caching system reduces token costs and improves agent performance by
 
 ### Context Types
 
-| Type | TTL | Max Size | Use Case |
-|------|-----|----------|----------|
-| `project_metadata` | 30 min | 500KB | Project info, structure |
-| `project_conventions` | 60 min | 1MB | Code standards, skills |
-| `file_content` | 10 min | 5MB | Individual files (LRU) |
-| `ci_workflows` | Permanent | 100KB | CI/CD definitions |
-| `task_history` | 24 hours | 2MB | Completed task summaries |
-| `codebase_map` | 60 min | 500KB | Repository structure |
+| Type                  | TTL       | Max Size | Use Case                 |
+| --------------------- | --------- | -------- | ------------------------ |
+| `project_metadata`    | 30 min    | 500KB    | Project info, structure  |
+| `project_conventions` | 60 min    | 1MB      | Code standards, skills   |
+| `file_content`        | 10 min    | 5MB      | Individual files (LRU)   |
+| `ci_workflows`        | Permanent | 100KB    | CI/CD definitions        |
+| `task_history`        | 24 hours  | 2MB      | Completed task summaries |
+| `codebase_map`        | 60 min    | 500KB    | Repository structure     |
 
 ## Usage
 
@@ -59,31 +60,36 @@ The cache is available via `AgentManager`:
 const cache = agentManager.getCache();
 
 // Store context
-cache.set('project:config', 'project_metadata', configData);
+cache.set("project:config", "project_metadata", configData);
 
 // Retrieve context
-const config = cache.get<ProjectConfig>('project:config', 'project_metadata');
+const config = cache.get<ProjectConfig>("project:config", "project_metadata");
 
 // Invalidate specific key
-cache.invalidate('project:config');
+cache.invalidate("project:config");
 
 // Invalidate all entries of a type
-cache.invalidate('file_content');
+cache.invalidate("file_content");
 ```
 
 ### Context Composition
 
 ```typescript
-import { composeContext } from './agent/context-composer';
+import { composeContext } from "./agent/context-composer";
 
 const contextItems = [
-  { name: 'task_description', content: taskDescription },
-  { name: 'approved_plan', content: plan },
-  { name: 'ci_workflows', content: workflows },
+  { name: "task_description", content: taskDescription },
+  { name: "approved_plan", content: plan },
+  { name: "ci_workflows", content: workflows },
 ];
 
 // Compose with budget and phase awareness
-const composed = composeContext(contextItems, 'implementation', turnNumber, 20000);
+const composed = composeContext(
+  contextItems,
+  "implementation",
+  turnNumber,
+  20000,
+);
 ```
 
 ### Metrics
@@ -95,6 +101,7 @@ curl http://localhost:3847/status
 ```
 
 Response includes:
+
 ```json
 {
   "cache": {
@@ -108,7 +115,7 @@ Response includes:
     "tokens": {
       "cacheRead": 150000,
       "totalInput": 30000,
-      "totalCost": 2.50,
+      "totalCost": 2.5,
       "averageCostPerTask": 0.83
     }
   }
@@ -126,14 +133,15 @@ Response includes:
 ### Manual Invalidation
 
 Invalidate cache when:
+
 - Project configuration changes (conventions, CI workflows)
 - Repository structure changes significantly
 - Testing cache effectiveness
 
 ```typescript
 // Invalidate specific types
-cache.invalidate('project_conventions');
-cache.invalidate('codebase_map');
+cache.invalidate("project_conventions");
+cache.invalidate("codebase_map");
 
 // Clear entire cache
 cache.clear();
@@ -141,12 +149,12 @@ cache.clear();
 
 ## Performance Targets
 
-| Metric | Target | Current |
-|--------|--------|---------|
-| Token Cost Reduction | 50%+ | 60-80% |
-| Cache Hit Rate | 80%+ | Measured per-session |
-| Context Retrieval | <100ms | <50ms typical |
-| Task Startup Time | 50%+ faster | Via prompt caching |
+| Metric               | Target      | Current              |
+| -------------------- | ----------- | -------------------- |
+| Token Cost Reduction | 50%+        | 60-80%               |
+| Cache Hit Rate       | 80%+        | Measured per-session |
+| Context Retrieval    | <100ms      | <50ms typical        |
+| Task Startup Time    | 50%+ faster | Via prompt caching   |
 
 ## Monitoring
 
@@ -178,8 +186,8 @@ Edit `cache/types.ts` to adjust cache configuration:
 ```typescript
 export const DEFAULT_CACHE_CONFIG: Record<ContextType, CacheConfig> = {
   project_metadata: {
-    ttlMs: 30 * 60 * 1000,    // 30 minutes
-    maxSizeBytes: 500 * 1024   // 500KB
+    ttlMs: 30 * 60 * 1000, // 30 minutes
+    maxSizeBytes: 500 * 1024, // 500KB
   },
   // ... other types
 };
