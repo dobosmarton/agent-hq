@@ -3,3 +3,4 @@ dist/
 .env
 config.local.json
 state/
+skills/learned/

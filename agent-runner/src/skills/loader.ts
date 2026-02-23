@@ -61,34 +61,78 @@ const parseSkillMetadata = (
 };
 
 /**
- * Load all skill files from a directory
+ * Load .md skill files from a single flat directory (no recursion)
+ */
+const loadSkillsFromFlat = (
+  absolutePath: string,
+  isProjectSkill: boolean,
+): Skill[] => {
+  const skills: Skill[] = [];
+  const entries = readdirSync(absolutePath);
+
+  for (const entry of entries) {
+    if (!entry.endsWith(".md")) continue;
+
+    const filePath = join(absolutePath, entry);
+    const stat = statSync(filePath);
+    if (!stat.isFile()) continue;
+
+    const content = readFileSync(filePath, "utf-8");
+    const id = basename(entry, ".md");
+
+    try {
+      const skill = parseSkillMetadata(content, id, filePath, isProjectSkill);
+      if (skill.enabled) {
+        skills.push(skill);
+      }
+    } catch (err) {
+      console.warn(
+        `Failed to parse skill from ${filePath}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  return skills;
+};
+
+/**
+ * Load all skill files from a directory, recursing one level into subdirectories
  */
 const loadSkillsFromDir = (dir: string, isProjectSkill: boolean): Skill[] => {
   try {
     const absolutePath = resolve(dir);
-    const files = readdirSync(absolutePath);
+    const entries = readdirSync(absolutePath);
     const skills: Skill[] = [];
 
-    for (const file of files) {
-      // Only process .md files
-      if (!file.endsWith(".md")) continue;
+    for (const entry of entries) {
+      const entryPath = join(absolutePath, entry);
+      const stat = statSync(entryPath);
 
-      const filePath = join(absolutePath, file);
-      const stat = statSync(filePath);
+      // Recurse one level into subdirectories (e.g., "learned/")
+      if (stat.isDirectory()) {
+        skills.push(...loadSkillsFromFlat(entryPath, isProjectSkill));
+        continue;
+      }
 
-      if (!stat.isFile()) continue;
+      if (!entry.endsWith(".md") || !stat.isFile()) continue;
 
-      const content = readFileSync(filePath, "utf-8");
-      const id = basename(file, ".md");
+      const content = readFileSync(entryPath, "utf-8");
+      const id = basename(entry, ".md");
 
       try {
-        const skill = parseSkillMetadata(content, id, filePath, isProjectSkill);
+        const skill = parseSkillMetadata(
+          content,
+          id,
+          entryPath,
+          isProjectSkill,
+        );
         if (skill.enabled) {
           skills.push(skill);
         }
       } catch (err) {
         console.warn(
-          `Failed to parse skill from ${filePath}:`,
+          `Failed to parse skill from ${entryPath}:`,
           err instanceof Error ? err.message : String(err),
         );
       }

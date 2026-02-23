@@ -39,6 +39,7 @@ const PLANNING_TOOLS = [
   "mcp__agent-plane-tools__add_task_comment",
   "mcp__agent-plane-tools__list_labels",
   "mcp__agent-plane-tools__load_skill",
+  "mcp__agent-plane-tools__create_skill",
 ];
 
 const IMPLEMENTATION_TOOLS = [
@@ -56,6 +57,7 @@ const IMPLEMENTATION_TOOLS = [
   "mcp__agent-plane-tools__add_labels_to_task",
   "mcp__agent-plane-tools__remove_labels_from_task",
   "mcp__agent-plane-tools__load_skill",
+  "mcp__agent-plane-tools__create_skill",
 ];
 
 // Blocklist for destructive commands — takes precedence over allowedTools
@@ -80,6 +82,8 @@ export const runAgent = async (
   skillsSection: string | undefined,
   skills: Skill[],
   deps: RunnerDeps,
+  projectRepoPath: string,
+  agentRunnerRoot: string,
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
   const hasRetriesRemaining =
@@ -119,6 +123,8 @@ export const runAgent = async (
     inReviewStateId: cache?.inReviewStateId ?? null,
     doneStateId: cache?.doneStateId ?? null,
     skills,
+    projectRepoPath,
+    agentRunnerRoot,
   });
 
   // Build phase-specific prompt
