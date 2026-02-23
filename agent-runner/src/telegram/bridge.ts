@@ -61,10 +61,6 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
           }),
         );
 
-        // Include cache and metrics data
-        const cacheStats = deps.agentManager?.getCacheStats();
-        const metrics = deps.agentManager?.getMetrics()?.getMetrics();
-
         res.writeHead(200);
         res.end(
           JSON.stringify({
@@ -72,8 +68,6 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
             active: activeAgents,
             dailySpend: deps.agentManager?.getDailySpend() ?? 0,
             dailyBudget: deps.agentManager?.getDailyBudget() ?? 0,
-            cache: cacheStats,
-            metrics,
           }),
         );
         return;

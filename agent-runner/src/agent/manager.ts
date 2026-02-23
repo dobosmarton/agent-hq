@@ -15,11 +15,6 @@ import { detectPhase } from "./phase";
 import { runAgent } from "./runner";
 import { loadSkills } from "../skills/loader";
 import { formatSkillsCatalog } from "../skills/formatter";
-import { createContextCache, type ContextCache } from "../cache/context-cache";
-import {
-  createMetricsCollector,
-  type MetricsCollector,
-} from "../metrics/context-metrics";
 
 export type OnAgentDone = (
   task: AgentTask,
@@ -43,20 +38,10 @@ export const createAgentManager = (deps: ManagerDeps) => {
   let dailySpendUsd = 0;
   let dailySpendDate = new Date().toISOString().slice(0, 10);
 
-  // Initialize context cache and metrics
-  const contextCache = createContextCache();
-  const metricsCollector = createMetricsCollector();
-
   // Load persisted state
   const savedState = deps.statePersistence.load();
   dailySpendUsd = savedState.dailySpendUsd;
   dailySpendDate = savedState.dailySpendDate;
-
-  // Restore cache from persistence
-  const savedCache = deps.statePersistence.loadCache();
-  if (savedCache) {
-    contextCache.deserialize(savedCache);
-  }
 
   // Reset daily spend if date changed
   const today = new Date().toISOString().slice(0, 10);
@@ -209,15 +194,6 @@ export const createAgentManager = (deps: ManagerDeps) => {
 
         agent.status = result.errorType ? "errored" : "completed";
 
-        // Record task metrics
-        const duration = Date.now() - agent.startedAt;
-        metricsCollector.recordTask(
-          result.costUsd,
-          result.cacheMetrics,
-          duration,
-        );
-        metricsCollector.updateCacheStats(contextCache.getStats());
-
         console.log(
           `Daily spend: $${dailySpendUsd.toFixed(2)} / $${deps.config.agent.maxDailyBudget}`,
         );
@@ -287,20 +263,6 @@ export const createAgentManager = (deps: ManagerDeps) => {
     dailySpendDate,
   });
 
-  const getCache = (): ContextCache => contextCache;
-
-  const getCacheStats = () => contextCache.getStats();
-
-  const getMetrics = (): MetricsCollector => metricsCollector;
-
-  const shutdown = (): void => {
-    // Persist cache before shutdown
-    const serializedCache = contextCache.serialize();
-    deps.statePersistence.saveCache(serializedCache);
-    contextCache.stopPruning();
-    console.log("[AgentManager] Cache persisted and pruning stopped");
-  };
-
   return {
     activeCount,
     isTaskActive,
@@ -310,10 +272,6 @@ export const createAgentManager = (deps: ManagerDeps) => {
     getDailySpend,
     getDailyBudget,
     getState,
-    getCache,
-    getCacheStats,
-    getMetrics,
-    shutdown,
   };
 };
 

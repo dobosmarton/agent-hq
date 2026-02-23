@@ -122,8 +122,6 @@ export const buildImplementationPrompt = (
   const ciSection = buildCiValidationSection(ciContext);
   const skillsContent = skillsSection ? `\n${skillsSection}\n` : "";
 
-  // Restructure prompt for caching: static content first (task, plan, CI), dynamic content last
-  // Anthropic caches up to the last cache_control marker, which the SDK places automatically
   return `You are an autonomous software engineer implementing task ${taskId}: "${task.title}".
 
 ## Task Description
