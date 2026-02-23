@@ -220,6 +220,8 @@ Skills are reusable coding standards and best practices that agents can load on-
 
 | Skill | Description | Phase |
 |-------|-------------|-------|
+| `planning-methodology` | Feasibility assessment, plan structure, skip recommendations | Planning only |
+| `implementation-discipline` | Execution rules for precise plan following without over-engineering | Implementation only |
 | `commit-messages` | Git commit message standards | Implementation only |
 | `typescript-nodejs-best-practices` | TypeScript/Node.js patterns and type safety | Both |
 | `python-best-practices` | Python 3.12+ typing, tooling, and patterns | Both |
@@ -284,7 +286,9 @@ agent-runner/
 │   │   └── manager.ts        # Git worktree creation/cleanup for isolated agent workspaces
 │   └── __tests__/            # Vitest unit tests
 ├── skills/
-│   └── global/               # Global coding skills (loaded for all projects)
+│   └── global/               # Global skills (loaded for all projects)
+│       ├── planning-methodology.md
+│       ├── implementation-discipline.md
 │       ├── commit-messages.md
 │       ├── typescript-nodejs-best-practices.md
 │       ├── python-best-practices.md

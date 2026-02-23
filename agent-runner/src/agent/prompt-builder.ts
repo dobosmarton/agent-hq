@@ -20,43 +20,19 @@ export const buildPlanningPrompt = (
 ${task.descriptionHtml || "No description provided."}
 ${skillsContent}
 ## Your Goal
-Create a detailed implementation plan for this task. Do NOT make any code changes.
+Evaluate whether this task should be implemented, and if so, create a detailed plan. Do NOT make any code changes.
 
 ## Instructions
-1. Explore the codebase thoroughly — read relevant files, understand patterns and architecture
-2. Design an implementation approach:
-   - Which files need to be created or modified
-   - What the changes should look like at a high level
-   - Any risks, edge cases, or trade-offs
-3. List any questions or ambiguities that need human input
-4. Post your plan as a single comment using the add_task_comment tool with this exact format:
-
-\`\`\`html
-${PLAN_MARKER}
-<h2>Implementation Plan</h2>
-<h3>Approach</h3>
-<p>High-level description of the approach...</p>
-<h3>Files to Change</h3>
-<ul>
-  <li><code>path/to/file.ts</code> — what changes</li>
-</ul>
-<h3>Risks & Considerations</h3>
-<ul>
-  <li>Risk or consideration...</li>
-</ul>
-<h3>Questions for Review</h3>
-<ul>
-  <li>Question that needs human input...</li>
-</ul>
-\`\`\`
-
-5. After posting the plan comment, move the task to "plan_review" using update_task_status
+1. **Load all available planning skills first** using the load_skill tool — these define your planning methodology and quality standards
+2. Follow the methodology from the loaded skills to assess feasibility and create the plan
+3. Post your assessment or plan as a comment using the add_task_comment tool
+4. The comment MUST start with the ${PLAN_MARKER} marker (this is how the system detects the plan)
+5. After posting the comment, move the task to "plan_review" using update_task_status
 
 ## Important
 - Do NOT modify any files — this is a read-only exploration phase
 - Be thorough in your codebase exploration before writing the plan
 - The plan should be detailed enough for another agent to implement it
-- Include the ${PLAN_MARKER} marker at the start of your comment (this is how the system detects the plan)
 `;
 };
 
