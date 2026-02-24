@@ -106,3 +106,191 @@ export const pushBranch = async (
 ): Promise<void> => {
   await git(worktreePath, ["push", "-u", "origin", branchName]);
 };
+
+/**
+ * Check if a branch exists locally or remotely
+ */
+export const checkBranchExists = async (
+  repoPath: string,
+  branchName: string,
+): Promise<{ local: boolean; remote: boolean }> => {
+  const result = { local: false, remote: false };
+
+  // Check local branch
+  try {
+    await git(repoPath, ["rev-parse", "--verify", branchName]);
+    result.local = true;
+  } catch {
+    // Branch doesn't exist locally
+  }
+
+  // Check remote branch
+  try {
+    await git(repoPath, ["rev-parse", "--verify", `origin/${branchName}`]);
+    result.remote = true;
+  } catch {
+    // Branch doesn't exist remotely
+  }
+
+  return result;
+};
+
+/**
+ * Check if a worktree exists for a task
+ */
+export const checkWorktreeExists = async (
+  repoPath: string,
+  taskSlug: string,
+): Promise<boolean> => {
+  const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
+  return existsSync(wtPath);
+};
+
+/**
+ * Find worktree path for a given branch
+ */
+export const findWorktreeForBranch = async (
+  repoPath: string,
+  branchName: string,
+): Promise<string | null> => {
+  try {
+    const output = await git(repoPath, ["worktree", "list", "--porcelain"]);
+    const lines = output.split("\n");
+
+    let currentPath: string | null = null;
+    for (const line of lines) {
+      if (line.startsWith("worktree ")) {
+        currentPath = line.slice("worktree ".length);
+      } else if (line.startsWith("branch ") && currentPath) {
+        const branch = line.slice("branch ".length).replace("refs/heads/", "");
+        if (branch === branchName) {
+          return currentPath;
+        }
+      }
+    }
+  } catch {
+    // No worktrees or error listing
+  }
+
+  return null;
+};
+
+/**
+ * Get the last commit message from a branch
+ */
+export const getLastCommitMessage = async (
+  repoPath: string,
+  branchName?: string,
+): Promise<string | null> => {
+  try {
+    const args = branchName
+      ? ["log", "-1", "--format=%s", branchName]
+      : ["log", "-1", "--format=%s"];
+    return await git(repoPath, args);
+  } catch {
+    return null;
+  }
+};
+
+export type WorktreeResult = {
+  worktreePath: string;
+  branchName: string;
+  isExisting: boolean;
+  lastCommitMessage: string | null;
+};
+
+/**
+ * Get or create a worktree for a task. This is the smart version of createWorktree
+ * that handles existing branches/worktrees gracefully.
+ */
+export const getOrCreateWorktree = async (
+  repoPath: string,
+  taskSlug: string,
+  defaultBranch: string,
+): Promise<WorktreeResult> => {
+  const branchName = `agent/${taskSlug}`;
+  const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
+
+  // Fetch latest from remote
+  await git(repoPath, ["fetch", "origin", defaultBranch]);
+  await git(repoPath, ["reset", "--hard", `origin/${defaultBranch}`]);
+  await git(repoPath, ["clean", "-fd", "--exclude", WORKTREE_DIR]);
+
+  // Check if branch exists
+  const branchExists = await checkBranchExists(repoPath, branchName);
+
+  if (branchExists.local || branchExists.remote) {
+    // Branch exists — this is a resume scenario
+    console.log(
+      `Branch ${branchName} exists (local: ${branchExists.local}, remote: ${branchExists.remote}) — resuming work`,
+    );
+
+    // If remote but not local, fetch it
+    if (branchExists.remote && !branchExists.local) {
+      await git(repoPath, [
+        "branch",
+        "--track",
+        branchName,
+        `origin/${branchName}`,
+      ]);
+    }
+
+    // Check if worktree already exists
+    const existingWorktree = await findWorktreeForBranch(repoPath, branchName);
+
+    if (existingWorktree) {
+      // Worktree exists, use it
+      const lastCommit = await getLastCommitMessage(existingWorktree);
+      return {
+        worktreePath: existingWorktree,
+        branchName,
+        isExisting: true,
+        lastCommitMessage: lastCommit,
+      };
+    } else if (existsSync(wtPath)) {
+      // Worktree directory exists but is broken/orphaned — remove and recreate
+      console.warn(
+        `Worktree directory ${wtPath} exists but is not tracked by git — removing`,
+      );
+      await git(repoPath, ["worktree", "remove", wtPath, "--force"]).catch(
+        () => {
+          // If removal fails, continue anyway
+        },
+      );
+    }
+
+    // Create worktree for existing branch
+    await git(repoPath, ["worktree", "add", wtPath, branchName]);
+    const lastCommit = await getLastCommitMessage(wtPath);
+
+    return {
+      worktreePath: wtPath,
+      branchName,
+      isExisting: true,
+      lastCommitMessage: lastCommit,
+    };
+  }
+
+  // Branch doesn't exist — create new worktree with new branch
+  if (existsSync(wtPath)) {
+    throw new Error(
+      `Worktree directory ${wtPath} exists but branch ${branchName} doesn't exist — inconsistent state`,
+    );
+  }
+
+  await git(repoPath, [
+    "worktree",
+    "add",
+    wtPath,
+    "-b",
+    branchName,
+    `origin/${defaultBranch}`,
+  ]);
+
+  return {
+    worktreePath: wtPath,
+    branchName,
+    isExisting: false,
+    lastCommitMessage: null,
+  };
+};
