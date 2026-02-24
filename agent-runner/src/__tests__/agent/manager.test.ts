@@ -8,8 +8,37 @@ import type { AgentTask, RunnerState } from "../../types";
 import { makeConfig, makePlaneConfig } from "../fixtures/config";
 
 vi.mock("../../worktree/manager", () => ({
-  createWorktree: vi.fn(),
+  getOrCreateWorktree: vi.fn(),
   removeWorktree: vi.fn(),
+}));
+
+vi.mock("../../plane/comment-analyzer", () => ({
+  analyzeComments: vi.fn().mockReturnValue({
+    allComments: [],
+    agentComments: [],
+    userComments: [],
+    latestAgentTimestamp: null,
+    newCommentsSinceAgent: [],
+    hasPlanMarker: false,
+    hasProgressUpdates: false,
+  }),
+}));
+
+vi.mock("../../git/operations", () => ({
+  getCommitLog: vi.fn().mockResolvedValue(""),
+  getDiff: vi.fn().mockResolvedValue(""),
+}));
+
+vi.mock("../../agent/comment-formatter", () => ({
+  createResumeComment: vi.fn().mockReturnValue("<p>Resuming</p>"),
+}));
+
+vi.mock("../../skills/loader", () => ({
+  loadSkills: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock("../../skills/formatter", () => ({
+  formatSkillsCatalog: vi.fn().mockReturnValue(""),
 }));
 
 vi.mock("../../agent/runner", () => ({
@@ -29,14 +58,17 @@ vi.mock("../../plane/client", () => ({
 import { readCiWorkflows } from "../../agent/ci-discovery";
 import { createAgentManager } from "../../agent/manager";
 import { runAgent } from "../../agent/runner";
-import { listComments } from "../../plane/client";
-import { createWorktree, removeWorktree } from "../../worktree/manager";
+import { addComment, listComments } from "../../plane/client";
+import { getOrCreateWorktree, removeWorktree } from "../../worktree/manager";
+import { loadSkills } from "../../skills/loader";
 
-const mockedCreateWorktree = vi.mocked(createWorktree);
+const mockedGetOrCreateWorktree = vi.mocked(getOrCreateWorktree);
 const mockedRemoveWorktree = vi.mocked(removeWorktree);
 const mockedRunAgent = vi.mocked(runAgent);
 const mockedListComments = vi.mocked(listComments);
+const mockedAddComment = vi.mocked(addComment);
 const mockedReadCiWorkflows = vi.mocked(readCiWorkflows);
+const mockedLoadSkills = vi.mocked(loadSkills);
 
 const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
   issueId: "issue-1",
@@ -94,10 +126,15 @@ beforeEach(() => {
   // Default: no comments (planning phase)
   mockedListComments.mockResolvedValue([]);
   mockedReadCiWorkflows.mockReturnValue({ workflowFiles: {} });
+  // Default: skills loading returns empty
+  mockedLoadSkills.mockReturnValue([]);
+  mockedAddComment.mockResolvedValue(undefined as any);
   // Default: worktree creation succeeds (both phases use worktrees)
-  mockedCreateWorktree.mockResolvedValue({
+  mockedGetOrCreateWorktree.mockResolvedValue({
     worktreePath: "/wt",
     branchName: "agent/HQ-42",
+    isExisting: false,
+    lastCommitMessage: null,
   });
 });
 
@@ -150,16 +187,12 @@ describe("phase detection", () => {
   it("runs planning phase when no plan comment exists", async () => {
     const deps = makeDeps();
     mockedListComments.mockResolvedValue([]);
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    expect(mockedCreateWorktree).toHaveBeenCalled();
+    expect(mockedGetOrCreateWorktree).toHaveBeenCalled();
     expect(mockedRunAgent).toHaveBeenCalledWith(
       expect.anything(),
       "planning",
@@ -167,11 +200,12 @@ describe("phase detection", () => {
       "agent/HQ-42",
       [],
       expect.objectContaining({ workflowFiles: expect.any(Object) }),
-      expect.any(String),
+      undefined,
       expect.any(Array),
       expect.anything(),
       expect.any(String),
       expect.any(String),
+      null,
     );
   });
 
@@ -184,16 +218,12 @@ describe("phase detection", () => {
         created_at: "2026-02-19T10:00:00Z",
       },
     ]);
-    mockedCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-    });
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    expect(mockedCreateWorktree).toHaveBeenCalled();
+    expect(mockedGetOrCreateWorktree).toHaveBeenCalled();
     expect(mockedRunAgent).toHaveBeenCalledWith(
       expect.anything(),
       "implementation",
@@ -205,11 +235,12 @@ describe("phase detection", () => {
         }),
       ]),
       expect.objectContaining({ workflowFiles: expect.any(Object) }),
-      expect.any(String),
+      undefined,
       expect.any(Array),
       expect.anything(),
       expect.any(String),
       expect.any(String),
+      null,
     );
   });
 });
@@ -240,19 +271,19 @@ describe("spawnAgent", () => {
         created_at: "2026-02-19T10:00:00Z",
       },
     ]);
-    mockedCreateWorktree.mockRejectedValue(new Error("git error"));
+    mockedGetOrCreateWorktree.mockRejectedValue(new Error("git error"));
 
     const manager = createAgentManager(deps);
     const result = await manager.spawnAgent(makeTask());
 
     expect(result).toEqual({
       outcome: "error",
-      reason: expect.stringContaining("Worktree creation failed"),
+      reason: expect.stringContaining("Worktree setup failed"),
     });
     expect(notifier.agentErrored).toHaveBeenCalledWith(
       "HQ-42",
       "Fix the bug",
-      expect.stringContaining("Worktree creation failed"),
+      expect.stringContaining("Worktree setup failed"),
     );
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
     expect(mockedRunAgent).not.toHaveBeenCalled();
@@ -309,9 +340,11 @@ describe("spawnAgent", () => {
         created_at: "2026-02-19T10:00:00Z",
       },
     ]);
-    mockedCreateWorktree.mockResolvedValue({
+    mockedGetOrCreateWorktree.mockResolvedValue({
       worktreePath: "/wt",
       branchName: "agent/HQ-42",
+      isExisting: false,
+      lastCommitMessage: null,
     });
     mockedRunAgent.mockReturnValue(agentPromise);
 
@@ -344,13 +377,14 @@ describe("spawnAgent", () => {
       expect.any(String),
       expect.any(Array),
       expect.anything(),
-      expect.any(String),
+      undefined,
       expect.any(Array),
       expect.objectContaining({
         retryContext: { retryCount: 2, maxRetries: 2 },
       }),
       expect.any(String),
       expect.any(String),
+      null,
     );
   });
 
