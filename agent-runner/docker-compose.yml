@@ -10,6 +10,7 @@ services:
           memory: 3g
           cpus: "3"
     volumes:
+      - ./config.json:/app/config.json:ro
       - /home/deploy/repos:/repos
       - runner-state:/app/state
 

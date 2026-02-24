@@ -8,7 +8,6 @@ RUN npm install -g @anthropic-ai/claude-code
 COPY package*.json tsconfig.json ./
 RUN npm ci
 COPY src/ src/
-COPY config.json ./
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 

@@ -56,7 +56,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "agent-runner/src,agent-runner/package.json,agent-runner/package-lock.json,agent-runner/tsconfig.json,agent-runner/Dockerfile,agent-runner/docker-compose.yml,agent-runner/config.json,agent-runner/entrypoint.sh"
+          source: "agent-runner/src,agent-runner/skills,agent-runner/package.json,agent-runner/package-lock.json,agent-runner/tsconfig.json,agent-runner/Dockerfile,agent-runner/docker-compose.yml,agent-runner/config.json,agent-runner/entrypoint.sh"
           target: "~/"
           overwrite: true
 

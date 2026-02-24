@@ -217,4 +217,27 @@ describe("buildPlaneConfig", () => {
       workspaceSlug: "test-ws",
     });
   });
+
+  it("prefers PLANE_BASE_URL env var over config file baseUrl", () => {
+    const config = makeConfig();
+    const env = makeEnv({
+      PLANE_BASE_URL: "http://localhost:8000/api/v1",
+    });
+
+    const planeConfig = buildPlaneConfig(config, env);
+    expect(planeConfig.baseUrl).toBe("http://localhost:8000/api/v1");
+  });
+
+  it("falls back to config file baseUrl when PLANE_BASE_URL is not set", () => {
+    const config = makeConfig({
+      plane: {
+        baseUrl: "http://custom-host/api/v1",
+        workspaceSlug: "test-ws",
+      },
+    });
+    const env = makeEnv();
+
+    const planeConfig = buildPlaneConfig(config, env);
+    expect(planeConfig.baseUrl).toBe("http://custom-host/api/v1");
+  });
 });

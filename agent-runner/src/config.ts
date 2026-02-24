@@ -38,6 +38,7 @@ export type Config = z.infer<typeof ConfigSchema>;
 
 const EnvSchema = z.object({
   PLANE_API_KEY: z.string().min(1),
+  PLANE_BASE_URL: z.string().url().optional(),
   ANTHROPIC_API_KEY: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   TELEGRAM_CHAT_ID: z.string().min(1).optional(),
@@ -69,6 +70,6 @@ export type PlaneConfig = {
 
 export const buildPlaneConfig = (config: Config, env: Env): PlaneConfig => ({
   apiKey: env.PLANE_API_KEY,
-  baseUrl: config.plane.baseUrl,
+  baseUrl: env.PLANE_BASE_URL ?? config.plane.baseUrl,
   workspaceSlug: config.plane.workspaceSlug,
 });
