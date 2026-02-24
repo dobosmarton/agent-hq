@@ -13,6 +13,7 @@ import {
   buildImplementationPrompt,
   buildPlanningPrompt,
 } from "./prompt-builder";
+import type { CommentAnalysis } from "../plane/comment-analyzer";
 
 type RunnerDeps = {
   planeConfig: PlaneConfig;
@@ -72,6 +73,13 @@ const DISALLOWED_TOOLS = [
   "Bash(sudo *)",
 ];
 
+export type ResumeContext = {
+  gitLog: string;
+  gitDiff: string;
+  lastCommit: string | null;
+  analysis: CommentAnalysis;
+};
+
 export const runAgent = async (
   task: AgentTask,
   phase: AgentPhase,
@@ -84,6 +92,7 @@ export const runAgent = async (
   deps: RunnerDeps,
   projectRepoPath: string,
   agentRunnerRoot: string,
+  resumeContext: ResumeContext | null = null,
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
   const hasRetriesRemaining =
@@ -130,13 +139,14 @@ export const runAgent = async (
   // Build phase-specific prompt
   const prompt =
     phase === "planning"
-      ? buildPlanningPrompt(task, skillsSection)
+      ? buildPlanningPrompt(task, skillsSection, resumeContext)
       : buildImplementationPrompt(
           task,
           branchName,
           comments,
           ciContext,
           skillsSection,
+          resumeContext,
         );
 
   // Phase-specific settings

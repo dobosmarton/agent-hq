@@ -1,5 +1,5 @@
 import type { Config, PlaneConfig } from "../config";
-import { listComments } from "../plane/client";
+import { addComment, listComments } from "../plane/client";
 import type { TaskPoller } from "../poller/task-poller";
 import type { StatePersistence } from "../state/persistence";
 import type { Notifier } from "../telegram/notifier";
@@ -10,12 +10,15 @@ import type {
   SpawnResult,
 } from "../types";
 import { resolve } from "node:path";
-import { createWorktree, removeWorktree } from "../worktree/manager";
+import { getOrCreateWorktree, removeWorktree } from "../worktree/manager";
 import { readCiWorkflows } from "./ci-discovery";
 import { detectPhase } from "./phase";
 import { runAgent } from "./runner";
 import { loadSkills } from "../skills/loader";
 import { formatSkillsCatalog } from "../skills/formatter";
+import { analyzeComments } from "../plane/comment-analyzer";
+import { getCommitLog, getDiff } from "../git/operations";
+import { createResumeComment } from "./comment-formatter";
 
 export type OnAgentDone = (
   task: AgentTask,
@@ -115,25 +118,78 @@ export const createAgentManager = (deps: ManagerDeps) => {
 
     let workingDir: string;
     let branchName: string;
+    let isResuming = false;
+    let resumeContext: {
+      gitLog: string;
+      gitDiff: string;
+      lastCommit: string | null;
+      analysis: ReturnType<typeof analyzeComments>;
+    } | null = null;
 
     try {
-      const result = await createWorktree(
+      const result = await getOrCreateWorktree(
         projectConfig.repoPath,
         taskSlug,
         projectConfig.defaultBranch,
       );
       workingDir = result.worktreePath;
       branchName = result.branchName;
+      isResuming = result.isExisting;
+
+      if (isResuming) {
+        console.log(
+          `Resuming work on ${taskSlug} (branch ${branchName} already exists)`,
+        );
+
+        // Analyze comments to identify new feedback
+        const analysis = analyzeComments(comments);
+
+        // Get git history and diff
+        const [gitLog, gitDiff] = await Promise.all([
+          getCommitLog(
+            workingDir,
+            `origin/${projectConfig.defaultBranch}`,
+            "HEAD",
+          ),
+          getDiff(workingDir, `origin/${projectConfig.defaultBranch}`, "HEAD"),
+        ]);
+
+        const commitCount = gitLog.split("\n").filter((line) => line).length;
+
+        resumeContext = {
+          gitLog,
+          gitDiff,
+          lastCommit: result.lastCommitMessage,
+          analysis,
+        };
+
+        // Post a resume comment to the task
+        const resumeComment = createResumeComment(
+          analysis,
+          branchName,
+          gitLog,
+          commitCount,
+        );
+
+        await addComment(
+          deps.planeConfig,
+          task.projectId,
+          task.issueId,
+          resumeComment,
+        );
+
+        console.log(`Posted resume comment for ${taskSlug}`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to create worktree for ${taskSlug}: ${msg}`);
+      console.error(`Failed to setup worktree for ${taskSlug}: ${msg}`);
       await deps.notifier.agentErrored(
         taskSlug,
         task.title,
-        `Worktree creation failed: ${msg}`,
+        `Worktree setup failed: ${msg}`,
       );
       deps.taskPoller.releaseTask(task.issueId);
-      return { outcome: "error", reason: `Worktree creation failed: ${msg}` };
+      return { outcome: "error", reason: `Worktree setup failed: ${msg}` };
     }
 
     // Build CI context for validation
@@ -190,6 +246,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
       },
       projectConfig.repoPath,
       resolve(process.cwd()),
+      resumeContext,
     )
       .then(async (result) => {
         agent.costUsd = result.costUsd;

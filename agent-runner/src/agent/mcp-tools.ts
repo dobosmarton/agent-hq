@@ -6,6 +6,7 @@ import {
   addComment,
   addLink,
   getIssue,
+  listComments,
   listLabels,
   updateIssue,
 } from "../plane/client";
@@ -85,6 +86,39 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               {
                 type: "text" as const,
                 text: `Comment added to task ${ctx.taskDisplayId}.`,
+              },
+            ],
+          };
+        },
+      ),
+
+      tool(
+        "list_task_comments",
+        "Retrieve all comments on the current task with timestamps and content. Use this to review feedback and understand the task's history.",
+        {},
+        async () => {
+          const comments = await listComments(
+            ctx.planeConfig,
+            ctx.projectId,
+            ctx.issueId,
+          );
+
+          if (comments.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No comments found on this task.",
+                },
+              ],
+            };
+          }
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(comments, null, 2),
               },
             ],
           };
