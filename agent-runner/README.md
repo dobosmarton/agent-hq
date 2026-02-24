@@ -45,15 +45,16 @@ The Docker image includes Node 22, git, GitHub CLI, and Claude Code CLI. It uses
 
 ### Environment Variables
 
-| Variable             | Required | Description                                               |
-| -------------------- | -------- | --------------------------------------------------------- |
-| `PLANE_API_KEY`      | Yes      | Plane API token                                           |
-| `ANTHROPIC_API_KEY`  | Yes      | Anthropic API key for Claude Code SDK                     |
-| `GITHUB_PAT`         | Yes      | GitHub PAT for git push in worktrees                      |
-| `TELEGRAM_BOT_TOKEN` | No       | Telegram bot token (notifications disabled if missing)    |
-| `TELEGRAM_CHAT_ID`   | No       | Telegram chat ID for notifications                        |
-| `CONFIG_PATH`        | No       | Path to config file (default: `./config.json`)            |
-| `STATE_PATH`         | No       | Path to state file (default: `./state/runner-state.json`) |
+| Variable                | Required | Description                                               |
+| ----------------------- | -------- | --------------------------------------------------------- |
+| `PLANE_API_KEY`         | Yes      | Plane API token                                           |
+| `ANTHROPIC_API_KEY`     | Yes      | Anthropic API key for Claude Code SDK                     |
+| `GITHUB_PAT`            | Yes      | GitHub PAT for git push in worktrees                      |
+| `GITHUB_WEBHOOK_SECRET` | No       | GitHub webhook secret for signature validation            |
+| `TELEGRAM_BOT_TOKEN`    | No       | Telegram bot token (notifications disabled if missing)    |
+| `TELEGRAM_CHAT_ID`      | No       | Telegram chat ID for notifications                        |
+| `CONFIG_PATH`           | No       | Path to config file (default: `./config.json`)            |
+| `STATE_PATH`            | No       | Path to state file (default: `./state/runner-state.json`) |
 
 ### config.json
 
@@ -87,6 +88,12 @@ The Docker image includes Node 22, git, GitHub CLI, and Claude Code CLI. It uses
       "globalSkillsPath": "skills/global",
     },
   },
+  "webhook": {
+    "enabled": true, // enable GitHub webhook server
+    "port": 3000, // webhook server port
+    "path": "/webhooks/github/pr", // webhook endpoint path
+    "taskIdPattern": "([A-Z]+-\\d+)", // regex to match task IDs
+  },
 }
 ```
 
@@ -115,6 +122,100 @@ The Docker image includes Node 22, git, GitHub CLI, and Claude Code CLI. It uses
 - Crashes retry if attempts remain
 - Budget-exceeded tasks are re-queued for later (daily reset)
 - Max 2 retries by default
+
+## Webhook Automation
+
+The agent runner includes a GitHub webhook server that automatically moves Plane tasks to "Done" when their associated pull requests are merged. This closes the feedback loop between code development and project tracking.
+
+### How It Works
+
+1. **PR Merged** - When a PR is merged on GitHub, a webhook event is sent to the agent runner
+2. **Task ID Extraction** - The webhook handler searches for task IDs in:
+   - PR description (e.g., "Closes AGENTHQ-123", "Fixes AGENTHQ-456")
+   - Branch name (e.g., `agent/AGENTHQ-123`, `feature/AGENTHQ-789-description`)
+   - Commit messages (searches all commits in the PR)
+3. **State Update** - For each matched task ID:
+   - Finds the task in Plane by project identifier + sequence ID
+   - Updates task state to "Done"
+   - Adds a comment with PR merge information
+   - Logs the update for audit trail
+4. **Error Handling** - Gracefully handles edge cases:
+   - Multiple task IDs in one PR (updates all)
+   - Task already in Done state (skips update)
+   - Invalid/missing task IDs (logs warning, continues)
+   - Plane API errors (logs error, continues)
+
+### Setup
+
+1. **Configure the webhook server** in `config.json`:
+
+```jsonc
+{
+  "webhook": {
+    "enabled": true,
+    "port": 3000,
+    "path": "/webhooks/github/pr",
+    "taskIdPattern": "([A-Z]+-\\d+)", // customize if using different task ID format
+  },
+}
+```
+
+2. **Generate a webhook secret**:
+
+```bash
+openssl rand -hex 32
+```
+
+Add it to your `.env`:
+
+```bash
+GITHUB_WEBHOOK_SECRET=your-generated-secret
+```
+
+3. **Configure GitHub webhook** in your repository settings:
+   - URL: `http://your-server:3000/webhooks/github/pr`
+   - Content type: `application/json`
+   - Secret: Use the same secret from step 2
+   - Events: Select "Pull requests" only
+   - Active: ✓
+
+4. **Ensure the server is accessible** from GitHub:
+   - If running locally, use a tool like [ngrok](https://ngrok.com/) or [localtunnel](https://localtunnel.github.io/www/)
+   - If running on a VPS, ensure port 3000 is open in your firewall
+
+### Security
+
+- **Signature Validation** - All webhook requests are validated using HMAC-SHA256
+- **Secret Required** - Configure `GITHUB_WEBHOOK_SECRET` to enable validation
+- **Event Filtering** - Only `pull_request` events with `action=closed` and `merged=true` are processed
+
+### Testing
+
+To test the webhook integration:
+
+1. Create a test PR with a task ID in the description (e.g., "Closes AGENTHQ-123")
+2. Merge the PR
+3. Check the agent runner logs for webhook processing messages
+4. Verify the task moved to "Done" in Plane
+
+### Troubleshooting
+
+**Webhook not firing:**
+
+- Check GitHub webhook delivery logs in repository settings
+- Verify the webhook URL is accessible from the internet
+- Check firewall rules and network configuration
+
+**Signature validation failing:**
+
+- Ensure `GITHUB_WEBHOOK_SECRET` matches the secret configured in GitHub
+- Check for whitespace or encoding issues in the secret
+
+**Task not updating:**
+
+- Verify task ID format matches the `taskIdPattern` in config
+- Check that the task exists in Plane
+- Review agent runner logs for error messages
 
 ## MCP Tools
 
@@ -224,6 +325,12 @@ agent-runner/
 │   ├── telegram/
 │   │   ├── notifier.ts       # Telegram notifications
 │   │   └── bridge.ts         # HTTP answer server for agent questions
+│   ├── webhooks/
+│   │   ├── server.ts         # HTTP webhook server with signature validation
+│   │   ├── handler.ts        # GitHub PR event processing
+│   │   ├── task-matcher.ts   # Task ID extraction from PR/branch/commits
+│   │   ├── updater.ts        # Plane task state updates
+│   │   └── types.ts          # GitHub webhook payload types
 │   ├── skills/
 │   │   ├── types.ts          # Skill schemas (Zod)
 │   │   ├── loader.ts         # Loads + caches skills from disk
