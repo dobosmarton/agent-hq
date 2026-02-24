@@ -6,6 +6,7 @@ import { createTaskPoller } from "./poller/task-poller";
 import { createTaskQueue } from "./queue/task-queue";
 import { createStatePersistence } from "./state/persistence";
 import { createNoopNotifier, createNotifier } from "./telegram/notifier";
+import { startWebhookServer } from "./webhooks/server";
 import { ensureWorktreeGitignore } from "./worktree/manager";
 
 const RETRYABLE_ERRORS = new Set(["rate_limited", "unknown"]);
@@ -41,6 +42,18 @@ const main = async (): Promise<void> => {
   // Initialize task poller (fetches projects, labels, states from Plane)
   const taskPoller = createTaskPoller(planeConfig, config);
   await taskPoller.initialize();
+
+  // Start webhook server if enabled
+  if (config.webhook.enabled) {
+    try {
+      await startWebhookServer(config, env, planeConfig, taskPoller);
+    } catch (err) {
+      console.error("Failed to start webhook server:", err);
+      console.warn("Continuing without webhook server...");
+    }
+  } else {
+    console.log("Webhook server disabled in config");
+  }
 
   // Initialize state persistence
   const statePath =

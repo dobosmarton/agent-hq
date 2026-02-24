@@ -12,6 +12,13 @@ const ProjectConfigSchema = z.object({
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
 
+const WebhookConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  port: z.number().int().positive().default(3000),
+  path: z.string().default("/webhooks/github/pr"),
+  taskIdPattern: z.string().default("([A-Z]+-\\d+)"),
+});
+
 const AgentConfigSchema = z.object({
   maxConcurrent: z.number().int().min(1).default(2),
   maxBudgetPerTask: z.number().positive().default(5.0),
@@ -32,6 +39,7 @@ const ConfigSchema = z.object({
   }),
   projects: z.record(z.string(), ProjectConfigSchema),
   agent: AgentConfigSchema.default({}),
+  webhook: WebhookConfigSchema.default({}),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -43,6 +51,7 @@ const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   TELEGRAM_CHAT_ID: z.string().min(1).optional(),
   GITHUB_PAT: z.string().min(1),
+  GITHUB_WEBHOOK_SECRET: z.string().min(1).optional(),
   CONFIG_PATH: z.string().optional(),
   STATE_PATH: z.string().optional(),
 });
