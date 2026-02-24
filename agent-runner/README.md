@@ -114,6 +114,7 @@ The Docker image includes Node 22, git, GitHub CLI, and Claude Code CLI. It uses
 The agent can now **resume work on existing tasks** instead of always starting fresh:
 
 **How it works:**
+
 - When a task moves to "Todo", the agent checks if a branch already exists (naming: `agent/{PROJECT-ID}`)
 - If found, the agent:
   - Retrieves all comments to understand previous work and feedback
@@ -123,26 +124,21 @@ The agent can now **resume work on existing tasks** instead of always starting f
   - Continues implementation incorporating new feedback
 
 **For users:**
+
 - Move a task back to "Todo" to have the agent iterate on it
 - Add comments with updated requirements or direction changes
 - The agent treats your **latest feedback as the source of truth**
 - Works for both planning and implementation phases
 
 **Resume comment format:**
+
 ```html
-✅ Resuming work on this task
-
-Found existing branch: agent/PROJECT-42
-Previous work completed: 5 commit(s)
-
-New feedback from comments:
-- [2024-02-20] User requested feature X instead of Y
-- [2024-02-21] Clarified acceptance criteria for feature Z
-
-Plan for this session:
-- Review existing work and new feedback
-- Update implementation based on new requirements
-- Complete remaining acceptance criteria
+✅ Resuming work on this task Found existing branch: agent/PROJECT-42 Previous
+work completed: 5 commit(s) New feedback from comments: - [2024-02-20] User
+requested feature X instead of Y - [2024-02-21] Clarified acceptance criteria
+for feature Z Plan for this session: - Review existing work and new feedback -
+Update implementation based on new requirements - Complete remaining acceptance
+criteria
 ```
 
 ### Retries
@@ -156,17 +152,17 @@ Plan for this session:
 
 Agents get access to a custom MCP server (`agent-plane-tools`) with these tools:
 
-| Tool                      | Description                                   |
-| ------------------------- | --------------------------------------------- |
-| `update_task_status`      | Move task to plan_review, in_review, or done  |
-| `add_task_comment`        | Post HTML progress comment                    |
-| `add_task_link`           | Attach link (e.g., PR URL) to task            |
-| `list_task_comments`      | Retrieve all comments on current task         |
-| `list_labels`             | List project labels                           |
-| `add_labels_to_task`      | Add labels (case-insensitive)                 |
-| `remove_labels_from_task` | Remove labels                                 |
-| `load_skill`              | Load full content of a skill by ID            |
-| `create_skill`            | Create a new skill file for future agents     |
+| Tool                      | Description                                  |
+| ------------------------- | -------------------------------------------- |
+| `update_task_status`      | Move task to plan_review, in_review, or done |
+| `add_task_comment`        | Post HTML progress comment                   |
+| `add_task_link`           | Attach link (e.g., PR URL) to task           |
+| `list_task_comments`      | Retrieve all comments on current task        |
+| `list_labels`             | List project labels                          |
+| `add_labels_to_task`      | Add labels (case-insensitive)                |
+| `remove_labels_from_task` | Remove labels                                |
+| `load_skill`              | Load full content of a skill by ID           |
+| `create_skill`            | Create a new skill file for future agents    |
 
 ## Skills System
 
