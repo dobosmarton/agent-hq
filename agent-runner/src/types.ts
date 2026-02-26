@@ -30,7 +30,10 @@ export type ActiveAgent = {
 
 export type SpawnResult =
   | { outcome: "started" }
-  | { outcome: "rejected"; reason: "no_project_config" | "budget_exceeded" }
+  | {
+      outcome: "rejected";
+      reason: "no_project_config" | "budget_exceeded" | "no_repo_path";
+    }
   | { outcome: "error"; reason: string };
 
 export type AgentDoneResult = {

@@ -285,3 +285,87 @@ export function formatComment(comment: {
 
   return `${EMOJI.comment} <b>${comment.author}</b> (${date})\n${formatted}`;
 }
+
+/**
+ * Format GitHub repository options for selection
+ */
+export function formatRepositoryOptions(
+  repos: Array<{
+    full_name: string;
+    description: string | null;
+    language: string | null;
+    stargazers_count: number;
+  }>
+): string {
+  if (repos.length === 0) {
+    return "No repositories found.";
+  }
+
+  const lines = repos.map((repo, index) => {
+    const lang = repo.language ? ` • ${repo.language}` : "";
+    const stars = repo.stargazers_count > 0 ? ` ⭐ ${repo.stargazers_count}` : "";
+    const desc = repo.description
+      ? `\n  <i>${escapeHtml(repo.description.substring(0, 80))}</i>`
+      : "";
+    return `${index + 1}. <b>${escapeHtml(repo.full_name)}</b>${lang}${stars}${desc}`;
+  });
+
+  return lines.join("\n\n");
+}
+
+/**
+ * Format project summary for confirmation
+ */
+export function formatProjectSummary(project: {
+  name: string;
+  identifier: string;
+  description?: string;
+  github_url?: string;
+  plane_url?: string;
+}): string {
+  const parts: string[] = [];
+
+  parts.push(`<b>${EMOJI.heading} ${project.name}</b>`);
+  parts.push(`Identifier: <code>${project.identifier}</code>`);
+
+  if (project.description) {
+    parts.push(`\n${escapeHtml(project.description)}`);
+  }
+
+  if (project.github_url) {
+    parts.push(`\n${EMOJI.link} GitHub: <a href="${project.github_url}">${project.github_url}</a>`);
+  }
+
+  if (project.plane_url) {
+    parts.push(`${EMOJI.link} Plane: <a href="${project.plane_url}">${project.plane_url}</a>`);
+  }
+
+  return parts.join("\n");
+}
+
+/**
+ * Format creation confirmation message
+ */
+export function formatCreationConfirmation(
+  type: "github" | "plane",
+  details: {
+    name: string;
+    identifier?: string;
+    url?: string;
+  }
+): string {
+  const emoji = EMOJI.success;
+  const typeName = type === "github" ? "GitHub repository" : "Plane project";
+
+  let message = `${emoji} Created ${typeName}: <b>${escapeHtml(details.name)}</b>`;
+
+  if (details.identifier) {
+    message += `\nIdentifier: <code>${details.identifier}</code>`;
+  }
+
+  if (details.url) {
+    message += `\n${EMOJI.link} <a href="${details.url}">View in ${type === "github" ? "GitHub" : "Plane"}</a>`;
+  }
+
+  return message;
+}

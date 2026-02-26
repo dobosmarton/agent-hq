@@ -96,6 +96,14 @@ export const createAgentManager = (deps: ManagerDeps) => {
       return { outcome: "rejected", reason: "no_project_config" };
     }
 
+    if (!projectConfig.repoPath) {
+      console.error(`No repoPath configured for ${task.projectIdentifier}`);
+      return { outcome: "rejected", reason: "no_repo_path" };
+    }
+
+    // Store repoPath for type narrowing (proven to be non-null above)
+    const repoPath = projectConfig.repoPath;
+
     if (!checkBudget()) {
       const taskSlug = `${task.projectIdentifier}-${task.sequenceId}`;
       console.warn(
@@ -128,7 +136,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
 
     try {
       const result = await getOrCreateWorktree(
-        projectConfig.repoPath,
+        repoPath,
         taskSlug,
         projectConfig.defaultBranch,
       );
@@ -195,12 +203,12 @@ export const createAgentManager = (deps: ManagerDeps) => {
     // Build CI context for validation
     const ciContext = projectConfig.ciChecks
       ? { workflowFiles: {}, overrideCommands: projectConfig.ciChecks }
-      : readCiWorkflows(projectConfig.repoPath);
+      : readCiWorkflows(repoPath);
 
     // Load skills for the phase
     const skills = loadSkills(
       phase,
-      projectConfig.repoPath,
+      repoPath,
       deps.config.agent.skills,
     );
     const skillsSection =
@@ -244,7 +252,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
           maxRetries: deps.config.agent.maxRetries,
         },
       },
-      projectConfig.repoPath,
+      repoPath,
       resolve(process.cwd()),
       resumeContext,
     )
@@ -259,7 +267,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
         );
 
         if (!result.errorType) {
-          await cleanup(task.issueId, taskSlug, projectConfig.repoPath);
+          await cleanup(task.issueId, taskSlug, repoPath);
         } else {
           activeAgents.delete(task.issueId);
           deps.taskPoller.releaseTask(task.issueId);

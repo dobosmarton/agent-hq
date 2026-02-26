@@ -3,7 +3,9 @@ import { z } from "zod";
 import {
   addIssueComment,
   buildStateMap,
+  cloneProjectConfiguration,
   createIssue,
+  createProject,
   findIssueBySequenceId,
   findLabelByName,
   findProjectByIdentifier,
@@ -17,7 +19,13 @@ import {
   updateIssue,
   updateIssueState,
 } from "../plane";
-import type { PlaneConfig } from "../types";
+import type { GitHubConfig, PlaneConfig } from "../types";
+import {
+  getRepository,
+  parseGitHubUrl,
+  searchRepositories,
+  searchUserRepositories,
+} from "../github";
 
 export const createRunnerTools = (runnerUrl: string) => ({
   agentQueueStatus: createTool({
@@ -708,3 +716,398 @@ export const createPlaneTools = (config: PlaneConfig) => ({
     },
   }),
 });
+
+export const createProjectManagementTools = (
+  planeConfig: PlaneConfig,
+  githubConfig: GitHubConfig
+) => {
+  return {
+    searchGitHubProjects: createTool({
+      id: "search_github_projects",
+      description:
+        "Search for GitHub repositories by name or URL. Returns top 5 results sorted by stars. Use this when user mentions adding a project or searching for a GitHub repo.",
+      inputSchema: z.object({
+        query: z
+          .string()
+          .describe(
+            "Search query - can be a project name (e.g. 'verdandi') or GitHub URL (e.g. 'github.com/user/repo')"
+          ),
+      }),
+      outputSchema: z.object({
+        success: z.boolean(),
+        repositories: z
+          .array(
+            z.object({
+              full_name: z.string(),
+              description: z.string().nullable(),
+              html_url: z.string(),
+              language: z.string().nullable(),
+              stargazers_count: z.number(),
+              owner: z.string(),
+              repo: z.string(),
+            })
+          )
+          .optional(),
+        error: z.string().optional(),
+      }),
+      execute: async ({ query }) => {
+        try {
+          // Check if query is a URL
+          const parsed = parseGitHubUrl(query);
+          if (parsed) {
+            // Direct lookup by URL
+            const repo = await getRepository(parsed.owner, parsed.repo, githubConfig);
+            if (!repo) {
+              return {
+                success: false,
+                error: `Repository not found: ${parsed.owner}/${parsed.repo}`,
+              };
+            }
+            return {
+              success: true,
+              repositories: [
+                {
+                  full_name: repo.full_name,
+                  description: repo.description,
+                  html_url: repo.html_url,
+                  language: repo.language,
+                  stargazers_count: repo.stargazers_count,
+                  owner: repo.owner.login,
+                  repo: repo.name,
+                },
+              ],
+            };
+          }
+
+          // Search by name across user's accessible repos
+          const repos = await searchUserRepositories(query, githubConfig);
+
+          if (repos.length === 0) {
+            // Fall back to global search if no user repos found
+            const globalRepos = await searchRepositories(query, githubConfig);
+            if (globalRepos.length === 0) {
+              return {
+                success: false,
+                error: `No repositories found for "${query}". Try a more specific search term or GitHub URL.`,
+              };
+            }
+            return {
+              success: true,
+              repositories: globalRepos.map((r) => ({
+                full_name: r.full_name,
+                description: r.description,
+                html_url: r.html_url,
+                language: r.language,
+                stargazers_count: r.stargazers_count,
+                owner: r.owner.login,
+                repo: r.name,
+              })),
+            };
+          }
+
+          return {
+            success: true,
+            repositories: repos.map((r) => ({
+              full_name: r.full_name,
+              description: r.description,
+              html_url: r.html_url,
+              language: r.language,
+              stargazers_count: r.stargazers_count,
+              owner: r.owner.login,
+              repo: r.name,
+            })),
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Failed to search GitHub",
+          };
+        }
+      },
+    }),
+
+    searchPlaneProjects: createTool({
+      id: "search_plane_projects",
+      description:
+        "Search for Plane projects by name (case-insensitive, fuzzy match). Use this to find existing Plane projects.",
+      inputSchema: z.object({
+        query: z.string().describe("Project name to search for (e.g. 'verdandi', 'agent hq')"),
+      }),
+      outputSchema: z.object({
+        success: z.boolean(),
+        projects: z
+          .array(
+            z.object({
+              id: z.string(),
+              name: z.string(),
+              identifier: z.string(),
+            })
+          )
+          .optional(),
+        error: z.string().optional(),
+      }),
+      execute: async ({ query }) => {
+        try {
+          const allProjects = await listProjects(planeConfig);
+          const normalizedQuery = query.toLowerCase().trim();
+
+          // Fuzzy match on name or identifier
+          const matches = allProjects.filter(
+            (p) =>
+              p.name.toLowerCase().includes(normalizedQuery) ||
+              p.identifier.toLowerCase().includes(normalizedQuery)
+          );
+
+          if (matches.length === 0) {
+            return {
+              success: false,
+              error: `No Plane projects found matching "${query}". Available projects: ${allProjects.map((p) => p.identifier).join(", ")}`,
+            };
+          }
+
+          return {
+            success: true,
+            projects: matches.map((p) => ({
+              id: p.id,
+              name: p.name,
+              identifier: p.identifier,
+            })),
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Failed to search Plane projects",
+          };
+        }
+      },
+    }),
+
+    createPlaneProject: createTool({
+      id: "create_plane_project",
+      description:
+        "Create a new Plane project with configuration cloned from a template project (default: AGENTHQ). Use this after confirming with the user.",
+      inputSchema: z.object({
+        name: z.string().describe("Project name (e.g. 'Verdandi', 'StyleSwipe')"),
+        identifier: z
+          .string()
+          .describe("Project identifier code (e.g. 'VERDANDI', 'STYLESWIPE'). Must be uppercase."),
+        description: z.string().optional().describe("Project description"),
+        template_identifier: z
+          .string()
+          .optional()
+          .describe("Template project identifier to clone labels from (default: 'AGENTHQ')"),
+      }),
+      outputSchema: z.object({
+        success: z.boolean(),
+        project: z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            identifier: z.string(),
+            url: z.string(),
+          })
+          .optional(),
+        error: z.string().optional(),
+      }),
+      execute: async ({ name, identifier, description, template_identifier }) => {
+        try {
+          // Create the project
+          const project = await createProject(
+            planeConfig,
+            name,
+            identifier.toUpperCase(),
+            description
+          );
+
+          // Clone configuration from template
+          const templateId = template_identifier ?? "AGENTHQ";
+          const templateProject = await findProjectByIdentifier(planeConfig, templateId);
+
+          if (templateProject) {
+            try {
+              await cloneProjectConfiguration(planeConfig, templateProject.id, project.id);
+            } catch (error) {
+              console.warn("Failed to clone project configuration:", error);
+              // Continue even if cloning fails
+            }
+          }
+
+          // Build Plane web URL
+          const baseUrl = planeConfig.baseUrl.replace("/api/v1", "");
+          const projectUrl = `${baseUrl}/projects/${project.identifier.toLowerCase()}`;
+
+          return {
+            success: true,
+            project: {
+              id: project.id,
+              name: project.name,
+              identifier: project.identifier,
+              url: projectUrl,
+            },
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Failed to create Plane project",
+          };
+        }
+      },
+    }),
+
+    findGitHubPlaneMatch: createTool({
+      id: "find_github_plane_match",
+      description:
+        "Auto-search for a Plane project that matches a GitHub repository name. Use this after finding a GitHub repo to check if a Plane project already exists.",
+      inputSchema: z.object({
+        github_repo_name: z
+          .string()
+          .describe("GitHub repository name (e.g. 'verdandi', 'agent-hq')"),
+      }),
+      outputSchema: z.object({
+        found: z.boolean(),
+        plane_project: z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            identifier: z.string(),
+          })
+          .optional(),
+        suggestions: z.array(z.string()).optional(),
+      }),
+      execute: async ({ github_repo_name }) => {
+        try {
+          const allProjects = await listProjects(planeConfig);
+
+          // Normalize GitHub repo name (remove hyphens, underscores)
+          const normalized = github_repo_name.toLowerCase().replace(/[-_]/g, "");
+
+          // Try exact match first
+          const exactMatch = allProjects.find(
+            (p) =>
+              p.name.toLowerCase().replace(/[-_]/g, "") === normalized ||
+              p.identifier.toLowerCase().replace(/[-_]/g, "") === normalized
+          );
+
+          if (exactMatch) {
+            return {
+              found: true,
+              plane_project: {
+                id: exactMatch.id,
+                name: exactMatch.name,
+                identifier: exactMatch.identifier,
+              },
+            };
+          }
+
+          // Try fuzzy match
+          const fuzzyMatches = allProjects.filter(
+            (p) =>
+              p.name.toLowerCase().includes(normalized.substring(0, 5)) ||
+              normalized.includes(p.name.toLowerCase().substring(0, 5))
+          );
+
+          if (fuzzyMatches.length > 0) {
+            return {
+              found: false,
+              suggestions: fuzzyMatches.map((p) => p.identifier),
+            };
+          }
+
+          return { found: false };
+        } catch (error) {
+          return { found: false };
+        }
+      },
+    }),
+
+    getProjectMapping: createTool({
+      id: "get_project_mapping",
+      description:
+        "Get the current GitHub ↔ Plane project mappings from config. Use this to see which projects are already linked.",
+      inputSchema: z.object({}),
+      outputSchema: z.object({
+        mappings: z.array(
+          z.object({
+            identifier: z.string(),
+            github_url: z.string().optional(),
+            plane_project: z.string().optional(),
+          })
+        ),
+        note: z.string(),
+      }),
+      execute: async () => {
+        try {
+          const projects = await listProjects(planeConfig);
+          return {
+            mappings: projects.map((p) => ({
+              identifier: p.identifier,
+              plane_project: p.name,
+            })),
+            note: "Full GitHub ↔ Plane mappings are stored in agent-runner config.json. The bot currently shows all Plane projects.",
+          };
+        } catch (error) {
+          return {
+            mappings: [],
+            note: error instanceof Error ? error.message : "Failed to get mappings",
+          };
+        }
+      },
+    }),
+
+    linkGitHubPlaneProject: createTool({
+      id: "link_github_plane_project",
+      description:
+        "Guide user to link GitHub and Plane projects by updating config.json. Use this after finding both GitHub repo and Plane project.",
+      inputSchema: z.object({
+        github_owner: z.string().describe("GitHub repository owner"),
+        github_repo: z.string().describe("GitHub repository name"),
+        github_url: z.string().describe("Full GitHub repository URL"),
+        plane_identifier: z.string().describe("Plane project identifier"),
+        plane_project_id: z.string().describe("Plane project UUID"),
+      }),
+      outputSchema: z.object({
+        success: z.boolean(),
+        instructions: z.string(),
+        config_snippet: z.string(),
+      }),
+      execute: async ({
+        github_owner,
+        github_repo,
+        github_url,
+        plane_identifier,
+        plane_project_id,
+      }) => {
+        const configSnippet = JSON.stringify(
+          {
+            [plane_identifier]: {
+              repoUrl: github_url,
+              planeProjectId: plane_project_id,
+              planeIdentifier: plane_identifier,
+              defaultBranch: "main",
+            },
+          },
+          null,
+          2
+        );
+
+        const instructions = `To complete the linking:
+
+1. Add this to agent-runner/config.json under "projects":
+
+${configSnippet}
+
+2. Restart both agent-runner and telegram-bot services:
+   cd agent-runner && docker compose restart
+   cd telegram-bot && docker compose restart
+
+The projects will then be fully linked and the agent can work on tasks in this project.`;
+
+        return {
+          success: true,
+          instructions,
+          config_snippet: configSnippet,
+        };
+      },
+    }),
+  };
+};

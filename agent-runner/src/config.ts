@@ -4,10 +4,12 @@ import { resolve } from "node:path";
 import { SkillsConfigSchema } from "./skills/types";
 
 const ProjectConfigSchema = z.object({
-  repoPath: z.string(),
+  repoPath: z.string().optional(),
   repoUrl: z.string().url(),
   defaultBranch: z.string().default("main"),
   ciChecks: z.array(z.string()).optional(),
+  planeProjectId: z.string().optional(),
+  planeIdentifier: z.string().optional(),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;

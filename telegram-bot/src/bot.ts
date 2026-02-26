@@ -2,7 +2,7 @@ import { Bot } from "grammy";
 import { createAgentHQ } from "./agent/index";
 import { handleHelp, handleStart } from "./commands/help";
 import { smartChunkMessage } from "./formatter";
-import { EnvSchema, type PlaneConfig } from "./types";
+import { EnvSchema, type GitHubConfig, type PlaneConfig } from "./types";
 import { extractTaskId, sendReply } from "./utils";
 
 const env = EnvSchema.parse(process.env);
@@ -13,10 +13,13 @@ const planeConfig: PlaneConfig = {
   workspaceSlug: env.PLANE_WORKSPACE_SLUG,
 };
 
+const githubConfig: GitHubConfig | undefined = env.GITHUB_PAT ? { pat: env.GITHUB_PAT } : undefined;
+
 const agent = createAgentHQ({
   planeConfig,
   model: `anthropic/${env.ANTHROPIC_MODEL}`,
   agentRunnerUrl: env.AGENT_RUNNER_URL,
+  githubConfig,
 });
 
 const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
