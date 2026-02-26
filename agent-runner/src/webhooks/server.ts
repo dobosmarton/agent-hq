@@ -1,9 +1,6 @@
 import { createHmac } from "node:crypto";
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
 import type { Config, Env, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
 import { handlePullRequestEvent } from "./handler";
@@ -35,110 +32,86 @@ const verifySignature = (
 };
 
 /**
- * Reads the request body as a string
- *
- * @param req - Incoming HTTP request
- * @returns Promise that resolves to the request body
- */
-const readBody = (req: IncomingMessage): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
-    req.on("error", reject);
-  });
-};
-
-/**
- * Creates and starts a webhook HTTP server
+ * Creates a Hono webhook application
  *
  * @param config - Application configuration
  * @param env - Environment variables
  * @param planeConfig - Plane API configuration
  * @param taskPoller - Task poller with project caches
- * @returns Server instance
+ * @returns Hono app instance
  */
-export const createWebhookServer = (
+export const createWebhookApp = (
   config: Config,
   env: Env,
   planeConfig: PlaneConfig,
   taskPoller: TaskPoller,
 ) => {
-  const server = createServer(
-    async (req: IncomingMessage, res: ServerResponse) => {
-      // Only handle POST requests to the configured path
-      if (req.method !== "POST" || req.url !== config.webhook.path) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Not found" }));
-        return;
+  const app = new Hono();
+
+  // Webhook endpoint
+  app.post(config.webhook.path, async (c) => {
+    try {
+      // Get raw body text for signature verification
+      const body = await c.req.text();
+
+      // Verify signature if secret is configured
+      if (env.GITHUB_WEBHOOK_SECRET) {
+        const signature = c.req.header("x-hub-signature-256");
+        if (!signature) {
+          console.error("❌ Webhook: Missing x-hub-signature-256 header");
+          return c.json({ error: "Missing signature" }, 401);
+        }
+
+        if (!verifySignature(body, signature, env.GITHUB_WEBHOOK_SECRET)) {
+          console.error("❌ Webhook: Invalid signature");
+          return c.json({ error: "Invalid signature" }, 401);
+        }
+      } else {
+        console.warn(
+          "⚠️  Webhook: GITHUB_WEBHOOK_SECRET not configured, skipping signature validation",
+        );
       }
 
-      try {
-        // Read request body
-        const body = await readBody(req);
+      // Check event type
+      const eventType = c.req.header("x-github-event");
+      if (eventType !== "pull_request") {
+        console.log(`ℹ️  Webhook: Ignoring event type: ${eventType}`);
+        return c.json({ message: "Event ignored" });
+      }
 
-        // Verify signature if secret is configured
-        if (env.GITHUB_WEBHOOK_SECRET) {
-          const signature = req.headers["x-hub-signature-256"];
-          if (!signature || typeof signature !== "string") {
-            console.error("❌ Webhook: Missing x-hub-signature-256 header");
-            res.writeHead(401, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Missing signature" }));
-            return;
-          }
+      // Parse event payload
+      const event = JSON.parse(body) as GitHubPullRequestEvent;
 
-          if (!verifySignature(body, signature, env.GITHUB_WEBHOOK_SECRET)) {
-            console.error("❌ Webhook: Invalid signature");
-            res.writeHead(401, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Invalid signature" }));
-            return;
-          }
-        } else {
-          console.warn(
-            "⚠️  Webhook: GITHUB_WEBHOOK_SECRET not configured, skipping signature validation",
-          );
-        }
-
-        // Parse event payload
-        const event = JSON.parse(body) as GitHubPullRequestEvent;
-
-        // Check event type
-        const eventType = req.headers["x-github-event"];
-        if (eventType !== "pull_request") {
-          console.log(`ℹ️  Webhook: Ignoring event type: ${eventType}`);
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ message: "Event ignored" }));
-          return;
-        }
-
-        // Return 200 OK immediately to GitHub
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ message: "Webhook received" }));
-
-        // Process webhook asynchronously (don't block response)
-        handlePullRequestEvent(event, planeConfig, config, taskPoller)
-          .then((result) => {
-            if (result.success && result.updatedTasks.length > 0) {
-              console.log(
-                `✅ Webhook: Successfully processed PR #${event.number}`,
-              );
-            }
-          })
-          .catch((err) => {
-            console.error(
-              `❌ Webhook: Error processing PR #${event.number}:`,
-              err,
+      // Return 200 OK immediately to GitHub
+      // Process webhook asynchronously (don't block response)
+      handlePullRequestEvent(event, planeConfig, config, taskPoller)
+        .then((result) => {
+          if (result.success && result.updatedTasks.length > 0) {
+            console.log(
+              `✅ Webhook: Successfully processed PR #${event.number}`,
             );
-          });
-      } catch (err) {
-        console.error("❌ Webhook: Error handling request:", err);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Internal server error" }));
-      }
-    },
-  );
+          }
+        })
+        .catch((err) => {
+          console.error(
+            `❌ Webhook: Error processing PR #${event.number}:`,
+            err,
+          );
+        });
 
-  return server;
+      return c.json({ message: "Webhook received" });
+    } catch (err) {
+      console.error("❌ Webhook: Error handling request:", err);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  });
+
+  // Health check endpoint
+  app.get("/health", (c) => {
+    return c.json({ status: "ok" });
+  });
+
+  return app;
 };
 
 /**
@@ -157,18 +130,29 @@ export const startWebhookServer = (
   taskPoller: TaskPoller,
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const server = createWebhookServer(config, env, planeConfig, taskPoller);
+    try {
+      const app = createWebhookApp(config, env, planeConfig, taskPoller);
 
-    server.listen(config.webhook.port, () => {
-      console.log(
-        `🌐 Webhook server listening on http://localhost:${config.webhook.port}${config.webhook.path}`,
+      const server = serve(
+        {
+          fetch: app.fetch,
+          port: config.webhook.port,
+        },
+        () => {
+          console.log(
+            `🌐 Webhook server listening on http://localhost:${config.webhook.port}${config.webhook.path}`,
+          );
+          resolve();
+        },
       );
-      resolve();
-    });
 
-    server.on("error", (err) => {
-      console.error("❌ Webhook server error:", err);
+      server.on("error", (err: Error) => {
+        console.error("❌ Webhook server error:", err);
+        reject(err);
+      });
+    } catch (err) {
+      console.error("❌ Failed to create webhook server:", err);
       reject(err);
-    });
+    }
   });
 };
