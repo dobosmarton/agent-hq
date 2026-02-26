@@ -125,7 +125,7 @@ The Docker image includes Node 22, git, GitHub CLI, and Claude Code CLI. It uses
 
 ## Webhook Automation
 
-The agent runner includes a GitHub webhook server that automatically moves Plane tasks to "Done" when their associated pull requests are merged. This closes the feedback loop between code development and project tracking.
+The agent runner includes a GitHub webhook server (built with [Hono](https://hono.dev/)) that automatically moves Plane tasks to "Done" when their associated pull requests are merged. This closes the feedback loop between code development and project tracking.
 
 ### How It Works
 
@@ -193,10 +193,11 @@ GITHUB_WEBHOOK_SECRET=your-generated-secret
 
 To test the webhook integration:
 
-1. Create a test PR with a task ID in the description (e.g., "Closes AGENTHQ-123")
-2. Merge the PR
-3. Check the agent runner logs for webhook processing messages
-4. Verify the task moved to "Done" in Plane
+1. Verify the server is running: `curl http://localhost:3000/health` (should return `{"status":"ok"}`)
+2. Create a test PR with a task ID in the description (e.g., "Closes AGENTHQ-123")
+3. Merge the PR
+4. Check the agent runner logs for webhook processing messages
+5. Verify the task moved to "Done" in Plane
 
 ### Troubleshooting
 
@@ -326,7 +327,7 @@ agent-runner/
 │   │   ├── notifier.ts       # Telegram notifications
 │   │   └── bridge.ts         # HTTP answer server for agent questions
 │   ├── webhooks/
-│   │   ├── server.ts         # HTTP webhook server with signature validation
+│   │   ├── server.ts         # Hono webhook server with signature validation
 │   │   ├── handler.ts        # GitHub PR event processing
 │   │   ├── task-matcher.ts   # Task ID extraction from PR/branch/commits
 │   │   ├── updater.ts        # Plane task state updates
