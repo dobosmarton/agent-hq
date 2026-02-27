@@ -15,6 +15,7 @@ You are executing an approved plan. Your job is precise implementation, not crea
 - **Do not add error handling, validation, or configurability** beyond what the plan specifies
 - **Do not refactor surrounding code** — only touch what the plan says to touch
 - **If something wasn't anticipated**, document it in a task comment and proceed with the simplest solution that stays within the plan's scope
+- **Exception: Documentation is always in scope** — updating README.md and inline docs to reflect your changes is mandatory, even if the plan doesn't mention it. Accurate documentation is part of every implementation.
 
 ## Code Quality
 

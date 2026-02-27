@@ -1,9 +1,9 @@
 import type { PlaneComment } from "../plane/types";
 import type { AgentTask } from "../types";
 import type { CiContext } from "./ci-discovery";
+import { buildResumeContext } from "./comment-formatter";
 import { PLAN_MARKER } from "./phase";
 import type { ResumeContext } from "./runner";
-import { buildResumeContext } from "./comment-formatter";
 
 const taskDisplayId = (task: AgentTask): string =>
   `${task.projectIdentifier}-${task.sequenceId}`;
@@ -154,7 +154,7 @@ ${resumeContext ? "7" : "6"}. Commit your changes with descriptive messages pref
 ${resumeContext ? "8" : "7"}. Push your branch after every significant milestone using: git push -u origin ${branchName}
 ${resumeContext ? "9" : "8"}. Add progress comments to the task using the add_task_comment tool at key milestones
 ${resumeContext ? "10" : "9"}. Before creating the PR, run a final verification of ALL CI checks. Do NOT create the PR if any check fails — fix the issues first.
-${resumeContext ? "11" : "10"}. Update documentation: review and update any relevant documentation (README.md, CLAUDE.md, inline docs) to reflect the changes you made. Keep docs accurate and in sync with the code.
+${resumeContext ? "11" : "10"}. **MANDATORY — Update documentation**: You MUST review and update README.md to reflect the changes you made. This includes: new features, new env vars, new files, changed config, new commands, changed architecture. If your changes add, remove, or modify any user-facing behavior, the README must be updated. Do NOT skip this step — documentation drift is a critical issue.
 ${resumeContext ? "12" : "11"}. After all checks pass, create a Pull Request:
     gh pr create --title "${taskId}: <concise summary>" --body "<description including decisions made and any open questions>"
 ${resumeContext ? "13" : "12"}. Add the PR URL as a link on the task using the add_task_link tool with the title "Pull Request" and the PR URL
@@ -170,6 +170,7 @@ ${resumeContext ? "- This branch already has commits — review them before addi
 
 ## Important
 - Do not modify files unrelated to the task
+- Exception: README.md updates ARE always related to the task — keep them in sync with your changes
 - Follow the approved plan — do not deviate significantly without documenting why
 - Do NOT ask questions — if something is unclear, make your best judgment and document the decision in a task comment and in the PR description
 - Document any open questions or deviations from the plan in the PR description
