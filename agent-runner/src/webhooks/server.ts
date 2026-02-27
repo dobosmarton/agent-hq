@@ -1,10 +1,10 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import type { Config, Env, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
 import { handlePullRequestEvent } from "./handler";
-import type { GitHubPullRequestEvent } from "./types";
+import { GitHubPullRequestEventSchema } from "./types";
 
 /**
  * Verifies GitHub webhook signature using HMAC-SHA256
@@ -28,7 +28,14 @@ const verifySignature = (
   hmac.update(payload);
   const actualSignature = hmac.digest("hex");
 
-  return actualSignature === expectedSignature;
+  if (actualSignature.length !== expectedSignature.length) {
+    return false;
+  }
+
+  return timingSafeEqual(
+    Buffer.from(actualSignature, "hex"),
+    Buffer.from(expectedSignature, "hex"),
+  );
 };
 
 /**
@@ -45,7 +52,7 @@ export const createWebhookApp = (
   env: Env,
   planeConfig: PlaneConfig,
   taskPoller: TaskPoller,
-) => {
+): Hono => {
   const app = new Hono();
 
   // Webhook endpoint
@@ -79,25 +86,24 @@ export const createWebhookApp = (
         return c.json({ message: "Event ignored" });
       }
 
-      // Parse event payload
-      const event = JSON.parse(body) as GitHubPullRequestEvent;
+      // Parse and validate event payload at the boundary
+      const parsed = GitHubPullRequestEventSchema.safeParse(JSON.parse(body));
+      if (!parsed.success) {
+        console.error("❌ Webhook: Invalid payload:", parsed.error.message);
+        return c.json({ error: "Invalid payload" }, 400);
+      }
 
-      // Return 200 OK immediately to GitHub
-      // Process webhook asynchronously (don't block response)
-      handlePullRequestEvent(event, planeConfig, config, taskPoller)
-        .then((result) => {
-          if (result.success && result.updatedTasks.length > 0) {
-            console.log(
-              `✅ Webhook: Successfully processed PR #${event.number}`,
-            );
-          }
-        })
-        .catch((err) => {
+      const event = parsed.data;
+
+      // Process webhook asynchronously — respond 200 immediately to GitHub
+      void handlePullRequestEvent(event, planeConfig, config, taskPoller).catch(
+        (err) => {
           console.error(
             `❌ Webhook: Error processing PR #${event.number}:`,
             err,
           );
-        });
+        },
+      );
 
       return c.json({ message: "Webhook received" });
     } catch (err) {

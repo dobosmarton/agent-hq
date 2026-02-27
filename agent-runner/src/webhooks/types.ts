@@ -3,6 +3,8 @@
  * https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request
  */
 
+import { z } from "zod";
+
 export type GitHubUser = {
   login: string;
   id: number;
@@ -44,13 +46,50 @@ export type GitHubPullRequest = {
   html_url: string;
 };
 
-export type GitHubPullRequestEvent = {
-  action: "opened" | "closed" | "reopened" | "synchronize" | "edited";
-  number: number;
-  pull_request: GitHubPullRequest;
-  repository: GitHubRepository;
-  sender: GitHubUser;
-};
+/**
+ * Zod schema for validating GitHub webhook PR event payloads at the boundary.
+ * Uses .passthrough() to allow additional fields GitHub may add without breaking.
+ */
+const GitHubUserSchema = z
+  .object({ login: z.string(), id: z.number() })
+  .passthrough();
+
+const GitHubPullRequestSchema = z
+  .object({
+    id: z.number(),
+    number: z.number(),
+    title: z.string(),
+    body: z.string().nullable(),
+    state: z.enum(["open", "closed"]),
+    merged: z.boolean(),
+    merged_at: z.string().nullable(),
+    head: z.object({ ref: z.string(), sha: z.string() }).passthrough(),
+    base: z.object({ ref: z.string(), sha: z.string() }).passthrough(),
+    user: GitHubUserSchema,
+    html_url: z.string(),
+  })
+  .passthrough();
+
+export const GitHubPullRequestEventSchema = z
+  .object({
+    action: z.string(),
+    number: z.number(),
+    pull_request: GitHubPullRequestSchema,
+    repository: z
+      .object({
+        id: z.number(),
+        name: z.string(),
+        full_name: z.string(),
+        owner: GitHubUserSchema,
+      })
+      .passthrough(),
+    sender: GitHubUserSchema,
+  })
+  .passthrough();
+
+export type GitHubPullRequestEvent = z.infer<
+  typeof GitHubPullRequestEventSchema
+>;
 
 export type WebhookProcessResult = {
   success: boolean;

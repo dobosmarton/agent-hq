@@ -143,7 +143,7 @@ describe("handlePullRequestEvent", () => {
       {
         taskId: "AGENTHQ-123",
         success: true,
-        reason: "Task moved to Done",
+        status: "moved",
       },
     ]);
 
@@ -186,12 +186,12 @@ describe("handlePullRequestEvent", () => {
       {
         taskId: "AGENTHQ-123",
         success: true,
-        reason: "Task moved to Done",
+        status: "moved",
       },
       {
         taskId: "AGENTHQ-456",
         success: true,
-        reason: "Task moved to Done",
+        status: "moved",
       },
     ]);
 
@@ -220,7 +220,7 @@ describe("handlePullRequestEvent", () => {
       {
         taskId: "AGENTHQ-123",
         success: true,
-        reason: "Task already in Done state",
+        status: "already_done",
       },
     ]);
 
@@ -267,7 +267,7 @@ describe("handlePullRequestEvent", () => {
       {
         taskId: "AGENTHQ-789",
         success: true,
-        reason: "Task moved to Done",
+        status: "moved",
       },
     ]);
 

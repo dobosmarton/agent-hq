@@ -8,12 +8,14 @@ import {
   validateTaskId,
 } from "./task-matcher";
 
-type UpdateResult = {
-  taskId: string;
-  success: boolean;
-  reason: string;
-  previousState?: string;
-};
+export type UpdateResult =
+  | {
+      taskId: string;
+      success: true;
+      status: "moved" | "already_done";
+      previousState?: string;
+    }
+  | { taskId: string; success: false; reason: string };
 
 /**
  * Updates a single Plane task to "Done" state when a PR is merged
@@ -65,7 +67,8 @@ export const updateTaskState = async (
   }
 
   try {
-    // Find the issue by project ID and sequence ID
+    // TODO: This fetches all project issues to find one — use a filtered API query
+    // when Plane supports filtering by sequence_id to avoid loading the full list.
     const issues = await listIssues(planeConfig, cache.project.id);
     const issue = issues.find((i) => i.sequence_id === sequenceId);
 
@@ -82,7 +85,7 @@ export const updateTaskState = async (
       return {
         taskId,
         success: true,
-        reason: "Task already in Done state",
+        status: "already_done" as const,
         previousState: cache.doneStateId,
       };
     }
@@ -104,7 +107,7 @@ export const updateTaskState = async (
     return {
       taskId,
       success: true,
-      reason: "Task moved to Done",
+      status: "moved" as const,
       previousState,
     };
   } catch (err) {

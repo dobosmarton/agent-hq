@@ -336,6 +336,29 @@ const safeParseUser = (data: unknown): User | null => {
 };
 ```
 
+### External API Payloads
+
+```typescript
+// ✅ GOOD: Use .passthrough() for external API payloads
+// Allows extra fields the API may add without breaking validation
+const WebhookEventSchema = z
+  .object({
+    action: z.string(),
+    payload: z.object({ id: z.number() }).passthrough(),
+  })
+  .passthrough();
+
+// ✅ GOOD: Derive type from schema — single source of truth
+type WebhookEvent = z.infer<typeof WebhookEventSchema>;
+
+// ❌ BAD: Separate type and schema that can drift apart
+type WebhookEvent = {
+  action: string;
+  payload: { id: number };
+};
+// Schema defined elsewhere with different fields...
+```
+
 ### Type Narrowing Instead of `unknown`
 
 ```typescript
@@ -364,6 +387,82 @@ const handleError = (error: unknown): string => {
   return isError(error) ? error.message : "Unknown error";
 };
 ```
+
+---
+
+## Node.js Security Patterns
+
+### Timing-Safe Comparison
+
+When comparing secrets, HMAC signatures, or tokens, always use constant-time comparison. String `===` leaks timing information that attackers can exploit.
+
+```typescript
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+// ❌ BAD: Timing attack vulnerable — leaks character-by-character match info
+const isValid = actualSignature === expectedSignature;
+
+// ✅ GOOD: Constant-time HMAC verification
+const verifyHmac = (
+  payload: string,
+  signature: string,
+  secret: string,
+): boolean => {
+  const expected = createHmac("sha256", secret).update(payload).digest("hex");
+  // Length check prevents timingSafeEqual from throwing on mismatched sizes
+  if (signature.length !== expected.length) {
+    return false;
+  }
+  return timingSafeEqual(
+    Buffer.from(signature, "hex"),
+    Buffer.from(expected, "hex"),
+  );
+};
+```
+
+**Rule**: Any comparison involving secrets, tokens, signatures, or API keys must use `crypto.timingSafeEqual`. Never use `===`, `==`, or `.includes()` for secret comparison.
+
+---
+
+## Async Patterns
+
+### Fire-and-Forget
+
+When you intentionally don't await a promise (e.g., responding to a webhook immediately while processing in the background), use the `void` operator with `.catch()` to signal intent and prevent unhandled rejections.
+
+```typescript
+// ❌ BAD: Unhandled floating promise — crashes on rejection
+handleEvent(data);
+
+// ❌ BAD: Verbose .then().catch() when .then() just logs
+handleEvent(data)
+  .then(() => console.log("done"))
+  .catch((err) => console.error(err));
+
+// ✅ GOOD: Explicit fire-and-forget with error handling
+void handleEvent(data).catch((err: unknown) => {
+  console.error("Event processing failed:", err);
+});
+```
+
+### Respond First, Process Later
+
+```typescript
+// ✅ GOOD: Webhook pattern — respond immediately, process async
+app.post("/webhook", async (c) => {
+  const event = parseEvent(await c.req.text());
+
+  // Fire-and-forget: process in background
+  void processEvent(event).catch((err: unknown) => {
+    console.error(`Failed to process event ${event.id}:`, err);
+  });
+
+  // Respond immediately so the caller doesn't timeout
+  return c.json({ received: true });
+});
+```
+
+**Rule**: Every floating promise must have either `await` or `void ... .catch()`. Never leave a promise return value unused without one of these.
 
 ---
 
@@ -457,6 +556,44 @@ const updateUser = (user: User, name: string): User => {
 const updateUser = (user: User, name: string): User => {
   user.name = name; // Mutating input!
   return user;
+};
+```
+
+### Accumulate Then Return
+
+When a function produces a complex result from a loop, collect into separate variables and build the result object once at the end — don't create an empty result and mutate it throughout.
+
+```typescript
+// ❌ BAD: Create empty result, mutate fields throughout the function
+const processItems = (items: Item[]): ProcessResult => {
+  const result: ProcessResult = { success: false, processed: [], errors: [] };
+  for (const item of items) {
+    try {
+      handle(item);
+      result.processed.push(item.id);
+    } catch (err) {
+      result.errors.push(item.id);
+    }
+  }
+  result.success = result.errors.length === 0;
+  return result;
+};
+
+// ✅ GOOD: Separate accumulators, single return
+const processItems = (items: Item[]): ProcessResult => {
+  const processed: string[] = [];
+  const errors: string[] = [];
+
+  for (const item of items) {
+    try {
+      handle(item);
+      processed.push(item.id);
+    } catch {
+      errors.push(item.id);
+    }
+  }
+
+  return { success: errors.length === 0, processed, errors };
 };
 ```
 
@@ -742,6 +879,28 @@ export * from "./types";
 3. **Tree-shaking** - Bundlers can eliminate unused code
 4. **Consistency** - Same pattern everywhere
 
+### Export Types That Consumers Need
+
+If a function returns a custom type, export that type so consumers can reference it directly. Forcing consumers to use `ReturnType<typeof fn>` is fragile and unreadable.
+
+```typescript
+// ✅ GOOD: Export both the function and its return type
+export type UpdateResult =
+  | { success: true; status: "moved" | "skipped" }
+  | { success: false; reason: string };
+
+export const updateTask = async (id: string): Promise<UpdateResult> => {
+  // ...
+};
+
+// ❌ BAD: Type hidden — consumers must use inference
+type UpdateResult = { success: boolean };
+export const updateTask = async (id: string): Promise<UpdateResult> => {
+  // ...
+};
+// Consumer: type Result = Awaited<ReturnType<typeof updateTask>>; // fragile
+```
+
 ---
 
 ## Simplicity Patterns
@@ -937,6 +1096,28 @@ const processGroup = <T extends GroupData>(data: T): Item[] => {
   return data.items; // Direct access — no cast needed for named properties
 };
 ```
+
+### 8. Magic Strings for Control Flow
+
+```typescript
+// ❌ BAD: Branching on a human-readable message string
+// Fragile — breaks silently if the message text changes
+if (result.reason === "Task already in Done state") {
+  skipTask(result.taskId);
+}
+
+// ✅ GOOD: Discriminated union with a status field
+type UpdateResult =
+  | { success: true; status: "moved" | "already_done" }
+  | { success: false; reason: string };
+
+// Type-safe — compiler catches typos and ensures exhaustive handling
+if (result.success && result.status === "already_done") {
+  skipTask(result.taskId);
+}
+```
+
+**Rule**: Never branch on `.message`, `.reason`, or other human-readable strings. Use a discriminated union with a literal status/kind field instead. Strings are for humans; literal types are for control flow.
 
 ---
 
