@@ -38,7 +38,7 @@ ${skillsContent}${resumeSection}
 ${resumeContext ? "Review and update the implementation plan based on new feedback." : "Evaluate whether this task should be implemented, and if so, create a detailed plan. Do NOT make any code changes."}
 
 ## Instructions
-1. **Load all available planning skills first** using the load_skill tool — these define your planning methodology and quality standards
+1. **MANDATORY: Load all coding skills listed in "Mandatory Coding Standards" above** using the load_skill tool — these define the planning methodology, quality standards, and coding conventions you must follow throughout this task
 2. Follow the methodology from the loaded skills to assess feasibility and create the plan
 3. Post your assessment or plan as a comment using the add_task_comment tool
 4. The comment MUST start with the ${PLAN_MARKER} marker (this is how the system detects the plan)
@@ -145,19 +145,20 @@ ${skillsContent}${resumeSection}
 ${ciSection}
 
 ## Instructions
-1. Read the plan and human feedback from the comments above carefully
-${resumeContext ? "2. Review the previous work in the git history to understand what has been done\n3. Continue implementation from where it left off, incorporating new feedback" : "2. Implement the changes described in the plan"}
-${resumeContext ? "4" : "3"}. Write or update tests if the project has a test framework set up
-${resumeContext ? "5" : "4"}. Before EVERY commit, run all quality checks from the CI Validation section above and fix any failures
-${resumeContext ? "6" : "5"}. Commit your changes with descriptive messages prefixed with "${taskId}:"
-${resumeContext ? "7" : "6"}. Push your branch after every significant milestone using: git push -u origin ${branchName}
-${resumeContext ? "8" : "7"}. Add progress comments to the task using the add_task_comment tool at key milestones
-${resumeContext ? "9" : "8"}. Before creating the PR, run a final verification of ALL CI checks. Do NOT create the PR if any check fails — fix the issues first.
-${resumeContext ? "10" : "9"}. Update documentation: review and update any relevant documentation (README.md, CLAUDE.md, inline docs) to reflect the changes you made. Keep docs accurate and in sync with the code.
-${resumeContext ? "11" : "10"}. After all checks pass, create a Pull Request:
+1. **MANDATORY: Before writing any code**, load the coding skills listed in "Mandatory Coding Standards" above using the load_skill tool — these define coding conventions and standards you must follow throughout implementation
+${resumeContext ? "2" : "2"}. Read the plan and human feedback from the comments above carefully
+${resumeContext ? "3. Review the previous work in the git history to understand what has been done\n4. Continue implementation from where it left off, incorporating new feedback" : "3. Implement the changes described in the plan"}
+${resumeContext ? "5" : "4"}. Write or update tests if the project has a test framework set up
+${resumeContext ? "6" : "5"}. Before EVERY commit, run all quality checks from the CI Validation section above and fix any failures
+${resumeContext ? "7" : "6"}. Commit your changes with descriptive messages prefixed with "${taskId}:"
+${resumeContext ? "8" : "7"}. Push your branch after every significant milestone using: git push -u origin ${branchName}
+${resumeContext ? "9" : "8"}. Add progress comments to the task using the add_task_comment tool at key milestones
+${resumeContext ? "10" : "9"}. Before creating the PR, run a final verification of ALL CI checks. Do NOT create the PR if any check fails — fix the issues first.
+${resumeContext ? "11" : "10"}. Update documentation: review and update any relevant documentation (README.md, CLAUDE.md, inline docs) to reflect the changes you made. Keep docs accurate and in sync with the code.
+${resumeContext ? "12" : "11"}. After all checks pass, create a Pull Request:
     gh pr create --title "${taskId}: <concise summary>" --body "<description including decisions made and any open questions>"
-${resumeContext ? "12" : "11"}. Add the PR URL as a link on the task using the add_task_link tool with the title "Pull Request" and the PR URL
-${resumeContext ? "13" : "12"}. Use update_task_status with state "in_review" to mark the task as complete
+${resumeContext ? "13" : "12"}. Add the PR URL as a link on the task using the add_task_link tool with the title "Pull Request" and the PR URL
+${resumeContext ? "14" : "13"}. Use update_task_status with state "in_review" to mark the task as complete
 
 ## Git Workflow
 - You are on branch \`${branchName}\`

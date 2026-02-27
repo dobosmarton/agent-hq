@@ -81,7 +81,7 @@ This is the content.`,
 
     it("should produce a markdown table with skill IDs and descriptions", () => {
       const result = formatSkillsCatalog([mockSkill]);
-      expect(result).toContain("## Available Coding Skills");
+      expect(result).toContain("## Mandatory Coding Standards");
       expect(result).toContain("load_skill");
       expect(result).toContain("| ID | Name | Description |");
       expect(result).toContain("| test-skill | Test Skill | A test skill |");

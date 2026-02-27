@@ -37,8 +37,8 @@ export const formatSkillsCatalog = (skills: Skill[]): string => {
     .map((s) => `| ${s.id} | ${s.name} | ${s.description} |`)
     .join("\n");
 
-  return `## Available Coding Skills
-Load relevant skills using the load_skill tool before starting work.
+  return `## Mandatory Coding Standards
+You MUST load and follow the coding standards below before writing any code. Use the load_skill tool to load each relevant skill by ID.
 
 | ID | Name | Description |
 |----|------|-------------|
