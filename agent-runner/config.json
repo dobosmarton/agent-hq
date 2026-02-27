@@ -7,22 +7,26 @@
     "AGENTHQ": {
       "repoPath": "/repos/agent-hq",
       "repoUrl": "https://github.com/dobosmarton/agent-hq",
-      "defaultBranch": "main"
+      "defaultBranch": "main",
+      "planeIdentifier": "AGENTHQ"
     },
     "AOE2AGENT": {
       "repoPath": "/repos/aoe2-agent",
       "repoUrl": "https://github.com/dobosmarton/aoe2-agent",
-      "defaultBranch": "main"
+      "defaultBranch": "main",
+      "planeIdentifier": "AOE2AGENT"
     },
     "VERDANDI": {
       "repoPath": "/repos/verdandi",
       "repoUrl": "https://github.com/dobosmarton/verdandi",
-      "defaultBranch": "main"
+      "defaultBranch": "main",
+      "planeIdentifier": "VERDANDI"
     },
     "STYLESWIPE": {
       "repoPath": "/repos/style-swipe-app",
       "repoUrl": "https://github.com/Style-swipe/style-swipe-app",
-      "defaultBranch": "main"
+      "defaultBranch": "main",
+      "planeIdentifier": "STYLESWIPE"
     }
   },
   "agent": {

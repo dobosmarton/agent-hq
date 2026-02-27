@@ -313,3 +313,84 @@ export const findLabelByName = async (
   const normalizedName = labelName.toLowerCase().trim();
   return labels.find((l) => l.name.toLowerCase().trim() === normalizedName) ?? null;
 };
+
+/**
+ * Create a new label in a project
+ */
+export const createLabel = async (
+  config: PlaneConfig,
+  projectId: string,
+  label: { name: string; color?: string; description?: string }
+): Promise<PlaneLabel> => {
+  const res = await fetch(`${workspaceUrl(config)}/projects/${projectId}/labels/`, {
+    method: "POST",
+    headers: planeHeaders(config),
+    body: JSON.stringify({
+      name: label.name,
+      color: label.color ?? "#000000",
+      description: label.description ?? "",
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Plane API error: ${res.status} ${body}`);
+  }
+
+  const data: unknown = await res.json();
+  return PlaneLabelSchema.parse(data);
+};
+
+/**
+ * Create a new project
+ */
+export const createProject = async (
+  config: PlaneConfig,
+  name: string,
+  identifier: string,
+  description?: string
+): Promise<PlaneProject> => {
+  const res = await fetch(`${workspaceUrl(config)}/projects/`, {
+    method: "POST",
+    headers: planeHeaders(config),
+    body: JSON.stringify({
+      name,
+      identifier: identifier.toUpperCase(),
+      description: description ?? "",
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Plane API error: ${res.status} ${body}`);
+  }
+
+  const data: unknown = await res.json();
+  return PlaneProjectSchema.parse(data);
+};
+
+/**
+ * Clone labels from template project to new project
+ */
+export const cloneProjectConfiguration = async (
+  config: PlaneConfig,
+  templateProjectId: string,
+  newProjectId: string
+): Promise<void> => {
+  // Get labels from template project
+  const templateLabels = await listLabels(config, templateProjectId);
+
+  // Create labels in new project
+  for (const label of templateLabels) {
+    try {
+      await createLabel(config, newProjectId, {
+        name: label.name,
+        color: label.color,
+        description: label.description,
+      });
+    } catch (error) {
+      console.warn(`Failed to create label "${label.name}":`, error);
+      // Continue with other labels
+    }
+  }
+};

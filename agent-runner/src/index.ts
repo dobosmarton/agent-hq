@@ -30,12 +30,14 @@ const main = async (): Promise<void> => {
 
   // Ensure .worktrees/ is gitignored in all repos
   for (const projectConfig of Object.values(config.projects)) {
-    try {
-      ensureWorktreeGitignore(projectConfig.repoPath);
-    } catch (err) {
-      console.warn(
-        `Could not update .gitignore in ${projectConfig.repoPath}: ${err}`,
-      );
+    if (projectConfig.repoPath) {
+      try {
+        ensureWorktreeGitignore(projectConfig.repoPath);
+      } catch (err) {
+        console.warn(
+          `Could not update .gitignore in ${projectConfig.repoPath}: ${err}`,
+        );
+      }
     }
   }
 
