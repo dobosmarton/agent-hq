@@ -32,14 +32,14 @@ const EMOJI = {
 /**
  * Escape HTML special characters for Telegram HTML mode
  */
-function escapeHtml(text: string): string {
+const escapeHtml = (text: string): string => {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+};
 
 /**
  * Convert HTML content to Telegram-friendly HTML format
  */
-function convertHtmlToTelegram(html: string): string {
+const convertHtmlToTelegram = (html: string): string => {
   let result = html;
 
   // Handle headings (h1-h6) → Bold with emoji
@@ -83,13 +83,13 @@ function convertHtmlToTelegram(html: string): string {
 
   // Handle <pre> and <code> blocks - keep as-is (Telegram supports them)
   // But ensure content is properly escaped if not already
-  result = result.replace(/<pre[^>]*>(.*?)<\/pre>/gis, (match, content) => {
+  result = result.replace(/<pre[^>]*>(.*?)<\/pre>/gis, (_, content) => {
     // Keep pre blocks as-is, they're supported by Telegram
     return `<pre>${content}</pre>`;
   });
 
   // Handle inline <code> - keep as-is
-  result = result.replace(/<code[^>]*>(.*?)<\/code>/gi, (match, content) => {
+  result = result.replace(/<code[^>]*>(.*?)<\/code>/gi, (_, content) => {
     return `<code>${content}</code>`;
   });
 
@@ -106,13 +106,13 @@ function convertHtmlToTelegram(html: string): string {
   result = result.replace(/^\s+/, "");
 
   return result;
-}
+};
 
 /**
  * Add strategic emojis to enhance readability
  * Only adds emojis in specific patterns to avoid overuse
  */
-function addStrategicEmojis(text: string): string {
+const addStrategicEmojis = (text: string): string => {
   let result = text;
 
   // Add ✅ to success patterns (not overused - only specific patterns)
@@ -128,13 +128,13 @@ function addStrategicEmojis(text: string): string {
   );
 
   return result;
-}
+};
 
 /**
  * Truncate message if it exceeds Telegram's limit
  * Adds a "Read more" notice with link if available
  */
-function truncateIfNeeded(text: string, url?: string): string {
+const truncateIfNeeded = (text: string, url?: string): string => {
   if (text.length <= MAX_TELEGRAM_MESSAGE_LENGTH) {
     return text;
   }
@@ -154,7 +154,7 @@ function truncateIfNeeded(text: string, url?: string): string {
     : "\n\n... (content truncated)";
 
   return truncated + notice;
-}
+};
 
 /**
  * Main formatter function - converts HTML to Telegram-friendly format
@@ -163,13 +163,13 @@ function truncateIfNeeded(text: string, url?: string): string {
  * @param options - Optional configuration
  * @returns Formatted text ready for Telegram with parse_mode: "HTML"
  */
-export function formatForTelegram(
+export const formatForTelegram = (
   html: string,
   options?: {
     url?: string;
     addEmojis?: boolean;
   }
-): string {
+): string => {
   if (!html || html.trim() === "") {
     return "";
   }
@@ -186,13 +186,13 @@ export function formatForTelegram(
   formatted = truncateIfNeeded(formatted, options?.url);
 
   return formatted;
-}
+};
 
 /**
  * Enhanced message chunking that respects HTML tag boundaries
  * Used when message is still too long after formatting
  */
-export function smartChunkMessage(text: string, maxLen = MAX_TELEGRAM_MESSAGE_LENGTH): string[] {
+export const smartChunkMessage = (text: string, maxLen = MAX_TELEGRAM_MESSAGE_LENGTH): string[] => {
   if (text.length <= maxLen) return [text];
 
   const chunks: string[] = [];
@@ -224,13 +224,13 @@ export function smartChunkMessage(text: string, maxLen = MAX_TELEGRAM_MESSAGE_LE
   }
 
   return chunks;
-}
+};
 
 /**
  * Format task details for display in Telegram
  * Creates a nicely formatted message for task information
  */
-export function formatTaskDetails(task: {
+export const formatTaskDetails = (task: {
   id: string;
   title: string;
   description_html?: string;
@@ -239,7 +239,7 @@ export function formatTaskDetails(task: {
   created_at?: string;
   updated_at?: string;
   url?: string;
-}): string {
+}): string => {
   const parts: string[] = [];
 
   // Header with task ID and title
@@ -270,33 +270,33 @@ export function formatTaskDetails(task: {
   }
 
   return parts.join("");
-}
+};
 
 /**
  * Format comment for display in Telegram
  */
-export function formatComment(comment: {
+export const formatComment = (comment: {
   author: string;
   comment_html: string;
   created_at: string;
-}): string {
+}): string => {
   const date = new Date(comment.created_at).toLocaleDateString();
   const formatted = formatForTelegram(comment.comment_html, { addEmojis: false });
 
   return `${EMOJI.comment} <b>${comment.author}</b> (${date})\n${formatted}`;
-}
+};
 
 /**
  * Format GitHub repository options for selection
  */
-export function formatRepositoryOptions(
+export const formatRepositoryOptions = (
   repos: Array<{
     full_name: string;
     description: string | null;
     language: string | null;
     stargazers_count: number;
   }>
-): string {
+): string => {
   if (repos.length === 0) {
     return "No repositories found.";
   }
@@ -311,18 +311,18 @@ export function formatRepositoryOptions(
   });
 
   return lines.join("\n\n");
-}
+};
 
 /**
  * Format project summary for confirmation
  */
-export function formatProjectSummary(project: {
+export const formatProjectSummary = (project: {
   name: string;
   identifier: string;
   description?: string;
   github_url?: string;
   plane_url?: string;
-}): string {
+}): string => {
   const parts: string[] = [];
 
   parts.push(`<b>${EMOJI.heading} ${project.name}</b>`);
@@ -341,19 +341,19 @@ export function formatProjectSummary(project: {
   }
 
   return parts.join("\n");
-}
+};
 
 /**
  * Format creation confirmation message
  */
-export function formatCreationConfirmation(
+export const formatCreationConfirmation = (
   type: "github" | "plane",
   details: {
     name: string;
     identifier?: string;
     url?: string;
   }
-): string {
+): string => {
   const emoji = EMOJI.success;
   const typeName = type === "github" ? "GitHub repository" : "Plane project";
 
@@ -368,4 +368,4 @@ export function formatCreationConfirmation(
   }
 
   return message;
-}
+};

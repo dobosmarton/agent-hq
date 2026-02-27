@@ -27,6 +27,46 @@ import {
   searchUserRepositories,
 } from "../github";
 
+// Zod schemas for agent-runner API responses (validated at boundary)
+const AgentStatusResponseSchema = z
+  .object({
+    queue: z.array(
+      z
+        .object({
+          projectIdentifier: z.string(),
+          sequenceId: z.number(),
+          title: z.string(),
+          retryCount: z.number(),
+          nextAttemptAt: z.number(),
+        })
+        .passthrough()
+    ),
+    active: z.array(
+      z
+        .object({
+          projectIdentifier: z.string(),
+          sequenceId: z.number(),
+          title: z.string(),
+          phase: z.string(),
+          status: z.string(),
+          startedAt: z.number(),
+          costUsd: z.number().optional(),
+          retryCount: z.number(),
+        })
+        .passthrough()
+    ),
+    dailySpend: z.number(),
+    dailyBudget: z.number(),
+  })
+  .passthrough();
+
+const AgentRemoveResponseSchema = z
+  .object({
+    ok: z.boolean().optional(),
+    error: z.string().optional(),
+  })
+  .passthrough();
+
 export const createRunnerTools = (runnerUrl: string) => ({
   agentQueueStatus: createTool({
     id: "agent_queue_status",
@@ -69,27 +109,7 @@ export const createRunnerTools = (runnerUrl: string) => ({
             error: `Agent runner returned ${res.status}`,
           };
         }
-        const data = (await res.json()) as {
-          queue: Array<{
-            projectIdentifier: string;
-            sequenceId: number;
-            title: string;
-            retryCount: number;
-            nextAttemptAt: number;
-          }>;
-          active: Array<{
-            projectIdentifier: string;
-            sequenceId: number;
-            title: string;
-            phase: string;
-            status: string;
-            startedAt: number;
-            costUsd?: number;
-            retryCount: number;
-          }>;
-          dailySpend: number;
-          dailyBudget: number;
-        };
+        const data = AgentStatusResponseSchema.parse(await res.json());
 
         const now = Date.now();
         return {
@@ -144,10 +164,7 @@ export const createRunnerTools = (runnerUrl: string) => ({
         const res = await fetch(`${runnerUrl}/queue/${issue_id}`, {
           method: "DELETE",
         });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-        };
+        const data = AgentRemoveResponseSchema.parse(await res.json());
         if (res.ok) {
           return { success: true };
         }

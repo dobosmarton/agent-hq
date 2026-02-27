@@ -1,5 +1,8 @@
 import { Octokit } from "@octokit/rest";
+import { z } from "zod";
 import { type GitHubConfig, type GitHubRepo, GitHubRepoSchema } from "./github-types";
+
+const OctokitErrorSchema = z.object({ status: z.number() }).passthrough();
 
 /**
  * Parse GitHub URL into owner and repo
@@ -54,11 +57,9 @@ export const searchRepositories = async (
     // Validate and parse results
     const repos: GitHubRepo[] = [];
     for (const item of response.data.items) {
-      try {
-        repos.push(GitHubRepoSchema.parse(item));
-      } catch (error) {
-        // Skip invalid items
-        console.warn("Failed to parse GitHub repo:", error);
+      const result = GitHubRepoSchema.safeParse(item);
+      if (result.success) {
+        repos.push(result.data);
       }
     }
 
@@ -90,10 +91,9 @@ export const getRepository = async (
     return GitHubRepoSchema.parse(response.data);
   } catch (error: unknown) {
     // Return null if repo not found
-    if (typeof error === "object" && error !== null && "status" in error) {
-      if ((error as { status: number }).status === 404) {
-        return null;
-      }
+    const parsed = OctokitErrorSchema.safeParse(error);
+    if (parsed.success && parsed.data.status === 404) {
+      return null;
     }
     if (error instanceof Error) {
       throw new Error(`GitHub API error: ${error.message}`);
@@ -125,7 +125,7 @@ export const searchUserRepositories = async (
     });
 
     // Also search in user's organizations
-    let orgRepos: GitHubRepo[] = [];
+    const orgRepos: GitHubRepo[] = [];
     try {
       const { data: orgs } = await octokit.orgs.listForAuthenticatedUser({
         per_page: 10,
@@ -141,10 +141,9 @@ export const searchUserRepositories = async (
         });
 
         for (const item of orgResponse.data.items) {
-          try {
-            orgRepos.push(GitHubRepoSchema.parse(item));
-          } catch (error) {
-            console.warn("Failed to parse GitHub repo:", error);
+          const result = GitHubRepoSchema.safeParse(item);
+          if (result.success) {
+            orgRepos.push(result.data);
           }
         }
       }
@@ -158,14 +157,10 @@ export const searchUserRepositories = async (
     const seen = new Set<number>();
 
     for (const item of [...response.data.items, ...orgRepos]) {
-      try {
-        const repo = GitHubRepoSchema.parse(item);
-        if (!seen.has(repo.id)) {
-          seen.add(repo.id);
-          allRepos.push(repo);
-        }
-      } catch (error) {
-        console.warn("Failed to parse GitHub repo:", error);
+      const result = GitHubRepoSchema.safeParse(item);
+      if (result.success && !seen.has(result.data.id)) {
+        seen.add(result.data.id);
+        allRepos.push(result.data);
       }
     }
 
