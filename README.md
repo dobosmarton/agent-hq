@@ -439,8 +439,9 @@ ssh -i ~/.ssh/<ssh-key-name> deploy@<vps-ip>
 | `~/agent-runner/`   | Agent runner (Docker Compose)            |
 | `~/telegram-bot/`   | Telegram bot (Docker Compose)            |
 
-## Planning docs
+## Research & Planning docs
 
 - [`implementation-plan.md`](./implementation-plan.md) — Full phased implementation plan
 - [`phase2-vps-plane-setup.md`](./phase2-vps-plane-setup.md) — Plane deployment guide
 - [`phase3-observability-setup.md`](./phase3-observability-setup.md) — Observability dashboard setup
+- [`docs/claude-plugins-analysis.md`](./docs/claude-plugins-analysis.md) — Claude Code plugins investigation (AGENTHQ-23)
