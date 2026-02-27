@@ -28,6 +28,12 @@ export const makeConfig = (overrides?: Partial<Config>): Config => ({
       globalSkillsPath: "skills/global",
     },
   },
+  webhook: {
+    enabled: true,
+    port: 3000,
+    path: "/webhooks/github/pr",
+    taskIdPattern: "([A-Z]+-\\d+)",
+  },
   ...overrides,
 });
 
