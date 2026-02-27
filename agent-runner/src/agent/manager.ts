@@ -206,11 +206,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
       : readCiWorkflows(repoPath);
 
     // Load skills for the phase
-    const skills = loadSkills(
-      phase,
-      repoPath,
-      deps.config.agent.skills,
-    );
+    const skills = loadSkills(phase, repoPath, deps.config.agent.skills);
     const skillsSection =
       skills.length > 0 ? formatSkillsCatalog(skills) : undefined;
 
