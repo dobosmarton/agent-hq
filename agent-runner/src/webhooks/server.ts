@@ -3,7 +3,11 @@ import { serve } from "@hono/node-server";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Config, Env, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
-import { handlePullRequestEvent } from "./handler";
+import type { ReviewOrchestrator } from "../review-agent/orchestrator";
+import {
+  handlePullRequestEvent,
+  handlePullRequestReviewTrigger,
+} from "./handler";
 import { GitHubPullRequestEventSchema } from "./types";
 
 // --- Types ---
@@ -13,6 +17,7 @@ export type WebhookDeps = {
   env: Env;
   planeConfig: PlaneConfig;
   taskPoller: TaskPoller;
+  reviewAgent?: ReviewOrchestrator;
 };
 
 type WebhookEnv = {
@@ -144,7 +149,7 @@ export const createWebhookApp = (
   });
 
   app.openapi(webhookRoute, async (c) => {
-    const { env, planeConfig, config, taskPoller } = c.var.deps;
+    const { env, planeConfig, config, taskPoller, reviewAgent } = c.var.deps;
 
     try {
       const body = await c.req.text();
@@ -180,14 +185,37 @@ export const createWebhookApp = (
 
       const event = parsed.data;
 
-      void handlePullRequestEvent(event, planeConfig, config, taskPoller).catch(
-        (err) => {
+      // Process webhook asynchronously — respond 200 immediately to GitHub
+
+      // Handle merged PRs (update task status)
+      if (event.action === "closed" && event.pull_request.merged) {
+        void handlePullRequestEvent(
+          event,
+          planeConfig,
+          config,
+          taskPoller,
+        ).catch((err) => {
           console.error(
-            `❌ Webhook: Error processing PR #${event.number}:`,
+            `❌ Webhook: Error processing merged PR #${event.number}:`,
             err,
           );
-        },
-      );
+        });
+      }
+
+      // Handle opened/synchronize PRs (trigger review)
+      if (event.action === "opened" || event.action === "synchronize") {
+        void handlePullRequestReviewTrigger(
+          event,
+          reviewAgent,
+          taskPoller,
+          config,
+        ).catch((err) => {
+          console.error(
+            `❌ Webhook: Error triggering review for PR #${event.number}:`,
+            err,
+          );
+        });
+      }
 
       return c.json({ message: "Webhook received" }, 200);
     } catch (err) {

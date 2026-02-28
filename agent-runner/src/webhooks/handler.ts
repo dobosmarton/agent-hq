@@ -1,5 +1,6 @@
 import type { Config, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
+import type { ReviewAgentOrchestrator } from "../review-agent/orchestrator";
 import { extractTaskIds } from "./task-matcher";
 import type { GitHubPullRequestEvent, WebhookProcessResult } from "./types";
 import { updateMultipleTasks } from "./updater";
@@ -98,4 +99,91 @@ export const handlePullRequestEvent = async (
   );
 
   return { success, taskIds, updatedTasks, skippedTasks, errors };
+};
+
+/**
+ * Handles PR opened/synchronize events for automated review
+ *
+ * @param event - GitHub webhook event payload
+ * @param reviewAgent - Review agent orchestrator
+ * @param taskPoller - Task poller with project caches
+ * @param config - Application configuration
+ * @returns Empty result (review happens asynchronously)
+ */
+export const handlePullRequestReviewTrigger = async (
+  event: GitHubPullRequestEvent,
+  reviewAgent: ReviewAgentOrchestrator | undefined,
+  taskPoller: TaskPoller,
+  config: Config,
+): Promise<WebhookProcessResult> => {
+  // Check if review agent is enabled
+  if (!reviewAgent) {
+    console.log(`ℹ️  Webhook: Review agent not enabled, skipping review`);
+    return EMPTY_RESULT;
+  }
+
+  // Only process opened or synchronize events
+  if (event.action !== "opened" && event.action !== "synchronize") {
+    console.log(
+      `ℹ️  Webhook: Ignoring PR #${event.number} for review (action: ${event.action})`,
+    );
+    return EMPTY_RESULT;
+  }
+
+  const pr = event.pull_request;
+  console.log(
+    `🔍 Webhook: PR #${pr.number} ${event.action} - triggering review: ${pr.title}`,
+  );
+
+  // Extract task IDs from PR
+  const taskIds = extractTaskIds(pr, undefined, config.webhook.taskIdPattern);
+
+  if (taskIds.length === 0) {
+    console.log(
+      `ℹ️  Webhook: No task IDs found in PR #${pr.number}, skipping review`,
+    );
+    return EMPTY_RESULT;
+  }
+
+  // Only review first task if multiple found
+  const taskId = taskIds[0]!;
+  const projectIdentifier = taskId.split("-")[0];
+
+  if (!projectIdentifier) {
+    console.log(`⚠️  Webhook: Invalid task ID format: ${taskId}`);
+    return EMPTY_RESULT;
+  }
+
+  // Find project config
+  const projectConfig = config.projects[projectIdentifier];
+  if (!projectConfig) {
+    console.log(
+      `⚠️  Webhook: No project config found for identifier: ${projectIdentifier}`,
+    );
+    return EMPTY_RESULT;
+  }
+
+  // Get project details from cache
+  const projectCache = taskPoller.getProjectCache(projectIdentifier);
+  if (!projectCache) {
+    console.log(`⚠️  Webhook: Project ${projectIdentifier} not in cache`);
+    return EMPTY_RESULT;
+  }
+
+  // Extract owner and repo from repository info
+  const owner = event.repository.owner.login;
+  const repo = event.repository.name;
+
+  console.log(
+    `📋 Webhook: Triggering review for ${taskId} in ${owner}/${repo} PR #${pr.number}`,
+  );
+
+  // Trigger review asynchronously
+  void reviewAgent
+    .reviewPullRequest(owner, repo, pr.number, taskId, projectCache.project.id)
+    .catch((err: unknown) => {
+      console.error(`❌ Webhook: Review failed for PR #${pr.number}:`, err);
+    });
+
+  return EMPTY_RESULT;
 };
