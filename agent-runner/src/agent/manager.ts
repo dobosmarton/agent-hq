@@ -24,6 +24,8 @@ export type OnAgentDone = (
   task: AgentTask,
   result: AgentDoneResult,
   retryCount: number,
+  startedAt?: number,
+  phase?: string,
 ) => void;
 
 type ManagerDeps = {
@@ -273,6 +275,8 @@ export const createAgentManager = (deps: ManagerDeps) => {
           task,
           { costUsd: result.costUsd, errorType: result.errorType },
           retryCount,
+          agent.startedAt,
+          phase,
         );
       })
       .catch(async (err) => {
@@ -287,6 +291,8 @@ export const createAgentManager = (deps: ManagerDeps) => {
           task,
           { costUsd: 0, crashed: true, error: errMsg },
           retryCount,
+          agent.startedAt,
+          phase,
         );
       });
 

@@ -55,4 +55,18 @@ export type RunnerState = {
   dailySpendUsd: number;
   dailySpendDate: string;
   queuedTasks?: SerializedQueueEntry[];
+  executionHistory?: Array<{
+    issueId: string;
+    projectIdentifier: string;
+    sequenceId: number;
+    title: string;
+    phase: string;
+    startedAt: number;
+    completedAt: number;
+    durationMs: number;
+    costUsd: number;
+    success: boolean;
+    errorType?: string;
+    retryCount: number;
+  }>;
 };
