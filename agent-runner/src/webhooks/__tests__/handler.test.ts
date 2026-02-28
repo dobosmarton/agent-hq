@@ -86,6 +86,14 @@ const mockConfig: Config = {
     path: "/webhooks/github/pr",
     taskIdPattern: "([A-Z]+-\\d+)",
   },
+  review: {
+    enabled: false,
+    triggerOnOpened: true,
+    triggerOnSynchronize: true,
+    severityThreshold: "major",
+    maxDiffSizeKb: 100,
+    claudeModel: "claude-3-5-sonnet-20241022",
+  },
 };
 
 const mockTaskPoller = {} as TaskPoller;

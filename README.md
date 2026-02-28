@@ -350,8 +350,14 @@ Agent behavior is configured in `config.json`:
 | `agent.skills.globalSkillsPath`   | `skills/global`       | Path to global skills directory          |
 | `webhook.enabled`                 | `true`                | Enable/disable the GitHub webhook server |
 | `webhook.port`                    | 3000                  | Port for the webhook server              |
-| `webhook.path`                    | `/webhooks/github/pr` | URL path for GitHub webhook events       |
-| `webhook.taskIdPattern`           | `([A-Z]+-\\d+)`       | Regex to extract task IDs from PRs       |
+| `webhook.path`                    | `/webhooks/github/pr`         | URL path for GitHub webhook events            |
+| `webhook.taskIdPattern`           | `([A-Z]+-\\d+)`               | Regex to extract task IDs from PRs            |
+| `review.enabled`                  | `false`                       | Enable/disable automated PR review agent      |
+| `review.triggerOnOpened`          | `true`                        | Trigger review when PR is opened              |
+| `review.triggerOnSynchronize`     | `true`                        | Trigger review when PR is updated             |
+| `review.severityThreshold`        | `major`                       | Minimum severity for issues (`critical`/`major`/`minor`/`suggestion`) |
+| `review.maxDiffSizeKb`            | `100`                         | Maximum diff size for automated review (KB)   |
+| `review.claudeModel`              | `claude-3-5-sonnet-20241022`  | Claude model to use for code analysis         |
 
 ### Environment variables
 
@@ -382,7 +388,11 @@ Copy `env.example` to `.env` and fill in the values:
 | `npm run skills:show <id>` | Show detailed skill content        |
 | `npm run skills:validate`  | Validate skill file syntax         |
 
-### GitHub webhook (auto-update task status)
+### GitHub webhooks
+
+The webhook server handles two types of PR events: merged PRs (auto-update task status) and opened/updated PRs (automated code review).
+
+#### Auto-update task status on PR merge
 
 When a PR is merged on GitHub, the webhook server automatically moves the associated Plane task to "Done". Task IDs are extracted from the PR branch name (`agent/AGENTHQ-123`), description, or commit messages.
 
@@ -395,14 +405,46 @@ When a PR is merged on GitHub, the webhook server automatically moves the associ
 5. Looks up the task in Plane and moves it to the "Done" state
 6. Responds to GitHub immediately; processing happens asynchronously
 
+#### Automated PR review (Phase 1 MVP)
+
+When enabled (`review.enabled: true`), the PR review agent automatically reviews agent-created PRs when they are opened or updated. This creates a quality gate before human review.
+
+**How it works:**
+
+1. GitHub sends a `pull_request` event (`opened` or `synchronize` action)
+2. Review agent extracts task ID and fetches task details from Plane
+3. Fetches PR diff and files changed from GitHub API
+4. Loads project coding skills for context
+5. Uses Claude to analyze code changes against task requirements and best practices
+6. Posts detailed review comments to GitHub PR
+7. Posts review summary to Plane task
+8. Reviews cover: correctness, completeness, code quality, best practices, security, testing, documentation, performance
+
+**Review dimensions:**
+
+- **Correctness**: Does the code work? Are there bugs?
+- **Completeness**: Does it meet all acceptance criteria?
+- **Code Quality**: Is it clean, readable, maintainable?
+- **Best Practices**: Does it follow project conventions?
+- **Security**: Are there security vulnerabilities?
+- **Testing**: Are there tests? Do they cover changes?
+- **Documentation**: Is the code documented?
+- **Performance**: Are there inefficiencies?
+
+**Configuration:**
+
+Set `review.enabled: true` in `config.json` to enable automated reviews. The review agent respects the `maxDiffSizeKb` limit to avoid reviewing excessively large PRs.
+
+**Note**: Phase 1 never auto-approves PRs. It only posts comments or requests changes. Human approval is still required before merging.
+
 **GitHub webhook setup** (per repo): Settings > Webhooks > Add webhook
 
-| Field        | Value                                                  |
-| ------------ | ------------------------------------------------------ |
+| Field        | Value                                                   |
+| ------------ | ------------------------------------------------------- |
 | Payload URL  | `http://<vps-public-ip>:3000/webhooks/github/pr`       |
-| Content type | `application/json`                                     |
+| Content type | `application/json`                                      |
 | Secret       | Same as `GITHUB_WEBHOOK_SECRET` in agent-runner `.env` |
-| Events       | Pull requests                                          |
+| Events       | Pull requests                                           |
 
 ### Deployment
 

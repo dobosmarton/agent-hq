@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import type { Config, Env, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
-import { handlePullRequestEvent } from "./handler";
+import type { ReviewAgentOrchestrator } from "../review-agent/orchestrator";
+import { handlePullRequestEvent, handlePullRequestReviewTrigger } from "./handler";
 import { GitHubPullRequestEventSchema } from "./types";
 
 /**
@@ -45,6 +46,7 @@ const verifySignature = (
  * @param env - Environment variables
  * @param planeConfig - Plane API configuration
  * @param taskPoller - Task poller with project caches
+ * @param reviewAgent - Optional review agent orchestrator
  * @returns Hono app instance
  */
 export const createWebhookApp = (
@@ -52,6 +54,7 @@ export const createWebhookApp = (
   env: Env,
   planeConfig: PlaneConfig,
   taskPoller: TaskPoller,
+  reviewAgent?: ReviewAgentOrchestrator,
 ): Hono => {
   const app = new Hono();
 
@@ -96,14 +99,33 @@ export const createWebhookApp = (
       const event = parsed.data;
 
       // Process webhook asynchronously — respond 200 immediately to GitHub
-      void handlePullRequestEvent(event, planeConfig, config, taskPoller).catch(
-        (err) => {
+
+      // Handle merged PRs (update task status)
+      if (event.action === "closed" && event.pull_request.merged) {
+        void handlePullRequestEvent(event, planeConfig, config, taskPoller).catch(
+          (err) => {
+            console.error(
+              `❌ Webhook: Error processing merged PR #${event.number}:`,
+              err,
+            );
+          },
+        );
+      }
+
+      // Handle opened/synchronize PRs (trigger review)
+      if (event.action === "opened" || event.action === "synchronize") {
+        void handlePullRequestReviewTrigger(
+          event,
+          reviewAgent,
+          taskPoller,
+          config,
+        ).catch((err) => {
           console.error(
-            `❌ Webhook: Error processing PR #${event.number}:`,
+            `❌ Webhook: Error triggering review for PR #${event.number}:`,
             err,
           );
-        },
-      );
+        });
+      }
 
       return c.json({ message: "Webhook received" });
     } catch (err) {
@@ -127,6 +149,7 @@ export const createWebhookApp = (
  * @param env - Environment variables
  * @param planeConfig - Plane API configuration
  * @param taskPoller - Task poller with project caches
+ * @param reviewAgent - Optional review agent orchestrator
  * @returns Promise that resolves when server is listening
  */
 export const startWebhookServer = (
@@ -134,10 +157,11 @@ export const startWebhookServer = (
   env: Env,
   planeConfig: PlaneConfig,
   taskPoller: TaskPoller,
+  reviewAgent?: ReviewAgentOrchestrator,
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
-      const app = createWebhookApp(config, env, planeConfig, taskPoller);
+      const app = createWebhookApp(config, env, planeConfig, taskPoller, reviewAgent);
 
       const server = serve(
         {
