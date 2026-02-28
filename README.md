@@ -64,6 +64,13 @@ You send a natural language message to `@my_agent_hq_bot` on Telegram. A [Mastra
 - "Search GitHub for my verdandi repo" (project discovery)
 - "Create a new Plane project for this repo and link it"
 
+Or use direct monitoring commands:
+- `/agent_status` — Show running agents and metrics
+- `/agent_queue` — View queued tasks
+- `/agent_health` — Check system health
+- `/agent_history 30` — Show last 30 days of executions
+- `/agent_errors` — List recent failures
+
 When creating tasks, the agent proactively enriches your brief description into a structured issue with acceptance criteria, technical considerations, and edge cases.
 
 **Implementation-Start Convention:** When you say phrases like "start implementing TASK-ID", "begin work on TASK-ID", or "let's implement TASK-ID", the agent automatically adds the "agent" label and moves the task to "Todo" state. This standardizes the workflow for agent-driven task implementation.
@@ -226,6 +233,39 @@ The runner uses an in-memory task queue persisted to disk (`state/runner-state.j
 - **Budget protection** — when the daily budget is reached, tasks are re-enqueued instead of dropped
 - **Graceful shutdown** — on SIGINT/SIGTERM, state is saved and active agents are reported via Telegram
 - **Clean boundaries** — the queue is a pure data structure; all orchestration (retry logic, state persistence, lifecycle management) is owned by the central orchestrator
+
+### Agent monitoring and diagnostics
+
+The runner provides comprehensive monitoring capabilities for visibility into agent execution, task queue status, and historical logs.
+
+**HTTP API (port 3847):**
+
+- `GET /status` — Active agents, queued tasks, daily spend/budget, metrics, uptime
+- `GET /health` — System health status with threshold checks (queue depth, budget, success rate)
+- `GET /history?days=N&project=X` — Execution history with filters
+- `GET /errors` — Recent failed tasks with error details
+
+**Telegram commands:**
+
+- `/agent_status` — Shows running agents with runtime, cost, phase, and overall metrics
+- `/agent_queue` — Displays queued tasks with wait times and retry counts
+- `/agent_health` — System health check with alerts for degraded conditions
+- `/agent_history [days]` — Recent executions (default: 7 days) with success/failure status
+- `/agent_errors` — Recent errors with timestamps and details
+
+**Proactive alerting:**
+
+- Automatically sends Telegram alerts when queue backs up (>20 tasks)
+- Alerts when daily budget threshold is reached (>90%)
+- Alerts when success rate drops below 70% (requires 10+ completed tasks)
+- Checks health every 10 minutes
+
+**Metrics tracked:**
+
+- Uptime, total/successful/failed tasks, success rate
+- Total cost, average task duration
+- Execution history (last 1000 tasks, circular buffer)
+- All metrics persisted to `state/runner-state.json` and restored on restart
 
 ### Tech stack
 

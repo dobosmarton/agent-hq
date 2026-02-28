@@ -1,6 +1,13 @@
 import { Bot } from "grammy";
 import { createAgentHQ } from "./agent/index";
 import { handleHelp, handleStart } from "./commands/help";
+import {
+  handleAgentStatus,
+  handleAgentQueue,
+  handleAgentHealth,
+  handleAgentHistory,
+  handleAgentErrors,
+} from "./commands/agent-monitoring";
 import { smartChunkMessage } from "./formatter";
 import { EnvSchema, type GitHubConfig, type PlaneConfig } from "./types";
 import { extractTaskId, sendReply } from "./utils";
@@ -40,6 +47,20 @@ bot.command("clear", async (ctx) => {
     parse_mode: "HTML",
   });
 });
+
+// Agent monitoring commands (only if AGENT_RUNNER_URL is configured)
+if (env.AGENT_RUNNER_URL) {
+  const agentRunnerUrl = env.AGENT_RUNNER_URL;
+  bot.command("agent_status", (ctx) => handleAgentStatus(ctx, agentRunnerUrl));
+  bot.command("agent_queue", (ctx) => handleAgentQueue(ctx, agentRunnerUrl));
+  bot.command("agent_health", (ctx) => handleAgentHealth(ctx, agentRunnerUrl));
+  bot.command("agent_history", (ctx) => {
+    const args = ctx.message?.text?.split(" ") ?? [];
+    const days = args[1] ? parseInt(args[1], 10) : 7;
+    return handleAgentHistory(ctx, agentRunnerUrl, days);
+  });
+  bot.command("agent_errors", (ctx) => handleAgentErrors(ctx, agentRunnerUrl));
+}
 
 // Reply relay: forward replies to agent questions to the agent-runner
 bot.on("message:text").filter(

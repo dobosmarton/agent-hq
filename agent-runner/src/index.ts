@@ -6,13 +6,18 @@ import { createTaskPoller } from "./poller/task-poller";
 import { createTaskQueue } from "./queue/task-queue";
 import { createStatePersistence } from "./state/persistence";
 import { createNoopNotifier, createNotifier } from "./telegram/notifier";
+import { createTelegramBridge } from "./telegram/bridge";
 import { startWebhookServer } from "./webhooks/server";
 import { ensureWorktreeGitignore } from "./worktree/manager";
+import { createMetricsCollector } from "./metrics/collector";
+import { createExecutionHistory } from "./metrics/history";
 
 const RETRYABLE_ERRORS = new Set(["rate_limited", "unknown"]);
+const HEALTH_CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 const main = async (): Promise<void> => {
   console.log("Agent Runner starting...");
+  const startTime = Date.now();
 
   // Load configuration
   const config = loadConfig();
@@ -27,6 +32,10 @@ const main = async (): Promise<void> => {
           chatId: env.TELEGRAM_CHAT_ID,
         })
       : createNoopNotifier();
+
+  // Initialize metrics and history
+  const metricsCollector = createMetricsCollector();
+  const executionHistory = createExecutionHistory();
 
   // Ensure .worktrees/ is gitignored in all repos
   for (const projectConfig of Object.values(config.projects)) {
@@ -65,12 +74,18 @@ const main = async (): Promise<void> => {
   // Initialize task queue
   const queue = createTaskQueue(config.agent.retryBaseDelayMs);
 
-  // Restore queued tasks from previous run
+  // Restore queued tasks and history from previous run
   const savedState = statePersistence.load();
   if (savedState.queuedTasks?.length) {
     queue.hydrate(savedState.queuedTasks);
     console.log(
       `Restored ${savedState.queuedTasks.length} queued tasks from state`,
+    );
+  }
+  if (savedState.executionHistory?.length) {
+    executionHistory.hydrate(savedState.executionHistory);
+    console.log(
+      `Restored ${savedState.executionHistory.length} execution records from state`,
     );
   }
 
@@ -99,12 +114,13 @@ const main = async (): Promise<void> => {
     }
   }
 
-  // Central state save — single writer for both manager and queue state
+  // Central state save — single writer for manager, queue, and history
   const saveState = (): void => {
     try {
       statePersistence.save({
         ...agentManager.getState(),
         queuedTasks: queue.toJSON(),
+        executionHistory: executionHistory.toJSON(),
       });
     } catch (err) {
       console.error("Failed to persist state:", err);
@@ -118,8 +134,29 @@ const main = async (): Promise<void> => {
     notifier,
     taskPoller,
     statePersistence,
-    onAgentDone: (task, result, retryCount) => {
+    onAgentDone: (task, result, retryCount, startedAt, phase) => {
       const taskSlug = `${task.projectIdentifier}-${task.sequenceId}`;
+      const completedAt = Date.now();
+      const durationMs = startedAt ? completedAt - startedAt : 0;
+
+      // Record metrics and history
+      const execution = {
+        issueId: task.issueId,
+        projectIdentifier: task.projectIdentifier,
+        sequenceId: task.sequenceId,
+        title: task.title,
+        phase: phase ?? "unknown",
+        startedAt: startedAt ?? completedAt,
+        completedAt,
+        durationMs,
+        costUsd: result.costUsd,
+        success: !result.errorType && !result.crashed,
+        errorType: result.errorType ?? (result.crashed ? "crashed" : undefined),
+        retryCount,
+      };
+
+      metricsCollector.recordExecution(execution);
+      executionHistory.add(execution);
 
       // Handle retryable errors
       const isRetryable =
@@ -162,6 +199,17 @@ const main = async (): Promise<void> => {
     },
   });
 
+  // Initialize Telegram bridge and start HTTP server
+  const bridge = createTelegramBridge({
+    notifier,
+    queue,
+    agentManager,
+    metricsCollector,
+    executionHistory,
+    startTime,
+  });
+  bridge.startAnswerServer();
+
   // Start polling loop
   console.log(
     `Polling every ${config.agent.pollIntervalMs}ms, spawning every ${config.agent.spawnDelayMs}ms (max ${config.agent.maxConcurrent} concurrent)`,
@@ -172,6 +220,44 @@ const main = async (): Promise<void> => {
 
   // Save initial state (clears orphaned agents)
   saveState();
+
+  // Health check interval — proactive monitoring
+  const healthCheckCycle = async (): Promise<void> => {
+    try {
+      const queueDepth = queue.size();
+      const metrics = metricsCollector.getMetrics();
+      const dailySpend = agentManager.getDailySpend();
+      const dailyBudget = agentManager.getDailyBudget();
+
+      // Alert on queue backup
+      if (queueDepth > 20) {
+        await notifier.sendMessage(
+          `<b>⚠️ Queue Alert</b>\nQueue depth: ${queueDepth} tasks\nConsider checking agent health.`,
+        );
+      }
+
+      // Alert on budget nearing limit
+      if (dailyBudget > 0 && dailySpend / dailyBudget > 0.9) {
+        await notifier.sendMessage(
+          `<b>⚠️ Budget Alert</b>\nDaily spend: $${dailySpend.toFixed(2)} / $${dailyBudget.toFixed(2)} (${((dailySpend / dailyBudget) * 100).toFixed(0)}%)\nNearing daily limit.`,
+        );
+      }
+
+      // Alert on low success rate
+      if (metrics.totalTasks > 10 && metrics.successRate < 0.7) {
+        await notifier.sendMessage(
+          `<b>⚠️ Success Rate Alert</b>\nSuccess rate: ${(metrics.successRate * 100).toFixed(0)}%\n${metrics.successfulTasks}/${metrics.totalTasks} tasks succeeded.`,
+        );
+      }
+    } catch (err) {
+      console.error("Health check cycle error:", err);
+    }
+  };
+
+  const healthCheckInterval = setInterval(
+    healthCheckCycle,
+    HEALTH_CHECK_INTERVAL_MS,
+  );
 
   // Discovery: find tasks and enqueue them
   const discoveryCycle = async (): Promise<void> => {
@@ -278,6 +364,8 @@ const main = async (): Promise<void> => {
     console.log("Shutting down...");
     clearInterval(discoveryInterval);
     clearInterval(processInterval);
+    clearInterval(healthCheckInterval);
+    bridge.stop();
 
     saveState();
 
