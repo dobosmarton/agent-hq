@@ -84,10 +84,11 @@ const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
 
 const makeNotifier = (): Notifier => ({
   sendMessage: vi.fn().mockResolvedValue(0),
-  agentStarted: vi.fn().mockResolvedValue(undefined),
+  agentStarted: vi.fn().mockResolvedValue(0),
   agentCompleted: vi.fn().mockResolvedValue(undefined),
   agentErrored: vi.fn().mockResolvedValue(undefined),
   agentBlocked: vi.fn().mockResolvedValue(42),
+  agentProgress: vi.fn().mockResolvedValue(false),
 });
 
 const makeTaskPoller = (): TaskPoller => ({
