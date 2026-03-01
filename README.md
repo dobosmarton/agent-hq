@@ -273,6 +273,76 @@ npm run skills:show <id> [project-path] # Show skill details
 npm run skills:validate [project-path]  # Validate skill files
 ```
 
+### PR Review Agent
+
+The PR review agent provides automated code review for pull requests created by agents. It uses specialized review skills and parallel execution for comprehensive, efficient reviews.
+
+**How it works:**
+
+1. **Webhook trigger** — GitHub webhook fires when PR is opened or updated
+2. **Tool selection** — Claude analyzes the PR and selects relevant review tools (e.g., security, performance, testing)
+3. **Parallel reviews** — Multiple specialized review agents run concurrently, each focusing on a specific dimension
+4. **Aggregation** — Results are combined, deduplicated, and posted to GitHub and Plane
+5. **Smart feedback** — Shows which tools found which issues, categorized by severity
+
+**Review skills** (loaded from `skills/global/`):
+
+| Skill                   | Focus                                                     |
+| ----------------------- | --------------------------------------------------------- |
+| `security-review`       | Security vulnerabilities, injection attacks, secrets      |
+| `architecture-review`   | Design patterns, modularity, separation of concerns       |
+| `performance-review`    | N+1 queries, algorithm complexity, caching opportunities  |
+| `testing-review`        | Test coverage, edge cases, test quality                   |
+| `completeness-review`   | Acceptance criteria verification, missing functionality   |
+
+**Configuration** (`config.json`):
+
+```json
+{
+  "review": {
+    "enabled": false,
+    "triggerOnOpened": true,
+    "triggerOnSynchronize": true,
+    "severityThreshold": "major",
+    "maxDiffSizeKb": 100,
+    "claudeModel": "claude-3-5-sonnet-20241022",
+    "useParallelReview": true
+  }
+}
+```
+
+**Environment variables:**
+
+- `GITHUB_WEBHOOK_SECRET` — Secret for verifying GitHub webhook signatures
+- `GITHUB_PAT` — Personal access token for posting reviews
+
+**Features:**
+
+- **Intelligent tool selection** — LLM chooses relevant review types based on PR content
+- **Parallel execution** — Multiple review dimensions run concurrently for speed
+- **Markdown-based skills** — Each review type is defined in a markdown skill file with examples and checklists
+- **Backward compatible** — Can fall back to single-pass review if `useParallelReview: false`
+- **Diff size limits** — Skips review for PRs exceeding `maxDiffSizeKb`
+- **Never auto-approves** — Phase 1 implementation only posts comments or requests changes
+
+**Example output:**
+
+```
+## ❌ Code Review - Changes Requested
+
+Found 3 issues across 2 review dimensions.
+
+_Review tools used: security, testing, completeness_
+
+### ❌ Critical Issues
+- **security**: Missing input validation on user email field
+  💡 Use Zod schema with .email() validator
+
+### ⚠️ Major Issues
+- **testing**: Missing unit tests for authentication logic
+  💡 Add tests covering success, invalid credentials, and edge cases
+```
+
 ### Project structure
 
 ```
