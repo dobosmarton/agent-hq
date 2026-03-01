@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Config, Env, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
 import { handlePullRequestEvent } from "./handler";
@@ -38,6 +38,19 @@ const verifySignature = (
   );
 };
 
+// Response schemas
+const WebhookSuccessResponseSchema = z.object({
+  message: z.string(),
+});
+
+const ErrorResponseSchema = z.object({
+  error: z.string(),
+});
+
+const HealthResponseSchema = z.object({
+  status: z.literal("ok"),
+});
+
 /**
  * Creates a Hono webhook application
  *
@@ -52,10 +65,10 @@ export const createWebhookApp = (
   env: Env,
   planeConfig: PlaneConfig,
   taskPoller: TaskPoller,
-): Hono => {
-  const app = new Hono();
+): OpenAPIHono => {
+  const app = new OpenAPIHono();
 
-  // Webhook endpoint
+  // Webhook endpoint - using regular Hono route since we need raw body for HMAC
   app.post(config.webhook.path, async (c) => {
     try {
       // Get raw body text for signature verification
@@ -113,8 +126,23 @@ export const createWebhookApp = (
   });
 
   // Health check endpoint
-  app.get("/health", (c) => {
-    return c.json({ status: "ok" });
+  const healthRoute = createRoute({
+    method: "get",
+    path: "/health",
+    responses: {
+      200: {
+        content: {
+          "application/json": {
+            schema: HealthResponseSchema,
+          },
+        },
+        description: "Service health status",
+      },
+    },
+  });
+
+  app.openapi(healthRoute, (c) => {
+    return c.json({ status: "ok" as const }, 200);
   });
 
   return app;
