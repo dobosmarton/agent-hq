@@ -23,6 +23,22 @@ Plane (task board)
 
 Each agent runs in an isolated git worktree so concurrent tasks don't conflict. The runner persists state across restarts and recovers orphaned agents on startup.
 
+### HTTP Servers
+
+The agent-runner uses **Hono** as its HTTP framework for all servers:
+
+- **Bridge Server** (port 3847): Internal API for agent-Telegram communication
+  - `GET /status` - Queue status, active agents, and daily spend
+  - `DELETE /queue/:issueId` - Remove task from queue
+  - `POST /answers/:taskId` - Submit answer to pending agent question
+  - `GET /health` - Health check with pending question count
+
+- **Webhook Server** (port 3000): GitHub webhook receiver for PR automation
+  - `POST /webhooks/github/pr` - Process pull request events
+  - `GET /health` - Health check
+
+Hono was chosen for its excellent TypeScript support, minimal overhead, and declarative routing API. See [`docs/framework-unification.md`](./docs/framework-unification.md) for the full decision rationale.
+
 ## Quick Start
 
 ```bash
