@@ -21,6 +21,19 @@ const WebhookConfigSchema = z.object({
   taskIdPattern: z.string().default("([A-Z]+-\\d+)"),
 });
 
+const ReviewConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  triggerOnOpened: z.boolean().default(true),
+  triggerOnSynchronize: z.boolean().default(true),
+  severityThreshold: z
+    .enum(["critical", "major", "minor", "suggestion"])
+    .default("major"),
+  skipIfLabelPresent: z.string().optional(),
+  maxDiffSizeKb: z.number().int().positive().default(100),
+  claudeModel: z.string().default("claude-3-5-sonnet-20241022"),
+  useParallelReview: z.boolean().default(true),
+});
+
 const AgentConfigSchema = z.object({
   maxConcurrent: z.number().int().min(1).default(2),
   maxBudgetPerTask: z.number().positive().default(5.0),
@@ -42,6 +55,7 @@ const ConfigSchema = z.object({
   projects: z.record(z.string(), ProjectConfigSchema),
   agent: AgentConfigSchema.default({}),
   webhook: WebhookConfigSchema.default({}),
+  review: ReviewConfigSchema.default({}),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
