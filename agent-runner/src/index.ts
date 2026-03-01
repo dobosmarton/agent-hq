@@ -237,11 +237,8 @@ const main = async (): Promise<void> => {
         // exhausted. The task can be manually re-queued or will wait for
         // the next budget cycle.
         taskPoller.releaseTask(entry.task.issueId);
-        const cache = taskPoller.getProjectCache(
-          entry.task.projectIdentifier,
-        );
-        const fallbackState =
-          cache?.planReviewStateId ?? cache?.backlogStateId;
+        const cache = taskPoller.getProjectCache(entry.task.projectIdentifier);
+        const fallbackState = cache?.planReviewStateId ?? cache?.backlogStateId;
         if (cache && fallbackState) {
           await updateIssue(
             planeConfig,
@@ -249,10 +246,7 @@ const main = async (): Promise<void> => {
             entry.task.issueId,
             { state: fallbackState },
           ).catch((err) =>
-            console.error(
-              `Failed to reset state for ${taskId}:`,
-              err,
-            ),
+            console.error(`Failed to reset state for ${taskId}:`, err),
           );
         }
         const targetStatus = cache?.planReviewStateId
