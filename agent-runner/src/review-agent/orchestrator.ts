@@ -6,6 +6,10 @@ import { loadSkills } from "../skills/loader";
 import type { ReviewContext, ReviewResult } from "./types";
 import { analyzeCode } from "./analyzer";
 import { postReviewToGitHub } from "./github-reviewer";
+import { loadReviewTools } from "./review-tools";
+import { selectReviewTools } from "./tool-selector";
+import { executeParallelReviews } from "./parallel-reviewer";
+import type { AggregatedReview } from "./parallel-reviewer";
 
 /**
  * Configuration for review agent
@@ -18,6 +22,7 @@ export type ReviewAgentConfig = {
   skipIfLabelPresent?: string;
   maxDiffSizeKb: number;
   claudeModel: string;
+  useParallelReview: boolean;
 };
 
 /**
@@ -50,7 +55,9 @@ export class ReviewAgentOrchestrator {
     projectId: string,
   ): Promise<ReviewResult<void>> => {
     try {
-      console.log(`\n🔍 Review: Starting review for PR #${prNumber} (${taskId})...`);
+      console.log(
+        `\n🔍 Review: Starting review for PR #${prNumber} (${taskId})...`,
+      );
 
       // Create GitHub client
       const githubClient = new GitHubClient({
@@ -63,7 +70,10 @@ export class ReviewAgentOrchestrator {
       console.log(`📥 Review: Fetching PR details...`);
       const prResult = await githubClient.getPullRequest(prNumber);
       if (!prResult.success) {
-        return { success: false, error: `Failed to fetch PR: ${prResult.error}` };
+        return {
+          success: false,
+          error: `Failed to fetch PR: ${prResult.error}`,
+        };
       }
       const pr = prResult.data;
 
@@ -71,7 +81,10 @@ export class ReviewAgentOrchestrator {
       console.log(`📥 Review: Fetching PR diff...`);
       const diffResult = await githubClient.getPullRequestDiff(prNumber);
       if (!diffResult.success) {
-        return { success: false, error: `Failed to fetch diff: ${diffResult.error}` };
+        return {
+          success: false,
+          error: `Failed to fetch diff: ${diffResult.error}`,
+        };
       }
       const diff = diffResult.data;
 
@@ -126,40 +139,113 @@ export class ReviewAgentOrchestrator {
         codingSkills,
       };
 
-      // Analyze code with Claude
-      const analysisResult = await analyzeCode(
-        context,
-        this.anthropicApiKey,
-        this.reviewConfig.claudeModel,
-      );
+      // Choose review strategy based on configuration
+      let analysis: CodeAnalysisResult | AggregatedReview;
 
-      if (!analysisResult.success) {
-        console.error(`❌ Review: Analysis failed: ${analysisResult.error}`);
+      if (this.reviewConfig.useParallelReview) {
+        // Use parallel review with specialized tools
+        const reviewTools = loadReviewTools(skills);
 
-        // Post error comment to Plane
-        void addComment(
-          this.planeConfig,
-          projectId,
-          taskId,
-          `<p><strong>⚠️ Automated PR Review Failed</strong></p><p>Error: ${analysisResult.error}</p><p>Please review the PR manually.</p>`,
-        ).catch((err: unknown) => {
-          console.error(`❌ Review: Failed to post error comment to Plane:`, err);
-        });
+        if (reviewTools.length === 0) {
+          console.warn(
+            "⚠️  Review: No review tools available, falling back to single review",
+          );
+          const analysisResult = await analyzeCode(
+            context,
+            this.anthropicApiKey,
+            this.reviewConfig.claudeModel,
+          );
 
-        return { success: false, error: analysisResult.error };
+          if (!analysisResult.success) {
+            return this.handleAnalysisError(
+              analysisResult.error,
+              projectId,
+              taskId,
+            );
+          }
+
+          analysis = analysisResult.data;
+        } else {
+          // Select which tools to use
+          const toolSelectionResult = await selectReviewTools(
+            context,
+            reviewTools,
+            this.anthropicApiKey,
+            this.reviewConfig.claudeModel,
+          );
+
+          if (!toolSelectionResult.success) {
+            console.error(
+              `❌ Review: Tool selection failed: ${toolSelectionResult.error}`,
+            );
+            return this.handleAnalysisError(
+              toolSelectionResult.error,
+              projectId,
+              taskId,
+            );
+          }
+
+          const selectedTools = toolSelectionResult.data;
+
+          // Execute parallel reviews
+          const parallelResult = await executeParallelReviews(
+            context,
+            selectedTools,
+            this.anthropicApiKey,
+            this.reviewConfig.claudeModel,
+          );
+
+          if (!parallelResult.success) {
+            console.error(
+              `❌ Review: Parallel review failed: ${parallelResult.error}`,
+            );
+            return this.handleAnalysisError(
+              parallelResult.error,
+              projectId,
+              taskId,
+            );
+          }
+
+          analysis = parallelResult.data;
+        }
+      } else {
+        // Use single-pass review
+        const analysisResult = await analyzeCode(
+          context,
+          this.anthropicApiKey,
+          this.reviewConfig.claudeModel,
+        );
+
+        if (!analysisResult.success) {
+          return this.handleAnalysisError(
+            analysisResult.error,
+            projectId,
+            taskId,
+          );
+        }
+
+        analysis = analysisResult.data;
       }
 
-      const analysis = analysisResult.data;
-
       // Post review to GitHub
-      const githubResult = await postReviewToGitHub(githubClient, prNumber, analysis);
+      const githubResult = await postReviewToGitHub(
+        githubClient,
+        prNumber,
+        analysis,
+      );
       if (!githubResult.success) {
-        console.error(`❌ Review: Failed to post to GitHub: ${githubResult.error}`);
+        console.error(
+          `❌ Review: Failed to post to GitHub: ${githubResult.error}`,
+        );
       }
 
       // Post summary to Plane task
       console.log(`📝 Review: Posting summary to Plane task...`);
-      const planeSummary = this.buildPlaneSummary(analysis, prNumber, pr.html_url);
+      const planeSummary = this.buildPlaneSummary(
+        analysis,
+        prNumber,
+        pr.html_url,
+      );
 
       void addComment(this.planeConfig, projectId, taskId, planeSummary).catch(
         (err: unknown) => {
@@ -181,10 +267,33 @@ export class ReviewAgentOrchestrator {
   };
 
   /**
+   * Handles analysis errors by posting to Plane
+   */
+  private handleAnalysisError = (
+    error: string,
+    projectId: string,
+    taskId: string,
+  ): ReviewResult<void> => {
+    console.error(`❌ Review: Analysis failed: ${error}`);
+
+    // Post error comment to Plane
+    void addComment(
+      this.planeConfig,
+      projectId,
+      taskId,
+      `<p><strong>⚠️ Automated PR Review Failed</strong></p><p>Error: ${error}</p><p>Please review the PR manually.</p>`,
+    ).catch((err: unknown) => {
+      console.error(`❌ Review: Failed to post error comment to Plane:`, err);
+    });
+
+    return { success: false, error };
+  };
+
+  /**
    * Builds the summary to post to Plane task
    */
   private buildPlaneSummary = (
-    analysis: CodeAnalysisResult,
+    analysis: CodeAnalysisResult | AggregatedReview,
     prNumber: number,
     prUrl: string,
   ): string => {
@@ -199,12 +308,18 @@ export class ReviewAgentOrchestrator {
 
     const summary = `<p>${analysis.summary}</p>`;
 
+    // Show which tools were used if it's an aggregated review
+    const toolsUsed =
+      "toolsUsed" in analysis
+        ? `<p><em>Review tools used: ${analysis.toolsUsed.join(", ")}</em></p>`
+        : "";
+
     const issuesList =
       analysis.issues.length > 0
         ? `<p><strong>Issues Found:</strong></p><ul>${analysis.issues.map((issue) => `<li><strong>${issue.severity} - ${issue.category}:</strong> ${issue.description}${issue.suggestion ? `<br/>💡 ${issue.suggestion}` : ""}</li>`).join("")}</ul>`
         : "<p><em>No issues found. Code looks good!</em></p>";
 
-    return `${header}${prLink}${summary}${issuesList}<p><em>🤖 Automated review by PR Review Agent</em></p>`;
+    return `${header}${prLink}${summary}${toolsUsed}${issuesList}<p><em>🤖 Automated review by PR Review Agent</em></p>`;
   };
 }
 

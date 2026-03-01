@@ -64,7 +64,13 @@ const main = async (): Promise<void> => {
   // Start webhook server if enabled
   if (config.webhook.enabled) {
     try {
-      await startWebhookServer(config, env, planeConfig, taskPoller, reviewAgent);
+      await startWebhookServer(
+        config,
+        env,
+        planeConfig,
+        taskPoller,
+        reviewAgent,
+      );
     } catch (err) {
       console.error("Failed to start webhook server:", err);
       console.warn("Continuing without webhook server...");

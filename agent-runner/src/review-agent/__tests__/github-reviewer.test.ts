@@ -6,7 +6,9 @@ import { postReviewToGitHub } from "../github-reviewer";
 describe("postReviewToGitHub", () => {
   it("should post review with REQUEST_CHANGES for critical issues", async () => {
     const mockClient = {
-      createReview: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+      createReview: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: undefined }),
     } as unknown as GitHubClient;
 
     const analysis: CodeAnalysisResult = {
@@ -34,7 +36,9 @@ describe("postReviewToGitHub", () => {
 
   it("should post review with COMMENT for approval", async () => {
     const mockClient = {
-      createReview: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+      createReview: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: undefined }),
     } as unknown as GitHubClient;
 
     const analysis: CodeAnalysisResult = {

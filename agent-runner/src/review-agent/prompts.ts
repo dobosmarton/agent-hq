@@ -30,8 +30,14 @@ Guidelines:
  * Builds the user prompt for code review with context
  */
 export const buildReviewPrompt = (context: ReviewContext): string => {
-  const { taskDescription, acceptanceCriteria, prDescription, prTitle, diff, codingSkills } =
-    context;
+  const {
+    taskDescription,
+    acceptanceCriteria,
+    prDescription,
+    prTitle,
+    diff,
+    codingSkills,
+  } = context;
 
   return `Review the following pull request:
 

@@ -93,6 +93,7 @@ const mockConfig: Config = {
     severityThreshold: "major",
     maxDiffSizeKb: 100,
     claudeModel: "claude-3-5-sonnet-20241022",
+    useParallelReview: true,
   },
 };
 

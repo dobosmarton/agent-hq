@@ -4,7 +4,10 @@ import { serve } from "@hono/node-server";
 import type { Config, Env, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
 import type { ReviewAgentOrchestrator } from "../review-agent/orchestrator";
-import { handlePullRequestEvent, handlePullRequestReviewTrigger } from "./handler";
+import {
+  handlePullRequestEvent,
+  handlePullRequestReviewTrigger,
+} from "./handler";
 import { GitHubPullRequestEventSchema } from "./types";
 
 /**
@@ -102,14 +105,17 @@ export const createWebhookApp = (
 
       // Handle merged PRs (update task status)
       if (event.action === "closed" && event.pull_request.merged) {
-        void handlePullRequestEvent(event, planeConfig, config, taskPoller).catch(
-          (err) => {
-            console.error(
-              `❌ Webhook: Error processing merged PR #${event.number}:`,
-              err,
-            );
-          },
-        );
+        void handlePullRequestEvent(
+          event,
+          planeConfig,
+          config,
+          taskPoller,
+        ).catch((err) => {
+          console.error(
+            `❌ Webhook: Error processing merged PR #${event.number}:`,
+            err,
+          );
+        });
       }
 
       // Handle opened/synchronize PRs (trigger review)
@@ -161,7 +167,13 @@ export const startWebhookServer = (
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
-      const app = createWebhookApp(config, env, planeConfig, taskPoller, reviewAgent);
+      const app = createWebhookApp(
+        config,
+        env,
+        planeConfig,
+        taskPoller,
+        reviewAgent,
+      );
 
       const server = serve(
         {

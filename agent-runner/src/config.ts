@@ -31,6 +31,7 @@ const ReviewConfigSchema = z.object({
   skipIfLabelPresent: z.string().optional(),
   maxDiffSizeKb: z.number().int().positive().default(100),
   claudeModel: z.string().default("claude-3-5-sonnet-20241022"),
+  useParallelReview: z.boolean().default(true),
 });
 
 const AgentConfigSchema = z.object({
