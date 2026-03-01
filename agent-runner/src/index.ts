@@ -240,7 +240,8 @@ const main = async (): Promise<void> => {
         const cache = taskPoller.getProjectCache(
           entry.task.projectIdentifier,
         );
-        const fallbackState = cache?.planReviewStateId ?? cache?.todoStateId;
+        const fallbackState =
+          cache?.planReviewStateId ?? cache?.backlogStateId;
         if (cache && fallbackState) {
           await updateIssue(
             planeConfig,
@@ -256,7 +257,7 @@ const main = async (): Promise<void> => {
         }
         const targetStatus = cache?.planReviewStateId
           ? "Plan Review"
-          : "Todo";
+          : "Backlog";
         await notifier.sendMessage(
           `<b>Budget limit reached</b>\nDaily spend: $${agentManager.getDailySpend().toFixed(2)} / $${agentManager.getDailyBudget()}\nMoving <code>${taskId}</code> back to ${targetStatus}: ${entry.task.title}`,
         );
