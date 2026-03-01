@@ -38,3 +38,15 @@ export const chunkMessage = (text: string, maxLen = 4096): string[] => {
   }
   return chunks;
 };
+
+/**
+ * Format duration in seconds to human-readable string
+ */
+export const formatDuration = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+};
