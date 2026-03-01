@@ -3,28 +3,30 @@ import { selectReviewTools } from "../tool-selector";
 import type { ReviewContext } from "../types";
 import type { ReviewTool } from "../review-tools";
 
-// Mock Anthropic
+// Mock Anthropic — must use `function` (not arrow) so it can be called with `new`
 vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              selectedTools: [
-                {
-                  toolName: "review_security",
-                  reason: "Code handles authentication",
-                },
-              ],
-              rationale: "Security review needed for auth code",
-            }),
-          },
-        ],
-      }),
-    },
-  })),
+  default: vi.fn().mockImplementation(function () {
+    return {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                selectedTools: [
+                  {
+                    toolName: "review_security",
+                    reason: "Code handles authentication",
+                  },
+                ],
+                rationale: "Security review needed for auth code",
+              }),
+            },
+          ],
+        }),
+      },
+    };
+  }),
 }));
 
 describe("selectReviewTools", () => {
@@ -99,14 +101,13 @@ describe("selectReviewTools", () => {
   it("should handle API errors gracefully", async () => {
     const Anthropic = await import("@anthropic-ai/sdk");
     const mockCreate = vi.fn().mockRejectedValue(new Error("API error"));
-    vi.mocked(Anthropic.default).mockImplementation(
-      () =>
-        ({
-          messages: {
-            create: mockCreate,
-          },
-        }) as any,
-    );
+    vi.mocked(Anthropic.default).mockImplementation(function () {
+      return {
+        messages: {
+          create: mockCreate,
+        },
+      } as any;
+    });
 
     const result = await selectReviewTools(
       mockContext,
@@ -128,14 +129,13 @@ describe("selectReviewTools", () => {
         },
       ],
     });
-    vi.mocked(Anthropic.default).mockImplementation(
-      () =>
-        ({
-          messages: {
-            create: mockCreate,
-          },
-        }) as any,
-    );
+    vi.mocked(Anthropic.default).mockImplementation(function () {
+      return {
+        messages: {
+          create: mockCreate,
+        },
+      } as any;
+    });
 
     const result = await selectReviewTools(
       mockContext,

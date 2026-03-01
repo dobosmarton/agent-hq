@@ -3,24 +3,26 @@ import { executeParallelReviews } from "../parallel-reviewer";
 import type { ReviewContext } from "../types";
 import type { ToolSelectionResult } from "../review-tools";
 
-// Mock Anthropic
+// Mock Anthropic — must use `function` (not arrow) so it can be called with `new`
 vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              overallAssessment: "approve",
-              summary: "Test review summary",
-              issues: [],
-            }),
-          },
-        ],
-      }),
-    },
-  })),
+  default: vi.fn().mockImplementation(function () {
+    return {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                overallAssessment: "approve",
+                summary: "Test review summary",
+                issues: [],
+              }),
+            },
+          ],
+        }),
+      },
+    };
+  }),
 }));
 
 describe("executeParallelReviews", () => {
@@ -78,14 +80,13 @@ describe("executeParallelReviews", () => {
   it("should return error if all reviews fail", async () => {
     const Anthropic = await import("@anthropic-ai/sdk");
     const mockCreate = vi.fn().mockRejectedValue(new Error("API error"));
-    vi.mocked(Anthropic.default).mockImplementation(
-      () =>
-        ({
-          messages: {
-            create: mockCreate,
-          },
-        }) as any,
-    );
+    vi.mocked(Anthropic.default).mockImplementation(function () {
+      return {
+        messages: {
+          create: mockCreate,
+        },
+      } as any;
+    });
 
     const result = await executeParallelReviews(
       mockContext,
@@ -123,14 +124,13 @@ describe("executeParallelReviews", () => {
         },
       ],
     });
-    vi.mocked(Anthropic.default).mockImplementation(
-      () =>
-        ({
-          messages: {
-            create: mockCreate,
-          },
-        }) as any,
-    );
+    vi.mocked(Anthropic.default).mockImplementation(function () {
+      return {
+        messages: {
+          create: mockCreate,
+        },
+      } as any;
+    });
 
     const result = await executeParallelReviews(
       mockContext,
