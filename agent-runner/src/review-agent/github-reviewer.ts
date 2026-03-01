@@ -84,7 +84,9 @@ const mapAssessmentToEvent = (
 /**
  * Builds the review body text
  */
-const buildReviewBody = (analysis: CodeAnalysisResult | AggregatedReview): string => {
+const buildReviewBody = (
+  analysis: CodeAnalysisResult | AggregatedReview,
+): string => {
   const header =
     analysis.overallAssessment === "approve"
       ? "## ✅ Code Review - No Issues Found"
