@@ -232,11 +232,34 @@ const main = async (): Promise<void> => {
         result.outcome === "rejected" &&
         result.reason === "budget_exceeded"
       ) {
-        // Budget exceeded — re-enqueue for later
-        await notifier.sendMessage(
-          `<b>Budget limit reached</b>\nDaily spend: $${agentManager.getDailySpend().toFixed(2)} / $${agentManager.getDailyBudget()}\nRe-queuing <code>${taskId}</code>: ${entry.task.title}`,
+        // Budget exceeded — move task back to Plan Review instead of
+        // re-queuing to avoid infinite re-queue loop while budget remains
+        // exhausted. The task can be manually re-queued or will wait for
+        // the next budget cycle.
+        taskPoller.releaseTask(entry.task.issueId);
+        const cache = taskPoller.getProjectCache(
+          entry.task.projectIdentifier,
         );
-        queue.enqueue(entry.task);
+        const fallbackState = cache?.planReviewStateId ?? cache?.todoStateId;
+        if (cache && fallbackState) {
+          await updateIssue(
+            planeConfig,
+            entry.task.projectId,
+            entry.task.issueId,
+            { state: fallbackState },
+          ).catch((err) =>
+            console.error(
+              `Failed to reset state for ${taskId}:`,
+              err,
+            ),
+          );
+        }
+        const targetStatus = cache?.planReviewStateId
+          ? "Plan Review"
+          : "Todo";
+        await notifier.sendMessage(
+          `<b>Budget limit reached</b>\nDaily spend: $${agentManager.getDailySpend().toFixed(2)} / $${agentManager.getDailyBudget()}\nMoving <code>${taskId}</code> back to ${targetStatus}: ${entry.task.title}`,
+        );
       } else if (
         result.outcome === "rejected" &&
         result.reason === "no_project_config"
