@@ -12,6 +12,7 @@ import type { AgentTask } from "../types";
 type ProjectCache = {
   project: PlaneProject;
   agentLabelId: string;
+  backlogStateId: string | null;
   todoStateId: string;
   inProgressStateId: string;
   planReviewStateId: string | null;
@@ -52,6 +53,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
 
       // Find state IDs
       const states = await listStates(planeConfig, project.id);
+      const backlogState = states.find((s) => s.group === "backlog");
       const todoState = states.find((s) => s.group === "unstarted");
       const inProgressState = states.find((s) => s.group === "started");
       const planReviewState = states.find(
@@ -73,6 +75,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
       projectCaches.set(identifier.toUpperCase(), {
         project,
         agentLabelId: agentLabel.id,
+        backlogStateId: backlogState?.id ?? null,
         todoStateId: todoState.id,
         inProgressStateId: inProgressState.id,
         planReviewStateId: planReviewState?.id ?? null,
