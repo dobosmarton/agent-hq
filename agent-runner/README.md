@@ -25,7 +25,7 @@ Each agent runs in an isolated git worktree so concurrent tasks don't conflict. 
 
 ### HTTP Servers
 
-The agent-runner uses **Hono** as its HTTP framework for all servers:
+The agent-runner uses **Hono** with **OpenAPI + Zod** for all HTTP servers:
 
 - **Bridge Server** (port 3847): Internal API for agent-Telegram communication
   - `GET /status` - Queue status, active agents, and daily spend
@@ -37,7 +37,7 @@ The agent-runner uses **Hono** as its HTTP framework for all servers:
   - `POST /webhooks/github/pr` - Process pull request events
   - `GET /health` - Health check
 
-Hono was chosen for its excellent TypeScript support, minimal overhead, and declarative routing API. See [`docs/framework-unification.md`](./docs/framework-unification.md) for the full decision rationale.
+All endpoints use **Zod schemas** for type-safe request/response validation and runtime type checking. Hono was chosen for its excellent TypeScript support, minimal overhead, and declarative routing API. See [`docs/framework-unification.md`](./docs/framework-unification.md) for the full decision rationale and OpenAPI integration details.
 
 ## Quick Start
 

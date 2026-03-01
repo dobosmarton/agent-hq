@@ -64,6 +64,11 @@ export const SkillsConfigSchema = z
     /** Path to global skills directory (relative to agent-runner) */
     globalSkillsPath: z.string().default("skills/global"),
   })
-  .default({});
+  .optional()
+  .default({
+    enabled: true,
+    maxSkillsPerPrompt: 10,
+    globalSkillsPath: "skills/global",
+  });
 
 export type SkillsConfig = z.infer<typeof SkillsConfigSchema>;

@@ -33,15 +33,15 @@ During investigation, we confirmed that **Mastra is NOT an HTTP framework**. It'
 
 ### Hono vs. Simple Node.js
 
-| Criterion | Simple Node.js | Hono |
-|-----------|---------------|------|
-| Developer Experience | Poor (verbose, manual parsing) | Excellent (declarative API) |
-| Routing | Manual URL matching | Framework-provided routing |
-| Maintenance | High (custom code) | Low (framework handles edge cases) |
-| Performance | Fastest (no overhead) | Very fast (~60KB, negligible overhead) |
-| Dependencies | 0 additional | Already installed |
-| Type Safety | Manual | Built-in with TypeScript |
-| Error Handling | Manual | Framework middleware support |
+| Criterion            | Simple Node.js                 | Hono                                   |
+| -------------------- | ------------------------------ | -------------------------------------- |
+| Developer Experience | Poor (verbose, manual parsing) | Excellent (declarative API)            |
+| Routing              | Manual URL matching            | Framework-provided routing             |
+| Maintenance          | High (custom code)             | Low (framework handles edge cases)     |
+| Performance          | Fastest (no overhead)          | Very fast (~60KB, negligible overhead) |
+| Dependencies         | 0 additional                   | Already installed                      |
+| Type Safety          | Manual                         | Built-in with TypeScript               |
+| Error Handling       | Manual                         | Framework middleware support           |
 
 ## Decision
 
@@ -65,7 +65,7 @@ if (req.method === "GET" && req.url === "/status") {
     // ... more fields
   }));
   res.writeHead(200);
-  res.end(JSON.stringify({ queue: queueEntries, /* ... */ }));
+  res.end(JSON.stringify({ queue: queueEntries /* ... */ }));
   return;
 }
 ```
@@ -78,7 +78,7 @@ app.get("/status", (c) => {
     issueId: e.task.issueId,
     // ... more fields
   }));
-  return c.json({ queue: queueEntries, /* ... */ });
+  return c.json({ queue: queueEntries /* ... */ });
 });
 ```
 
@@ -98,6 +98,7 @@ app.get("/status", (c) => {
 ### API Compatibility
 
 ✅ **No breaking changes**. All endpoints maintain the same:
+
 - URLs
 - HTTP methods
 - Request/response formats
@@ -107,6 +108,7 @@ app.get("/status", (c) => {
 ### Test Coverage
 
 All existing tests pass without modification, confirming behavioral equivalence:
+
 - `askAndWait` timeout behavior
 - `stop()` graceful shutdown
 - HTTP endpoint responses
@@ -137,18 +139,76 @@ All existing tests pass without modification, confirming behavioral equivalence:
 
 ## Metrics
 
-- **Lines Changed**: ~100 (mostly simplification)
-- **Dependencies Added**: 0
-- **Test Coverage**: 100% maintained
+- **Lines Changed**: ~150 (simplification + OpenAPI schemas)
+- **Dependencies Updated**: Zod v3 → v4, added @hono/zod-openapi
+- **Test Coverage**: 100% maintained (295/295 tests passing)
 - **Breaking Changes**: 0
 - **Migration Time**: 1 day
 
+## OpenAPI Integration
+
+Following user feedback, all HTTP servers now use **@hono/zod-openapi** for type-safe API definitions:
+
+### Benefits
+
+1. **Type Safety**: Request and response types validated at runtime with Zod schemas
+2. **Single Source of Truth**: Zod schemas define both TypeScript types and validation rules
+3. **Runtime Validation**: All inputs validated automatically before reaching handlers
+4. **Future-Ready**: Can generate OpenAPI spec files for documentation/client generation
+
+### Implementation Details
+
+- **Bridge Server**: All endpoints use `createRoute()` with Zod schemas
+- **Webhook Server**: Health endpoint uses OpenAPI, webhook endpoint uses raw Hono (needs raw body for HMAC)
+- **Zod v4**: Upgraded to latest Zod for compatibility with @hono/zod-openapi
+
+### Example Schema
+
+```typescript
+const AnswerBodySchema = z.object({
+  answer: z.string(),
+});
+
+const postAnswerRoute = createRoute({
+  method: "post",
+  path: "/answers/{taskId}",
+  request: {
+    params: z.object({ taskId: z.string() }),
+    body: {
+      content: {
+        "application/json": {
+          schema: AnswerBodySchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: SuccessResponseSchema,
+        },
+      },
+      description: "Answer submitted successfully",
+    },
+  },
+});
+```
+
 ## Conclusion
 
-The consolidation to Hono as the single HTTP framework eliminates unnecessary fragmentation, improves code quality, and sets a consistent pattern for all future HTTP server development in the agent-runner application. Mastra remains the dedicated agent orchestration framework for the telegram-bot service, serving a completely different purpose.
+The consolidation to Hono as the single HTTP framework, combined with OpenAPI/Zod integration, provides:
+
+1. **Unified HTTP Framework**: All servers use Hono (no more manual Node.js routing)
+2. **Type Safety**: Full TypeScript + runtime validation via Zod
+3. **Better DX**: Declarative route definitions with automatic validation
+4. **Maintainability**: Framework handles edge cases, schemas document APIs
+
+Mastra remains the dedicated agent orchestration framework for the telegram-bot service, serving a completely different purpose with no overlap.
 
 ## References
 
 - Implementation Plan: `/root/.claude/plans/breezy-enchanting-dragon.md`
 - Original Task: AGENTHQ-30
 - Hono Documentation: https://hono.dev
+- Zod OpenAPI: https://github.com/honojs/middleware/tree/main/packages/zod-openapi
