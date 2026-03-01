@@ -1,11 +1,14 @@
 import type { GitHubClient } from "../github/client";
 import type { GitHubReviewEvent } from "../github/types";
 import type { CodeAnalysisResult, IssueSeverity, ReviewResult } from "./types";
+import type { AggregatedReview } from "./parallel-reviewer";
 
 /**
  * Formats review issues by severity for display
  */
-const formatIssuesBySeverity = (issues: CodeAnalysisResult["issues"]): string => {
+const formatIssuesBySeverity = (
+  issues: CodeAnalysisResult["issues"],
+): string => {
   const bySeverity: Record<IssueSeverity, typeof issues> = {
     critical: [],
     major: [],
@@ -81,7 +84,7 @@ const mapAssessmentToEvent = (
 /**
  * Builds the review body text
  */
-const buildReviewBody = (analysis: CodeAnalysisResult): string => {
+const buildReviewBody = (analysis: CodeAnalysisResult | AggregatedReview): string => {
   const header =
     analysis.overallAssessment === "approve"
       ? "## ✅ Code Review - No Issues Found"
@@ -91,14 +94,19 @@ const buildReviewBody = (analysis: CodeAnalysisResult): string => {
 
   const summary = `\n${analysis.summary}\n`;
 
+  const toolsUsed =
+    "toolsUsed" in analysis
+      ? `\n_Review tools used: ${analysis.toolsUsed.join(", ")}_\n`
+      : "";
+
   const issuesSection =
     analysis.issues.length > 0
-      ? `\n${formatIssuesBySeverity(analysis.issues)}`
+      ? `\n${formatIssuesBySeverity([...analysis.issues])}`
       : "\n_No issues found. Code looks good!_\n";
 
   const footer = `\n---\n🤖 _Automated review by PR Review Agent_`;
 
-  return `${header}${summary}${issuesSection}${footer}`;
+  return `${header}${summary}${toolsUsed}${issuesSection}${footer}`;
 };
 
 /**
@@ -106,13 +114,13 @@ const buildReviewBody = (analysis: CodeAnalysisResult): string => {
  *
  * @param client - GitHub API client
  * @param prNumber - Pull request number
- * @param analysis - Code analysis result from Claude
+ * @param analysis - Code analysis result from Claude or aggregated review
  * @returns Success or error result
  */
 export const postReviewToGitHub = async (
   client: GitHubClient,
   prNumber: number,
-  analysis: CodeAnalysisResult,
+  analysis: CodeAnalysisResult | AggregatedReview,
 ): Promise<ReviewResult<void>> => {
   try {
     const event = mapAssessmentToEvent(analysis.overallAssessment);
