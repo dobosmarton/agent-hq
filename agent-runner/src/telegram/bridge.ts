@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { AgentManager } from "../agent/manager";
 import type { TaskQueue } from "../queue/task-queue";
 import type { Notifier } from "./notifier";
+import type { MetricsCollector } from "../metrics/collector";
+import type { ExecutionHistory } from "../metrics/history";
 
 type PendingQuestion = {
   taskId: string;
@@ -22,6 +24,9 @@ type BridgeDeps = {
   notifier: Notifier;
   queue?: TaskQueue;
   agentManager?: AgentManager;
+  metricsCollector?: MetricsCollector;
+  executionHistory?: ExecutionHistory;
+  startTime?: number;
 };
 
 export const createTelegramBridge = (deps: BridgeDeps) => {
@@ -34,7 +39,7 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
         res.setHeader("Content-Type", "application/json");
       };
 
-      // GET /status — queue + active agents + daily spend
+      // GET /status — queue + active agents + daily spend + metrics
       if (req.method === "GET" && req.url === "/status") {
         setCors();
         const queueEntries = (deps.queue?.entries() ?? []).map((e) => ({
@@ -61,6 +66,8 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
           }),
         );
 
+        const metrics = deps.metricsCollector?.getMetrics();
+
         res.writeHead(200);
         res.end(
           JSON.stringify({
@@ -68,6 +75,8 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
             active: activeAgents,
             dailySpend: deps.agentManager?.getDailySpend() ?? 0,
             dailyBudget: deps.agentManager?.getDailyBudget() ?? 0,
+            metrics: metrics ?? null,
+            uptime: deps.startTime ? Date.now() - deps.startTime : 0,
           }),
         );
         return;
@@ -129,10 +138,83 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
         return;
       }
 
-      // Health check
-      if (req.method === "GET" && req.url === "/health") {
+      // GET /history — execution history with optional filters
+      if (req.method === "GET" && req.url?.startsWith("/history")) {
+        setCors();
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const days = parseInt(url.searchParams.get("days") ?? "7", 10);
+        const project = url.searchParams.get("project");
+
+        let executions = deps.executionHistory?.getRecent(100) ?? [];
+
+        // Filter by time range
+        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+        executions = executions.filter((e) => e.completedAt >= cutoff);
+
+        // Filter by project if specified
+        if (project) {
+          executions = executions.filter(
+            (e) => e.projectIdentifier === project,
+          );
+        }
+
         res.writeHead(200);
-        res.end(JSON.stringify({ ok: true, pending: pending.size }));
+        res.end(JSON.stringify({ executions }));
+        return;
+      }
+
+      // GET /errors — recent errors
+      if (req.method === "GET" && req.url === "/errors") {
+        setCors();
+        const errors = deps.executionHistory?.getErrors(50) ?? [];
+        res.writeHead(200);
+        res.end(JSON.stringify({ errors }));
+        return;
+      }
+
+      // Health check with thresholds
+      if (req.method === "GET" && req.url === "/health") {
+        setCors();
+        const queueDepth = deps.queue?.size() ?? 0;
+        const activeCount = deps.agentManager?.getActiveAgents().length ?? 0;
+        const metrics = deps.metricsCollector?.getMetrics();
+        const dailySpend = deps.agentManager?.getDailySpend() ?? 0;
+        const dailyBudget = deps.agentManager?.getDailyBudget() ?? 0;
+
+        const queueThreshold = 20;
+        const budgetThreshold = 0.9;
+
+        const issues: string[] = [];
+        if (queueDepth > queueThreshold) {
+          issues.push(`Queue depth ${queueDepth} > ${queueThreshold}`);
+        }
+        if (dailyBudget > 0 && dailySpend / dailyBudget > budgetThreshold) {
+          issues.push(
+            `Budget ${((dailySpend / dailyBudget) * 100).toFixed(0)}% consumed`,
+          );
+        }
+        if (metrics && metrics.totalTasks > 10 && metrics.successRate < 0.7) {
+          issues.push(
+            `Success rate ${(metrics.successRate * 100).toFixed(0)}% < 70%`,
+          );
+        }
+
+        const status = issues.length > 0 ? "degraded" : "healthy";
+
+        res.writeHead(200);
+        res.end(
+          JSON.stringify({
+            ok: true,
+            status,
+            pending: pending.size,
+            queueDepth,
+            activeCount,
+            dailySpend,
+            dailyBudget,
+            metrics: metrics ?? null,
+            issues,
+          }),
+        );
         return;
       }
 

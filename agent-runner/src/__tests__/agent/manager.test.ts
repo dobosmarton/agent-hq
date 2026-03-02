@@ -321,6 +321,8 @@ describe("spawnAgent", () => {
       expect.objectContaining({ issueId: "issue-1" }),
       expect.objectContaining({ costUsd: 2.5 }),
       0,
+      expect.any(Number),
+      "planning",
     );
     expect(manager.getDailySpend()).toBe(2.5);
   });
@@ -358,6 +360,8 @@ describe("spawnAgent", () => {
       expect.objectContaining({ issueId: "issue-1" }),
       expect.objectContaining({ crashed: true, error: "agent crashed" }),
       0,
+      expect.any(Number),
+      "implementation",
     );
     expect(mockedRemoveWorktree).not.toHaveBeenCalled();
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");

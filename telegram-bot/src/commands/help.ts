@@ -7,9 +7,15 @@ const HELP_TEXT = [
   '  • "What tasks are open in Verdandi?"',
   '  • "Create a task in Verdandi about rate limiting"',
   '  • "What workflow states does Style-swipe have?"\n',
-  "<b>Commands:</b>",
+  "<b>Basic Commands:</b>",
   "<code>/clear</code> — Reset conversation",
-  "<code>/help</code> — Show this message",
+  "<code>/help</code> — Show this message\n",
+  "<b>Agent Monitoring:</b>",
+  "<code>/agent_status</code> — Show running agents & metrics",
+  "<code>/agent_queue</code> — Show queued tasks",
+  "<code>/agent_health</code> — System health check",
+  "<code>/agent_history [days]</code> — Recent executions (default: 7d)",
+  "<code>/agent_errors</code> — Recent errors",
 ].join("\n");
 
 export const handleStart = async (ctx: Context): Promise<void> => {
