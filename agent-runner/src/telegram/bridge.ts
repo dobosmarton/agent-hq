@@ -70,8 +70,18 @@ type BridgeDeps = {
 const createBridgeApp = (
   deps: BridgeDeps,
   pending: Map<string, PendingQuestion>,
-): OpenAPIHono => {
-  const app = new OpenAPIHono();
+): OpenAPIHono<{}> => {
+  const app = new OpenAPIHono<{}>();
+
+  // Global error handlers — consistent JSON responses
+  app.onError((err, c) => {
+    console.error(`[Bridge] ${err.message}`, err.stack);
+    return c.json({ error: "Internal server error" }, 500);
+  });
+
+  app.notFound((c) => {
+    return c.json({ error: "Not found" }, 404);
+  });
 
   // GET /status — queue + active agents + daily spend
   const statusRoute = createRoute({

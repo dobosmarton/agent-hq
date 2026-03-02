@@ -65,8 +65,18 @@ export const createWebhookApp = (
   env: Env,
   planeConfig: PlaneConfig,
   taskPoller: TaskPoller,
-): OpenAPIHono => {
-  const app = new OpenAPIHono();
+): OpenAPIHono<{}> => {
+  const app = new OpenAPIHono<{}>();
+
+  // Global error handlers — consistent JSON responses
+  app.onError((err, c) => {
+    console.error(`[Webhook] ${err.message}`, err.stack);
+    return c.json({ error: "Internal server error" }, 500);
+  });
+
+  app.notFound((c) => {
+    return c.json({ error: "Not found" }, 404);
+  });
 
   // Webhook endpoint - using regular Hono route since we need raw body for HMAC
   app.post(config.webhook.path, async (c) => {
