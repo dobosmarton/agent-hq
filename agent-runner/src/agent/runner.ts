@@ -14,10 +14,7 @@ import {
   buildPlanningPrompt,
 } from "./prompt-builder";
 import type { CommentAnalysis } from "../plane/comment-analyzer";
-import {
-  formatAgentProgress,
-  type ProgressStep,
-} from "../telegram/progress-formatter";
+import { createAgentProgressTracker } from "../telegram/progress-tracker";
 
 type RunnerDeps = {
   planeConfig: PlaneConfig;
@@ -118,52 +115,12 @@ export const runAgent = async (
     );
   }
 
-  // Progress tracking state
-  const progressSteps: ProgressStep[] = [];
-  const progressStartTime = Date.now();
-  let lastProgressUpdate = 0;
-  const PROGRESS_UPDATE_INTERVAL_MS = 2500;
-
-  const updateProgress = (
-    step: string,
-    status: "pending" | "in_progress" | "completed",
-  ): void => {
-    if (progressMessageId === 0) return;
-
-    const existingStepIndex = progressSteps.findIndex((s) => s.name === step);
-    const stepData: ProgressStep = {
-      name: step,
-      status,
-      timestamp: Date.now(),
-    };
-
-    if (existingStepIndex !== -1) {
-      progressSteps[existingStepIndex] = stepData;
-    } else {
-      progressSteps.push(stepData);
-      if (progressSteps.length > 10) {
-        progressSteps.shift();
-      }
-    }
-
-    const now = Date.now();
-    if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL_MS) {
-      lastProgressUpdate = now;
-      const message = formatAgentProgress(
-        taskDisplayId,
-        task.title,
-        progressSteps,
-        progressStartTime,
-      );
-      void deps.notifier
-        .agentProgress(progressMessageId, message)
-        .catch((err: unknown) => {
-          console.error(
-            `Progress update failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
-    }
-  };
+  const progressTracker = createAgentProgressTracker({
+    notifier: deps.notifier,
+    messageId: progressMessageId,
+    taskDisplayId,
+    taskTitle: task.title,
+  });
 
   // Post starting comment on Plane (always, but with retry info)
   const phaseLabel = phase === "planning" ? "planning" : "implementing";
@@ -171,7 +128,7 @@ export const runAgent = async (
     ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})`
     : "";
 
-  updateProgress("Setting up environment", "in_progress");
+  progressTracker.update("Setting up environment", "in_progress");
 
   await addComment(
     deps.planeConfig,
@@ -180,10 +137,10 @@ export const runAgent = async (
     `<p><strong>Agent started ${phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`,
   );
 
-  updateProgress("Setting up environment", "completed");
+  progressTracker.update("Setting up environment", "completed");
 
   // Create task-scoped MCP server
-  updateProgress("Loading skills", "in_progress");
+  progressTracker.update("Loading skills", "in_progress");
 
   const mcpServer = createAgentMcpServer({
     planeConfig: deps.planeConfig,
@@ -198,7 +155,7 @@ export const runAgent = async (
     agentRunnerRoot,
   });
 
-  updateProgress("Loading skills", "completed");
+  progressTracker.update("Loading skills", "completed");
 
   // Build phase-specific prompt
   const prompt =
@@ -224,7 +181,7 @@ export const runAgent = async (
   let totalCostUsd = 0;
 
   try {
-    updateProgress(
+    progressTracker.update(
       phase === "planning" ? "Planning implementation" : "Implementing changes",
       "in_progress",
     );
