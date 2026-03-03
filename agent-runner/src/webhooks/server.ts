@@ -80,7 +80,9 @@ const healthRoute = createRoute({
 
 // --- App factory (deps injected via middleware) ---
 
-export const createWebhookApp = (deps: WebhookDeps): OpenAPIHono<WebhookEnv> => {
+export const createWebhookApp = (
+  deps: WebhookDeps,
+): OpenAPIHono<WebhookEnv> => {
   const app = new OpenAPIHono<WebhookEnv>();
 
   app.onError((err, c) => {
