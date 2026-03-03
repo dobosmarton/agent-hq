@@ -12,6 +12,11 @@ export const EnvSchema = z.object({
   ANTHROPIC_MODEL: z.string().default("claude-haiku-4-5-20251001"),
   AGENT_RUNNER_URL: z.string().url().optional(),
   GITHUB_PAT: z.string().min(1).optional(),
+  PROGRESS_FEEDBACK_ENABLED: z
+    .string()
+    .transform((v) => v === "true")
+    .default("true"),
+  PROGRESS_UPDATE_INTERVAL_MS: z.coerce.number().default(2500),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

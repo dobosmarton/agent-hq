@@ -22,6 +22,8 @@ export const makeConfig = (overrides?: Partial<Config>): Config => ({
     maxRetries: 2,
     retryBaseDelayMs: 60000,
     labelName: "agent",
+    progressFeedbackEnabled: true,
+    progressUpdateIntervalMs: 2500,
     skills: {
       enabled: true,
       maxSkillsPerPrompt: 10,

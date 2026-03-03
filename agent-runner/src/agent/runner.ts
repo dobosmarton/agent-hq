@@ -14,6 +14,7 @@ import {
   buildPlanningPrompt,
 } from "./prompt-builder";
 import type { CommentAnalysis } from "../plane/comment-analyzer";
+import { createAgentProgressTracker } from "../telegram/progress-tracker";
 
 type RunnerDeps = {
   planeConfig: PlaneConfig;
@@ -105,16 +106,32 @@ export const runAgent = async (
     `Starting ${phase} agent for ${taskDisplayId}: "${task.title}"${isRetry ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})` : ""}`,
   );
 
-  // Notify on Telegram (skip on retries to avoid duplicate notifications)
+  // Notify on Telegram and start progress tracking
+  let progressMessageId = 0;
   if (!isRetry) {
-    await deps.notifier.agentStarted(taskDisplayId, task.title);
+    progressMessageId = await deps.notifier.agentStarted(
+      taskDisplayId,
+      task.title,
+    );
   }
+
+  const progressTracker = createAgentProgressTracker({
+    notifier: deps.notifier,
+    messageId: progressMessageId,
+    taskDisplayId,
+    taskTitle: task.title,
+    enabled: deps.config.agent.progressFeedbackEnabled,
+    updateIntervalMs: deps.config.agent.progressUpdateIntervalMs,
+  });
 
   // Post starting comment on Plane (always, but with retry info)
   const phaseLabel = phase === "planning" ? "planning" : "implementing";
   const retryLabel = isRetry
     ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})`
     : "";
+
+  progressTracker.update("Setting up environment", "in_progress");
+
   await addComment(
     deps.planeConfig,
     task.projectId,
@@ -122,7 +139,9 @@ export const runAgent = async (
     `<p><strong>Agent started ${phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`,
   );
 
-  // Create task-scoped MCP server
+  progressTracker.update("Setting up environment", "completed");
+
+  // Create task-scoped MCP server (synchronous — mark completed directly)
   const mcpServer = createAgentMcpServer({
     planeConfig: deps.planeConfig,
     projectId: task.projectId,
@@ -135,6 +154,8 @@ export const runAgent = async (
     projectRepoPath,
     agentRunnerRoot,
   });
+
+  progressTracker.update("Loading skills", "completed");
 
   // Build phase-specific prompt
   const prompt =
@@ -160,6 +181,11 @@ export const runAgent = async (
   let totalCostUsd = 0;
 
   try {
+    progressTracker.update(
+      phase === "planning" ? "Planning implementation" : "Implementing changes",
+      "in_progress",
+    );
+
     for await (const message of query({
       prompt,
       options: {

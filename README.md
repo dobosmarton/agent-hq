@@ -68,6 +68,8 @@ When creating tasks, the agent proactively enriches your brief description into 
 
 **Implementation-Start Convention:** When you say phrases like "start implementing TASK-ID", "begin work on TASK-ID", or "let's implement TASK-ID", the agent automatically adds the "agent" label and moves the task to "Todo" state. This standardizes the workflow for agent-driven task implementation.
 
+**Real-Time Progress Feedback:** When the bot processes your request, it shows a live progress message that updates every 2-3 seconds with the current step (e.g., "⏳ Parsing request", "🔄 Executing query", "✅ Task created"). This reduces perceived latency and gives you confidence that the system is working. Progress messages are edited in-place to avoid cluttering the chat. The agent runner also sends progress updates during long-running agent tasks (setup, loading skills, planning/implementing). You can disable progress feedback by setting `PROGRESS_FEEDBACK_ENABLED=false` in the environment.
+
 ### Tech stack
 
 - **[grammy](https://grammy.dev)** — Telegram bot framework (long polling, no webhooks needed)
@@ -145,17 +147,19 @@ The LLM agent has these tools for interacting with Plane and the agent runner:
 
 Copy `env.example` to `.env` and fill in the values:
 
-| Variable               | Description                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------ |
-| `TELEGRAM_BOT_TOKEN`   | Bot token from @BotFather                                                            |
-| `ALLOWED_USER_ID`      | Your Telegram user ID (auth gate)                                                    |
-| `PLANE_API_KEY`        | Plane workspace API token                                                            |
-| `PLANE_BASE_URL`       | Plane API base URL (e.g. `http://localhost/api/v1`)                                  |
-| `PLANE_WORKSPACE_SLUG` | Plane workspace slug                                                                 |
-| `ANTHROPIC_API_KEY`    | Anthropic API key for Claude                                                         |
-| `ANTHROPIC_MODEL`      | Model ID (default: `claude-haiku-4-5-20251001`)                                      |
-| `AGENT_RUNNER_URL`     | Agent runner HTTP URL for queue tools (optional, e.g. `http://127.0.0.1:3847`)       |
-| `GITHUB_PAT`           | GitHub Personal Access Token for project discovery (optional — enables GitHub tools) |
+| Variable                       | Description                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `TELEGRAM_BOT_TOKEN`           | Bot token from @BotFather                                                            |
+| `ALLOWED_USER_ID`              | Your Telegram user ID (auth gate)                                                    |
+| `PLANE_API_KEY`                | Plane workspace API token                                                            |
+| `PLANE_BASE_URL`               | Plane API base URL (e.g. `http://localhost/api/v1`)                                  |
+| `PLANE_WORKSPACE_SLUG`         | Plane workspace slug                                                                 |
+| `ANTHROPIC_API_KEY`            | Anthropic API key for Claude                                                         |
+| `ANTHROPIC_MODEL`              | Model ID (default: `claude-haiku-4-5-20251001`)                                      |
+| `AGENT_RUNNER_URL`             | Agent runner HTTP URL for queue tools (optional, e.g. `http://127.0.0.1:3847`)       |
+| `GITHUB_PAT`                   | GitHub Personal Access Token for project discovery (optional — enables GitHub tools) |
+| `PROGRESS_FEEDBACK_ENABLED`    | Enable real-time progress updates (default: `true`)                                  |
+| `PROGRESS_UPDATE_INTERVAL_MS`  | Minimum time between progress updates in milliseconds (default: `2500`)              |
 
 ### Local development
 

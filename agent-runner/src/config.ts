@@ -31,6 +31,8 @@ const AgentConfigSchema = z.object({
   maxRetries: z.number().int().min(0).default(2),
   retryBaseDelayMs: z.number().int().positive().default(60000),
   labelName: z.string().default("agent"),
+  progressFeedbackEnabled: z.boolean().default(true),
+  progressUpdateIntervalMs: z.number().int().positive().default(2500),
   skills: SkillsConfigSchema,
 });
 
@@ -50,6 +52,8 @@ const ConfigSchema = z.object({
     maxRetries: 2,
     retryBaseDelayMs: 60000,
     labelName: "agent",
+    progressFeedbackEnabled: true,
+    progressUpdateIntervalMs: 2500,
     skills: {
       enabled: true,
       maxSkillsPerPrompt: 10,

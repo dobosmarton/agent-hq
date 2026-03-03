@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import { createAgentHQ } from "./agent/index";
 import { handleHelp, handleStart } from "./commands/help";
 import { smartChunkMessage } from "./formatter";
+import { createProgressTracker } from "./telegram/progress-tracker";
 import { EnvSchema, type GitHubConfig, type PlaneConfig } from "./types";
 import { extractTaskId, sendReply } from "./utils";
 
@@ -86,8 +87,19 @@ bot.on("message:text", async (ctx) => {
   const chatId = String(ctx.chat.id);
   const userId = String(ctx.from.id);
 
+  const progressTracker = createProgressTracker(ctx, {
+    enabled: env.PROGRESS_FEEDBACK_ENABLED,
+    updateIntervalMs: env.PROGRESS_UPDATE_INTERVAL_MS,
+  });
+
   try {
     await ctx.replyWithChatAction("typing");
+
+    // Start progress tracking
+    await progressTracker.start();
+
+    // Update progress with initial step
+    await progressTracker.update("Parsing request", "in_progress");
 
     const result = await agent.generate(text, {
       memory: {
@@ -100,15 +112,23 @@ bot.on("message:text", async (ctx) => {
 
     // Telegram has a 4096 char limit — split if needed
     // Use smart chunking that respects formatting boundaries
+    const chunks: string[] = [];
     for (const chunk of smartChunkMessage(reply)) {
-      await sendReply(ctx, chunk);
+      chunks.push(chunk);
+    }
+
+    // Complete progress with first chunk
+    await progressTracker.complete(chunks[0] ?? "Done.");
+
+    // Send remaining chunks as follow-up messages
+    for (let i = 1; i < chunks.length; i++) {
+      await sendReply(ctx, chunks[i] ?? "");
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("LLM error:", message);
-    await ctx.reply(
-      "⚠️ Something went wrong processing your message. Try again or /help for info.",
-      { parse_mode: "HTML" }
+    await progressTracker.error(
+      "⚠️ Something went wrong processing your message. Try again or /help for info."
     );
   }
 });

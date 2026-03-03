@@ -46,9 +46,36 @@ export const createNotifier = (config: NotifierConfig) => {
     return data.result?.message_id ?? 0;
   };
 
+  const editMessage = async (
+    messageId: number,
+    text: string,
+  ): Promise<boolean> => {
+    const res = await fetch(
+      `${TELEGRAM_API}/bot${config.botToken}/editMessageText`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: config.chatId,
+          message_id: messageId,
+          text,
+          parse_mode: "HTML",
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`Telegram edit error: ${res.status} ${body}`);
+      return false;
+    }
+
+    return true;
+  };
+
   return {
-    agentStarted: async (taskId: string, title: string): Promise<void> => {
-      await sendMessage(
+    agentStarted: async (taskId: string, title: string): Promise<number> => {
+      return sendMessage(
         `<b>Agent started</b>\n<code>${taskId}</code>: ${title}`,
       );
     },
@@ -75,6 +102,13 @@ export const createNotifier = (config: NotifierConfig) => {
       );
     },
 
+    agentProgress: async (
+      messageId: number,
+      text: string,
+    ): Promise<boolean> => {
+      return editMessage(messageId, text);
+    },
+
     sendMessage,
   };
 };
@@ -82,9 +116,10 @@ export const createNotifier = (config: NotifierConfig) => {
 export type Notifier = ReturnType<typeof createNotifier>;
 
 export const createNoopNotifier = (): Notifier => ({
-  agentStarted: async () => {},
+  agentStarted: async () => 0,
   agentCompleted: async () => {},
   agentErrored: async () => {},
   agentBlocked: async () => 0,
+  agentProgress: async () => false,
   sendMessage: async () => 0,
 });
