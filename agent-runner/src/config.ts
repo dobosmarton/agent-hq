@@ -40,8 +40,28 @@ const ConfigSchema = z.object({
     workspaceSlug: z.string().min(1),
   }),
   projects: z.record(z.string(), ProjectConfigSchema),
-  agent: AgentConfigSchema.default({}),
-  webhook: WebhookConfigSchema.default({}),
+  agent: AgentConfigSchema.optional().default({
+    maxConcurrent: 2,
+    maxBudgetPerTask: 5.0,
+    maxDailyBudget: 20.0,
+    maxTurns: 200,
+    pollIntervalMs: 30000,
+    spawnDelayMs: 15000,
+    maxRetries: 2,
+    retryBaseDelayMs: 60000,
+    labelName: "agent",
+    skills: {
+      enabled: true,
+      maxSkillsPerPrompt: 10,
+      globalSkillsPath: "skills/global",
+    },
+  }),
+  webhook: WebhookConfigSchema.optional().default({
+    enabled: true,
+    port: 3000,
+    path: "/webhooks/github/pr",
+    taskIdPattern: "([A-Z]+-\\d+)",
+  }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

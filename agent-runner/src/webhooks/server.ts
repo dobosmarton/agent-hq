@@ -1,19 +1,28 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Config, Env, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
 import { handlePullRequestEvent } from "./handler";
 import { GitHubPullRequestEventSchema } from "./types";
 
-/**
- * Verifies GitHub webhook signature using HMAC-SHA256
- *
- * @param payload - Raw request body
- * @param signature - Signature from x-hub-signature-256 header
- * @param secret - GitHub webhook secret
- * @returns true if signature is valid, false otherwise
- */
+// --- Types ---
+
+export type WebhookDeps = {
+  config: Config;
+  env: Env;
+  planeConfig: PlaneConfig;
+  taskPoller: TaskPoller;
+};
+
+type WebhookEnv = {
+  Variables: {
+    deps: WebhookDeps;
+  };
+};
+
+// --- Helpers ---
+
 const verifySignature = (
   payload: string,
   signature: string,
@@ -38,30 +47,108 @@ const verifySignature = (
   );
 };
 
-/**
- * Creates a Hono webhook application
- *
- * @param config - Application configuration
- * @param env - Environment variables
- * @param planeConfig - Plane API configuration
- * @param taskPoller - Task poller with project caches
- * @returns Hono app instance
- */
-export const createWebhookApp = (
-  config: Config,
-  env: Env,
-  planeConfig: PlaneConfig,
-  taskPoller: TaskPoller,
-): Hono => {
-  const app = new Hono();
+// --- Zod schemas ---
 
-  // Webhook endpoint
-  app.post(config.webhook.path, async (c) => {
+const WebhookSuccessResponseSchema = z.object({
+  message: z.string(),
+});
+
+const ErrorResponseSchema = z.object({
+  error: z.string(),
+});
+
+const HealthResponseSchema = z.object({
+  status: z.literal("ok"),
+});
+
+// --- Route definitions (static, no runtime deps) ---
+
+const healthRoute = createRoute({
+  method: "get",
+  path: "/health",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: HealthResponseSchema,
+        },
+      },
+      description: "Service health status",
+    },
+  },
+});
+
+// --- App factory (deps injected via middleware) ---
+
+export const createWebhookApp = (
+  deps: WebhookDeps,
+): OpenAPIHono<WebhookEnv> => {
+  const app = new OpenAPIHono<WebhookEnv>();
+
+  app.onError((err, c) => {
+    console.error(`[Webhook] ${err.message}`, err.stack);
+    return c.json({ error: "Internal server error" }, 500);
+  });
+
+  app.notFound((c) => {
+    return c.json({ error: "Not found" }, 404);
+  });
+
+  // Inject deps into every request
+  app.use("*", async (c, next) => {
+    c.set("deps", deps);
+    await next();
+  });
+
+  // Webhook endpoint — body is read as raw text for HMAC signature verification,
+  // then parsed and validated with Zod manually (can't use OpenAPI body validation
+  // because we need the raw string before JSON parsing for signature check).
+  // Route path is dynamic (from config), so this route definition stays inline.
+  const webhookRoute = createRoute({
+    method: "post",
+    path: deps.config.webhook.path,
+    responses: {
+      200: {
+        content: {
+          "application/json": {
+            schema: WebhookSuccessResponseSchema,
+          },
+        },
+        description: "Webhook received successfully",
+      },
+      400: {
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: "Invalid payload",
+      },
+      401: {
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: "Missing or invalid signature",
+      },
+      500: {
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: "Internal server error",
+      },
+    },
+  });
+
+  app.openapi(webhookRoute, async (c) => {
+    const { env, planeConfig, config, taskPoller } = c.var.deps;
+
     try {
-      // Get raw body text for signature verification
       const body = await c.req.text();
 
-      // Verify signature if secret is configured
       if (env.GITHUB_WEBHOOK_SECRET) {
         const signature = c.req.header("x-hub-signature-256");
         if (!signature) {
@@ -79,14 +166,12 @@ export const createWebhookApp = (
         );
       }
 
-      // Check event type
       const eventType = c.req.header("x-github-event");
       if (eventType !== "pull_request") {
         console.log(`ℹ️  Webhook: Ignoring event type: ${eventType}`);
-        return c.json({ message: "Event ignored" });
+        return c.json({ message: "Event ignored" }, 200);
       }
 
-      // Parse and validate event payload at the boundary
       const parsed = GitHubPullRequestEventSchema.safeParse(JSON.parse(body));
       if (!parsed.success) {
         console.error("❌ Webhook: Invalid payload:", parsed.error.message);
@@ -95,7 +180,6 @@ export const createWebhookApp = (
 
       const event = parsed.data;
 
-      // Process webhook asynchronously — respond 200 immediately to GitHub
       void handlePullRequestEvent(event, planeConfig, config, taskPoller).catch(
         (err) => {
           console.error(
@@ -105,48 +189,36 @@ export const createWebhookApp = (
         },
       );
 
-      return c.json({ message: "Webhook received" });
+      return c.json({ message: "Webhook received" }, 200);
     } catch (err) {
       console.error("❌ Webhook: Error handling request:", err);
       return c.json({ error: "Internal server error" }, 500);
     }
   });
 
-  // Health check endpoint
-  app.get("/health", (c) => {
-    return c.json({ status: "ok" });
+  // Health check
+  app.openapi(healthRoute, (c) => {
+    return c.json({ status: "ok" as const }, 200);
   });
 
   return app;
 };
 
-/**
- * Starts the webhook server
- *
- * @param config - Application configuration
- * @param env - Environment variables
- * @param planeConfig - Plane API configuration
- * @param taskPoller - Task poller with project caches
- * @returns Promise that resolves when server is listening
- */
-export const startWebhookServer = (
-  config: Config,
-  env: Env,
-  planeConfig: PlaneConfig,
-  taskPoller: TaskPoller,
-): Promise<void> => {
+// --- Server startup ---
+
+export const startWebhookServer = (deps: WebhookDeps): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
-      const app = createWebhookApp(config, env, planeConfig, taskPoller);
+      const app = createWebhookApp(deps);
 
       const server = serve(
         {
           fetch: app.fetch,
-          port: config.webhook.port,
+          port: deps.config.webhook.port,
         },
         () => {
           console.log(
-            `🌐 Webhook server listening on http://localhost:${config.webhook.port}${config.webhook.path}`,
+            `🌐 Webhook server listening on http://localhost:${deps.config.webhook.port}${deps.config.webhook.path}`,
           );
           resolve();
         },
