@@ -78,8 +78,49 @@ export const createWebhookApp = (
     return c.json({ error: "Not found" }, 404);
   });
 
-  // Webhook endpoint - using regular Hono route since we need raw body for HMAC
-  app.post(config.webhook.path, async (c) => {
+  // Webhook endpoint — body is read as raw text for HMAC signature verification,
+  // then parsed and validated with Zod manually (can't use OpenAPI body validation
+  // because we need the raw string before JSON parsing for signature check).
+  const webhookRoute = createRoute({
+    method: "post",
+    path: config.webhook.path,
+    responses: {
+      200: {
+        content: {
+          "application/json": {
+            schema: WebhookSuccessResponseSchema,
+          },
+        },
+        description: "Webhook received successfully",
+      },
+      400: {
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: "Invalid payload",
+      },
+      401: {
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: "Missing or invalid signature",
+      },
+      500: {
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: "Internal server error",
+      },
+    },
+  });
+
+  app.openapi(webhookRoute, async (c) => {
     try {
       // Get raw body text for signature verification
       const body = await c.req.text();
@@ -106,7 +147,7 @@ export const createWebhookApp = (
       const eventType = c.req.header("x-github-event");
       if (eventType !== "pull_request") {
         console.log(`ℹ️  Webhook: Ignoring event type: ${eventType}`);
-        return c.json({ message: "Event ignored" });
+        return c.json({ message: "Event ignored" }, 200);
       }
 
       // Parse and validate event payload at the boundary
@@ -128,7 +169,7 @@ export const createWebhookApp = (
         },
       );
 
-      return c.json({ message: "Webhook received" });
+      return c.json({ message: "Webhook received" }, 200);
     } catch (err) {
       console.error("❌ Webhook: Error handling request:", err);
       return c.json({ error: "Internal server error" }, 500);
