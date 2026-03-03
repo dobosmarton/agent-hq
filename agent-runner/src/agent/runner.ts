@@ -120,6 +120,8 @@ export const runAgent = async (
     messageId: progressMessageId,
     taskDisplayId,
     taskTitle: task.title,
+    enabled: deps.config.agent.progressFeedbackEnabled,
+    updateIntervalMs: deps.config.agent.progressUpdateIntervalMs,
   });
 
   // Post starting comment on Plane (always, but with retry info)
@@ -139,9 +141,7 @@ export const runAgent = async (
 
   progressTracker.update("Setting up environment", "completed");
 
-  // Create task-scoped MCP server
-  progressTracker.update("Loading skills", "in_progress");
-
+  // Create task-scoped MCP server (synchronous — mark completed directly)
   const mcpServer = createAgentMcpServer({
     planeConfig: deps.planeConfig,
     projectId: task.projectId,

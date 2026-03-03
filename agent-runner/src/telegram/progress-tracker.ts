@@ -6,19 +6,22 @@ type AgentProgressTrackerConfig = {
   messageId: number;
   taskDisplayId: string;
   taskTitle: string;
+  enabled?: boolean;
   updateIntervalMs?: number;
 };
 
 const DEFAULT_UPDATE_INTERVAL_MS = 2500;
 const MAX_STEPS = 10;
 
+const noopTracker = {
+  update: (_step: string, _status: ProgressStep["status"]): void => {},
+};
+
 export const createAgentProgressTracker = (
   config: AgentProgressTrackerConfig,
 ) => {
-  if (config.messageId === 0) {
-    return {
-      update: (_step: string, _status: ProgressStep["status"]): void => {},
-    };
+  if (config.messageId === 0 || config.enabled === false) {
+    return noopTracker;
   }
 
   const steps: ProgressStep[] = [];
