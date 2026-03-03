@@ -11,7 +11,23 @@ type PendingQuestion = {
   timeoutHandle: ReturnType<typeof setTimeout>;
 };
 
-// Schemas for request/response validation
+// --- Hono env type with context variables ---
+
+type BridgeDeps = {
+  notifier: Notifier;
+  queue?: TaskQueue;
+  agentManager?: AgentManager;
+};
+
+type BridgeEnv = {
+  Variables: {
+    deps: BridgeDeps;
+    pending: Map<string, PendingQuestion>;
+  };
+};
+
+// --- Zod schemas ---
+
 const AnswerBodySchema = z.object({
   answer: z.string(),
 });
@@ -58,22 +74,117 @@ const HealthResponseSchema = z.object({
   pending: z.number(),
 });
 
-const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
-const ANSWER_PORT = 3847;
+// --- Route definitions (static metadata, no runtime deps) ---
 
-type BridgeDeps = {
-  notifier: Notifier;
-  queue?: TaskQueue;
-  agentManager?: AgentManager;
-};
+const statusRoute = createRoute({
+  method: "get",
+  path: "/status",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: StatusResponseSchema,
+        },
+      },
+      description: "Queue status, active agents, and daily spend",
+    },
+  },
+});
+
+const deleteQueueRoute = createRoute({
+  method: "delete",
+  path: "/queue/{issueId}",
+  request: {
+    params: z.object({
+      issueId: z.string(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: SuccessResponseSchema,
+        },
+      },
+      description: "Task removed from queue",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Task not found in queue",
+    },
+    409: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Task is currently active",
+    },
+  },
+});
+
+const postAnswerRoute = createRoute({
+  method: "post",
+  path: "/answers/{taskId}",
+  request: {
+    params: z.object({
+      taskId: z.string(),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: AnswerBodySchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: SuccessResponseSchema,
+        },
+      },
+      description: "Answer submitted successfully",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "No pending question for this task",
+    },
+  },
+});
+
+const healthRoute = createRoute({
+  method: "get",
+  path: "/health",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: HealthResponseSchema,
+        },
+      },
+      description: "Health check with pending question count",
+    },
+  },
+});
+
+// --- App factory (fresh instance per bridge, deps injected via middleware) ---
 
 const createBridgeApp = (
   deps: BridgeDeps,
   pending: Map<string, PendingQuestion>,
-): OpenAPIHono<{}> => {
-  const app = new OpenAPIHono<{}>();
+): OpenAPIHono<BridgeEnv> => {
+  const app = new OpenAPIHono<BridgeEnv>();
 
-  // Global error handlers — consistent JSON responses
   app.onError((err, c) => {
     console.error(`[Bridge] ${err.message}`, err.stack);
     return c.json({ error: "Internal server error" }, 500);
@@ -83,24 +194,18 @@ const createBridgeApp = (
     return c.json({ error: "Not found" }, 404);
   });
 
-  // GET /status — queue + active agents + daily spend
-  const statusRoute = createRoute({
-    method: "get",
-    path: "/status",
-    responses: {
-      200: {
-        content: {
-          "application/json": {
-            schema: StatusResponseSchema,
-          },
-        },
-        description: "Queue status, active agents, and daily spend",
-      },
-    },
+  // Inject deps and pending into every request
+  app.use("*", async (c, next) => {
+    c.set("deps", deps);
+    c.set("pending", pending);
+    await next();
   });
 
+  // GET /status
   app.openapi(statusRoute, (c) => {
-    const queueEntries = (deps.queue?.entries() ?? []).map((e) => ({
+    const { deps: d } = c.var;
+
+    const queueEntries = (d.queue?.entries() ?? []).map((e) => ({
       issueId: e.task.issueId,
       projectIdentifier: e.task.projectIdentifier,
       sequenceId: e.task.sequenceId,
@@ -112,79 +217,42 @@ const createBridgeApp = (
       enqueuedAt: new Date(e.enqueuedAt).toISOString(),
     }));
 
-    const activeAgents = (deps.agentManager?.getActiveAgents() ?? []).map(
-      (a) => ({
-        issueId: a.task.issueId,
-        projectIdentifier: a.task.projectIdentifier,
-        sequenceId: a.task.sequenceId,
-        title: a.task.title,
-        phase: a.phase,
-        status: a.status,
-        startedAt: new Date(a.startedAt).toISOString(),
-        costUsd: a.costUsd,
-        retryCount: a.retryCount,
-      }),
-    );
+    const activeAgents = (d.agentManager?.getActiveAgents() ?? []).map((a) => ({
+      issueId: a.task.issueId,
+      projectIdentifier: a.task.projectIdentifier,
+      sequenceId: a.task.sequenceId,
+      title: a.task.title,
+      phase: a.phase,
+      status: a.status,
+      startedAt: new Date(a.startedAt).toISOString(),
+      costUsd: a.costUsd,
+      retryCount: a.retryCount,
+    }));
 
     return c.json(
       {
         queue: queueEntries,
         active: activeAgents,
-        dailySpend: deps.agentManager?.getDailySpend() ?? 0,
-        dailyBudget: deps.agentManager?.getDailyBudget() ?? 0,
+        dailySpend: d.agentManager?.getDailySpend() ?? 0,
+        dailyBudget: d.agentManager?.getDailyBudget() ?? 0,
       },
       200,
     );
   });
 
-  // DELETE /queue/:issueId — remove task from queue
-  const deleteQueueRoute = createRoute({
-    method: "delete",
-    path: "/queue/{issueId}",
-    request: {
-      params: z.object({
-        issueId: z.string(),
-      }),
-    },
-    responses: {
-      200: {
-        content: {
-          "application/json": {
-            schema: SuccessResponseSchema,
-          },
-        },
-        description: "Task removed from queue",
-      },
-      404: {
-        content: {
-          "application/json": {
-            schema: ErrorResponseSchema,
-          },
-        },
-        description: "Task not found in queue",
-      },
-      409: {
-        content: {
-          "application/json": {
-            schema: ErrorResponseSchema,
-          },
-        },
-        description: "Task is currently active",
-      },
-    },
-  });
-
+  // DELETE /queue/:issueId
   app.openapi(deleteQueueRoute, (c) => {
+    const { deps: d } = c.var;
     const { issueId } = c.req.valid("param");
 
-    if (deps.agentManager?.isTaskActive(issueId)) {
+    if (d.agentManager?.isTaskActive(issueId)) {
       return c.json(
         { error: "Task is currently active and cannot be removed" },
         409,
       );
     }
 
-    const removed = deps.queue?.remove(issueId) ?? false;
+    const removed = d.queue?.remove(issueId) ?? false;
     if (removed) {
       return c.json({ ok: true as const }, 200);
     }
@@ -193,79 +261,35 @@ const createBridgeApp = (
   });
 
   // POST /answers/:taskId
-  const postAnswerRoute = createRoute({
-    method: "post",
-    path: "/answers/{taskId}",
-    request: {
-      params: z.object({
-        taskId: z.string(),
-      }),
-      body: {
-        content: {
-          "application/json": {
-            schema: AnswerBodySchema,
-          },
-        },
-      },
-    },
-    responses: {
-      200: {
-        content: {
-          "application/json": {
-            schema: SuccessResponseSchema,
-          },
-        },
-        description: "Answer submitted successfully",
-      },
-      404: {
-        content: {
-          "application/json": {
-            schema: ErrorResponseSchema,
-          },
-        },
-        description: "No pending question for this task",
-      },
-    },
-  });
-
   app.openapi(postAnswerRoute, async (c) => {
+    const { pending: p } = c.var;
     const { taskId } = c.req.valid("param");
     const body = c.req.valid("json");
-    const question = pending.get(taskId);
+    const question = p.get(taskId);
 
     if (!question) {
       return c.json({ error: "No pending question for this task" }, 404);
     }
 
     clearTimeout(question.timeoutHandle);
-    pending.delete(taskId);
+    p.delete(taskId);
     question.resolve(body.answer);
 
     return c.json({ ok: true as const }, 200);
   });
 
-  // Health check
-  const healthRoute = createRoute({
-    method: "get",
-    path: "/health",
-    responses: {
-      200: {
-        content: {
-          "application/json": {
-            schema: HealthResponseSchema,
-          },
-        },
-        description: "Health check with pending question count",
-      },
-    },
-  });
-
+  // GET /health
   app.openapi(healthRoute, (c) => {
-    return c.json({ ok: true as const, pending: pending.size }, 200);
+    return c.json({ ok: true as const, pending: c.var.pending.size }, 200);
   });
 
   return app;
 };
+
+// --- Bridge (manages pending questions + answer server) ---
+
+const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
+const ANSWER_PORT = 3847;
 
 export const createTelegramBridge = (deps: BridgeDeps) => {
   const pending = new Map<string, PendingQuestion>();

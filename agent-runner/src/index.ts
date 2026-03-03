@@ -5,6 +5,7 @@ import { updateIssue } from "./plane/client";
 import { createTaskPoller } from "./poller/task-poller";
 import { createTaskQueue } from "./queue/task-queue";
 import { createStatePersistence } from "./state/persistence";
+import { createTelegramBridge } from "./telegram/bridge";
 import { createNoopNotifier, createNotifier } from "./telegram/notifier";
 import { startWebhookServer } from "./webhooks/server";
 import { ensureWorktreeGitignore } from "./worktree/manager";
@@ -162,6 +163,10 @@ const main = async (): Promise<void> => {
     },
   });
 
+  // Start Telegram bridge (answer server for agent questions)
+  const bridge = createTelegramBridge({ notifier, queue, agentManager });
+  bridge.startAnswerServer();
+
   // Start polling loop
   console.log(
     `Polling every ${config.agent.pollIntervalMs}ms, spawning every ${config.agent.spawnDelayMs}ms (max ${config.agent.maxConcurrent} concurrent)`,
@@ -280,6 +285,7 @@ const main = async (): Promise<void> => {
     clearInterval(processInterval);
 
     saveState();
+    bridge.stop();
 
     const active = agentManager.getActiveAgents();
     if (active.length > 0) {
