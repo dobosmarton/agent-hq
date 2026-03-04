@@ -69,7 +69,11 @@ Or use direct monitoring commands:
 - `/agent_queue` — View queued tasks
 - `/agent_health` — Check system health
 - `/agent_history 30` — Show last 30 days of executions
+- `/agent_history 14 VERDANDI` — Filter by project
 - `/agent_errors` — List recent failures
+- `/agent_logs HQ-42` — Execution timeline for a task
+- `/agent_dashboard` — Combined summary view
+- `/agent_export 7 csv` — Export history as CSV or JSON file
 
 When creating tasks, the agent proactively enriches your brief description into a structured issue with acceptance criteria, technical considerations, and edge cases.
 
@@ -244,21 +248,25 @@ The runner provides comprehensive monitoring capabilities for visibility into ag
 - `GET /health` — System health status with threshold checks (queue depth, budget, success rate)
 - `GET /history?days=N&project=X` — Execution history with filters
 - `GET /errors` — Recent failed tasks with error details
+- `GET /logs/:issueId` — Per-task execution timeline (all attempts)
 
 **Telegram commands:**
 
 - `/agent_status` — Shows running agents with runtime, cost, phase, and overall metrics
 - `/agent_queue` — Displays queued tasks with wait times and retry counts
 - `/agent_health` — System health check with alerts for degraded conditions
-- `/agent_history [days]` — Recent executions (default: 7 days) with success/failure status
+- `/agent_history [days] [project]` — Recent executions with optional project filter
 - `/agent_errors` — Recent errors with timestamps and details
+- `/agent_logs ISSUE_ID` — Execution timeline for a specific task (all attempts)
+- `/agent_dashboard` — Combined summary view (agents, queue, budget, metrics, issues)
+- `/agent_export [days] [format]` — Export execution history as JSON or CSV file
 
 **Proactive alerting:**
 
 - Automatically sends Telegram alerts when queue backs up (>20 tasks)
 - Alerts when daily budget threshold is reached (>90%)
 - Alerts when success rate drops below 70% (requires 10+ completed tasks)
-- Checks health every 10 minutes
+- Checks health every 10 minutes with 1-hour cooldown per alert type
 
 **Metrics tracked:**
 

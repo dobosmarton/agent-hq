@@ -28,6 +28,15 @@ export const extractTaskId = (text: string): string | null => {
 };
 
 /**
+ * Parse a days argument from a command string, with NaN and non-positive guard.
+ */
+export const parseDaysArg = (raw: string | undefined, defaultDays = 7): number => {
+  if (!raw) return defaultDays;
+  const n = parseInt(raw, 10);
+  return isNaN(n) || n <= 0 ? defaultDays : n;
+};
+
+/**
  * Split a message into chunks that fit Telegram's 4096 character limit.
  */
 export const chunkMessage = (text: string, maxLen = 4096): string[] => {

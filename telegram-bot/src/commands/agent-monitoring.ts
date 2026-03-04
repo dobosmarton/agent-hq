@@ -1,4 +1,5 @@
-import type { Context } from "grammy";
+import { InputFile, type Context } from "grammy";
+import { smartChunkMessage } from "../formatter";
 
 type AgentRunnerStatus = {
   queue: Array<{
@@ -255,10 +256,14 @@ export const handleAgentHealth = async (ctx: Context, agentRunnerUrl: string): P
 export const handleAgentHistory = async (
   ctx: Context,
   agentRunnerUrl: string,
-  days: number = 7
+  days: number = 7,
+  project?: string
 ): Promise<void> => {
   try {
-    const res = await fetch(`${agentRunnerUrl}/history?days=${days}`);
+    const params = new URLSearchParams({ days: String(days) });
+    if (project) params.set("project", project);
+
+    const res = await fetch(`${agentRunnerUrl}/history?${params.toString()}`);
     if (!res.ok) {
       await ctx.reply("⚠️ Failed to fetch execution history");
       return;
@@ -266,7 +271,8 @@ export const handleAgentHistory = async (
 
     const data = (await res.json()) as HistoryResponse;
 
-    const lines: string[] = [`<b>📜 Execution History (${days}d)</b>\n`];
+    const filterDesc = project ? ` — ${project}` : "";
+    const lines: string[] = [`<b>📜 Execution History (${days}d${filterDesc})</b>\n`];
 
     if (data.executions.length === 0) {
       lines.push("No executions in this period");
@@ -348,6 +354,212 @@ export const handleAgentErrors = async (ctx: Context, agentRunnerUrl: string): P
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("Agent errors error:", msg);
+    await ctx.reply(`⚠️ Error: ${msg}`);
+  }
+};
+
+type LogsResponse = {
+  issueId: string;
+  executions: HistoryResponse["executions"];
+};
+
+export const handleAgentLogs = async (
+  ctx: Context,
+  agentRunnerUrl: string,
+  issueId: string
+): Promise<void> => {
+  if (!issueId) {
+    await ctx.reply(
+      "Usage: <code>/agent_logs ISSUE_ID</code>\nExample: <code>/agent_logs HQ-42</code>",
+      { parse_mode: "HTML" }
+    );
+    return;
+  }
+
+  try {
+    const res = await fetch(`${agentRunnerUrl}/logs/${encodeURIComponent(issueId)}`);
+    if (!res.ok) {
+      await ctx.reply(`⚠️ Failed to fetch logs for ${issueId}`);
+      return;
+    }
+
+    const data = (await res.json()) as LogsResponse;
+    const lines: string[] = [`<b>📋 Execution Logs: ${issueId}</b>\n`];
+
+    if (data.executions.length === 0) {
+      lines.push(`No execution records found for <code>${issueId}</code>`);
+    } else {
+      lines.push(`${data.executions.length} execution attempt(s)\n`);
+
+      for (const [i, exec] of data.executions.entries()) {
+        const attempt = i + 1;
+        const status = exec.success ? "✅ Success" : `❌ Failed (${exec.errorType ?? "unknown"})`;
+        const started = formatTimestamp(exec.startedAt);
+        const completed = formatTimestamp(exec.completedAt);
+        const duration = formatDuration(exec.durationMs);
+        const retry = exec.retryCount > 0 ? ` (retry ${exec.retryCount})` : "";
+
+        lines.push(
+          `<b>Attempt ${attempt}${retry}</b>`,
+          `  Status: ${status}`,
+          `  Phase: ${exec.phase}`,
+          `  Started: ${started}`,
+          `  Completed: ${completed}`,
+          `  Duration: ${duration} | Cost: $${exec.costUsd.toFixed(2)}`
+        );
+      }
+    }
+
+    const message = lines.join("\n");
+    for (const chunk of smartChunkMessage(message)) {
+      await ctx.reply(chunk, { parse_mode: "HTML" });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("Agent logs error:", msg);
+    await ctx.reply(`⚠️ Error: ${msg}`);
+  }
+};
+
+export const handleAgentDashboard = async (ctx: Context, agentRunnerUrl: string): Promise<void> => {
+  try {
+    const [statusRes, healthRes] = await Promise.all([
+      fetch(`${agentRunnerUrl}/status`),
+      fetch(`${agentRunnerUrl}/health`),
+    ]);
+
+    if (!statusRes.ok || !healthRes.ok) {
+      await ctx.reply("⚠️ Failed to fetch dashboard data");
+      return;
+    }
+
+    const status = (await statusRes.json()) as AgentRunnerStatus;
+    const health = (await healthRes.json()) as HealthResponse;
+
+    const statusEmoji = health.status === "healthy" ? "💚" : "⚠️";
+    const lines: string[] = [
+      `<b>${statusEmoji} Agent Dashboard</b>\n`,
+      `Status: <b>${health.status.toUpperCase()}</b>`,
+    ];
+
+    // Active agents summary
+    if (status.active.length === 0) {
+      lines.push(`\n<b>🤖 Running:</b> none`);
+    } else {
+      lines.push(`\n<b>🤖 Running:</b> ${status.active.length} agent(s)`);
+      for (const agent of status.active.slice(0, 3)) {
+        const taskId = `${agent.projectIdentifier}-${agent.sequenceId}`;
+        const runtime = formatDuration(Date.now() - agent.startedAt);
+        lines.push(`  • <code>${taskId}</code> (${agent.phase}) — ${runtime}`);
+      }
+      if (status.active.length > 3) {
+        lines.push(`  ... and ${status.active.length - 3} more`);
+      }
+    }
+
+    // Queue summary
+    lines.push(`\n<b>📋 Queue:</b> ${status.queue.length} task(s)`);
+
+    // Budget
+    const budgetPct =
+      status.dailyBudget > 0
+        ? `${((status.dailySpend / status.dailyBudget) * 100).toFixed(0)}%`
+        : "n/a";
+    lines.push(
+      `\n<b>💰 Budget:</b> $${status.dailySpend.toFixed(2)} / $${status.dailyBudget.toFixed(2)} (${budgetPct})`
+    );
+
+    // Metrics
+    if (status.metrics) {
+      lines.push(
+        `\n<b>📊 Metrics</b>`,
+        `  Uptime: ${formatDuration(status.metrics.uptime)}`,
+        `  Tasks: ${status.metrics.totalTasks} (✅ ${status.metrics.successfulTasks} ❌ ${status.metrics.failedTasks})`,
+        `  Success rate: ${(status.metrics.successRate * 100).toFixed(1)}%`,
+        `  Avg duration: ${formatDuration(status.metrics.avgDurationMs)}`
+      );
+    }
+
+    // Health issues
+    if (health.issues.length > 0) {
+      lines.push(`\n<b>⚠️ Issues:</b>`);
+      for (const issue of health.issues) {
+        lines.push(`  • ${issue}`);
+      }
+    } else {
+      lines.push(`\n✅ No issues`);
+    }
+
+    await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("Agent dashboard error:", msg);
+    await ctx.reply(`⚠️ Error: ${msg}`);
+  }
+};
+
+const toCSV = (executions: HistoryResponse["executions"]): string => {
+  const header =
+    "issueId,projectIdentifier,sequenceId,title,phase,startedAt,completedAt,durationMs,costUsd,success,errorType,retryCount";
+  const rows = executions.map((e) =>
+    [
+      e.issueId,
+      e.projectIdentifier,
+      e.sequenceId,
+      `"${e.title.replace(/"/g, '""')}"`,
+      e.phase,
+      new Date(e.startedAt).toISOString(),
+      new Date(e.completedAt).toISOString(),
+      e.durationMs,
+      e.costUsd.toFixed(4),
+      e.success,
+      e.errorType ?? "",
+      e.retryCount,
+    ].join(",")
+  );
+  return [header, ...rows].join("\n");
+};
+
+export const handleAgentExport = async (
+  ctx: Context,
+  agentRunnerUrl: string,
+  days: number = 7,
+  format: "json" | "csv" = "json"
+): Promise<void> => {
+  try {
+    const res = await fetch(`${agentRunnerUrl}/history?days=${days}`);
+    if (!res.ok) {
+      await ctx.reply("⚠️ Failed to fetch history for export");
+      return;
+    }
+
+    const data = (await res.json()) as HistoryResponse;
+    const count = data.executions.length;
+
+    if (count === 0) {
+      await ctx.reply(`No executions found in the last ${days} day(s)`);
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    let content: string;
+    let filename: string;
+
+    if (format === "csv") {
+      content = toCSV(data.executions);
+      filename = `agent-history-${days}d-${timestamp}.csv`;
+    } else {
+      content = JSON.stringify(data.executions, null, 2);
+      filename = `agent-history-${days}d-${timestamp}.json`;
+    }
+
+    const buffer = Buffer.from(content, "utf-8");
+    await ctx.replyWithDocument(new InputFile(buffer, filename), {
+      caption: `Agent history: ${count} executions over last ${days} day(s)`,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("Agent export error:", msg);
     await ctx.reply(`⚠️ Error: ${msg}`);
   }
 };

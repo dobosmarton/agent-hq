@@ -221,6 +221,18 @@ const main = async (): Promise<void> => {
   // Save initial state (clears orphaned agents)
   saveState();
 
+  // Alert cooldown — prevent repeated alerts for the same condition
+  const ALERT_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+  const lastAlertedAt: Record<string, number> = {};
+  const shouldAlert = (key: string): boolean => {
+    const last = lastAlertedAt[key] ?? 0;
+    if (Date.now() - last >= ALERT_COOLDOWN_MS) {
+      lastAlertedAt[key] = Date.now();
+      return true;
+    }
+    return false;
+  };
+
   // Health check interval — proactive monitoring
   const healthCheckCycle = async (): Promise<void> => {
     try {
@@ -230,21 +242,29 @@ const main = async (): Promise<void> => {
       const dailyBudget = agentManager.getDailyBudget();
 
       // Alert on queue backup
-      if (queueDepth > 20) {
+      if (queueDepth > 20 && shouldAlert("queue")) {
         await notifier.sendMessage(
           `<b>⚠️ Queue Alert</b>\nQueue depth: ${queueDepth} tasks\nConsider checking agent health.`,
         );
       }
 
       // Alert on budget nearing limit
-      if (dailyBudget > 0 && dailySpend / dailyBudget > 0.9) {
+      if (
+        dailyBudget > 0 &&
+        dailySpend / dailyBudget > 0.9 &&
+        shouldAlert("budget")
+      ) {
         await notifier.sendMessage(
           `<b>⚠️ Budget Alert</b>\nDaily spend: $${dailySpend.toFixed(2)} / $${dailyBudget.toFixed(2)} (${((dailySpend / dailyBudget) * 100).toFixed(0)}%)\nNearing daily limit.`,
         );
       }
 
       // Alert on low success rate
-      if (metrics.totalTasks > 10 && metrics.successRate < 0.7) {
+      if (
+        metrics.totalTasks > 10 &&
+        metrics.successRate < 0.7 &&
+        shouldAlert("successRate")
+      ) {
         await notifier.sendMessage(
           `<b>⚠️ Success Rate Alert</b>\nSuccess rate: ${(metrics.successRate * 100).toFixed(0)}%\n${metrics.successfulTasks}/${metrics.totalTasks} tasks succeeded.`,
         );

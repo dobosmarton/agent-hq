@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Context } from "grammy";
-import { chunkMessage, extractTaskId, sendReply } from "../utils";
+import { chunkMessage, extractTaskId, parseDaysArg, sendReply } from "../utils";
 
 describe("extractTaskId", () => {
   it("extracts standard task ID", () => {
@@ -57,6 +57,40 @@ describe("sendReply", () => {
 
     await expect(sendReply(mockCtx(reply), "Hello")).rejects.toThrow("Network error");
     expect(reply).toHaveBeenCalledOnce();
+  });
+});
+
+describe("parseDaysArg", () => {
+  it("returns default when undefined", () => {
+    expect(parseDaysArg(undefined)).toBe(7);
+  });
+
+  it("returns default when empty string", () => {
+    expect(parseDaysArg("")).toBe(7);
+  });
+
+  it("parses valid number", () => {
+    expect(parseDaysArg("30")).toBe(30);
+  });
+
+  it("returns default for NaN input", () => {
+    expect(parseDaysArg("abc")).toBe(7);
+  });
+
+  it("returns default for zero", () => {
+    expect(parseDaysArg("0")).toBe(7);
+  });
+
+  it("returns default for negative", () => {
+    expect(parseDaysArg("-5")).toBe(7);
+  });
+
+  it("uses custom default", () => {
+    expect(parseDaysArg(undefined, 14)).toBe(14);
+  });
+
+  it("parses single digit", () => {
+    expect(parseDaysArg("1")).toBe(1);
   });
 });
 

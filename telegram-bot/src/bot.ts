@@ -7,10 +7,13 @@ import {
   handleAgentHealth,
   handleAgentHistory,
   handleAgentErrors,
+  handleAgentLogs,
+  handleAgentDashboard,
+  handleAgentExport,
 } from "./commands/agent-monitoring";
 import { smartChunkMessage } from "./formatter";
 import { EnvSchema, type GitHubConfig, type PlaneConfig } from "./types";
-import { extractTaskId, sendReply } from "./utils";
+import { extractTaskId, parseDaysArg, sendReply } from "./utils";
 
 const env = EnvSchema.parse(process.env);
 
@@ -56,10 +59,23 @@ if (env.AGENT_RUNNER_URL) {
   bot.command("agent_health", (ctx) => handleAgentHealth(ctx, agentRunnerUrl));
   bot.command("agent_history", (ctx) => {
     const args = ctx.message?.text?.split(" ") ?? [];
-    const days = args[1] ? parseInt(args[1], 10) : 7;
-    return handleAgentHistory(ctx, agentRunnerUrl, days);
+    const days = parseDaysArg(args[1]);
+    const project = args[2]?.toUpperCase() || undefined;
+    return handleAgentHistory(ctx, agentRunnerUrl, days, project);
   });
   bot.command("agent_errors", (ctx) => handleAgentErrors(ctx, agentRunnerUrl));
+  bot.command("agent_logs", (ctx) => {
+    const issueId = (ctx.message?.text?.split(" ")[1] ?? "").trim().toUpperCase();
+    return handleAgentLogs(ctx, agentRunnerUrl, issueId);
+  });
+  bot.command("agent_dashboard", (ctx) => handleAgentDashboard(ctx, agentRunnerUrl));
+  bot.command("agent_export", (ctx) => {
+    const args = ctx.message?.text?.split(" ") ?? [];
+    const days = parseDaysArg(args[1]);
+    const formatArg = args[2]?.toLowerCase();
+    const format: "json" | "csv" = formatArg === "csv" ? "csv" : "json";
+    return handleAgentExport(ctx, agentRunnerUrl, days, format);
+  });
 }
 
 // Reply relay: forward replies to agent questions to the agent-runner

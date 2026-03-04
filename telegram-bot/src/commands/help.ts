@@ -14,8 +14,11 @@ const HELP_TEXT = [
   "<code>/agent_status</code> — Show running agents & metrics",
   "<code>/agent_queue</code> — Show queued tasks",
   "<code>/agent_health</code> — System health check",
-  "<code>/agent_history [days]</code> — Recent executions (default: 7d)",
+  "<code>/agent_history [days] [project]</code> — Recent executions",
   "<code>/agent_errors</code> — Recent errors",
+  "<code>/agent_logs ISSUE_ID</code> — Execution timeline for a task",
+  "<code>/agent_dashboard</code> — Combined summary view",
+  "<code>/agent_export [days] [format]</code> — Export history (json/csv)",
 ].join("\n");
 
 export const handleStart = async (ctx: Context): Promise<void> => {

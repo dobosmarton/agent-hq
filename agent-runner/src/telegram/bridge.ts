@@ -142,14 +142,13 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
       if (req.method === "GET" && req.url?.startsWith("/history")) {
         setCors();
         const url = new URL(req.url, `http://${req.headers.host}`);
-        const days = parseInt(url.searchParams.get("days") ?? "7", 10);
+        const daysRaw = parseInt(url.searchParams.get("days") ?? "7", 10);
+        const days = isNaN(daysRaw) || daysRaw <= 0 ? 7 : daysRaw;
         const project = url.searchParams.get("project");
 
-        let executions = deps.executionHistory?.getRecent(100) ?? [];
-
-        // Filter by time range
         const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-        executions = executions.filter((e) => e.completedAt >= cutoff);
+        let executions =
+          deps.executionHistory?.getByTimeRange(cutoff, Date.now()) ?? [];
 
         // Filter by project if specified
         if (project) {
@@ -160,6 +159,27 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
 
         res.writeHead(200);
         res.end(JSON.stringify({ executions }));
+        return;
+      }
+
+      // GET /logs/{issueId} — per-task execution timeline
+      if (req.method === "GET" && req.url?.startsWith("/logs/")) {
+        setCors();
+        const issueId = decodeURIComponent(req.url.slice("/logs/".length));
+
+        if (!issueId) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "issueId is required" }));
+          return;
+        }
+
+        const all = deps.executionHistory?.getAll() ?? [];
+        const executions = all
+          .filter((e) => e.issueId === issueId)
+          .sort((a, b) => a.startedAt - b.startedAt);
+
+        res.writeHead(200);
+        res.end(JSON.stringify({ issueId, executions }));
         return;
       }
 
