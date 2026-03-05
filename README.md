@@ -444,3 +444,4 @@ ssh -i ~/.ssh/<ssh-key-name> deploy@<vps-ip>
 - [`implementation-plan.md`](./implementation-plan.md) — Full phased implementation plan
 - [`phase2-vps-plane-setup.md`](./phase2-vps-plane-setup.md) — Plane deployment guide
 - [`phase3-observability-setup.md`](./phase3-observability-setup.md) — Observability dashboard setup
+- [`MASTRA_INTEGRATION_INVESTIGATION.md`](./MASTRA_INTEGRATION_INVESTIGATION.md) — Mastra framework expansion opportunities analysis
