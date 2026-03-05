@@ -38,7 +38,7 @@ ${skillsContent}${resumeSection}
 ${resumeContext ? "Review and update the implementation plan based on new feedback." : "Evaluate whether this task should be implemented, and if so, create a detailed plan. Do NOT make any code changes."}
 
 ## Instructions
-1. **MANDATORY: Load all coding skills listed in "Mandatory Coding Standards" above** using the load_skill tool — these define the planning methodology, quality standards, and coding conventions you must follow throughout this task
+1. **MANDATORY: Load the coding skills relevant to this project's language and task from "Mandatory Coding Standards" above** using the load_skill tool — these define the planning methodology, quality standards, and coding conventions you must follow throughout this task
 2. Follow the methodology from the loaded skills to assess feasibility and create the plan
 3. Post your assessment or plan as a comment using the add_task_comment tool
 4. The comment MUST start with the ${PLAN_MARKER} marker (this is how the system detects the plan)
@@ -145,7 +145,7 @@ ${skillsContent}${resumeSection}
 ${ciSection}
 
 ## Instructions
-1. **MANDATORY: Before writing any code**, load the coding skills listed in "Mandatory Coding Standards" above using the load_skill tool — these define coding conventions and standards you must follow throughout implementation
+1. **MANDATORY: Before writing any code**, load the coding skills relevant to this project's language and task from "Mandatory Coding Standards" above using the load_skill tool — these define coding conventions and standards you must follow throughout implementation
 ${resumeContext ? "2" : "2"}. Read the plan and human feedback from the comments above carefully
 ${resumeContext ? "3. Review the previous work in the git history to understand what has been done\n4. Continue implementation from where it left off, incorporating new feedback" : "3. Implement the changes described in the plan"}
 ${resumeContext ? "5" : "4"}. Write or update tests if the project has a test framework set up

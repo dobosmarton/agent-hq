@@ -50,7 +50,7 @@ If the task IS worth doing, create a plan with these sections:
 <p>High-level description. Prefer the simplest solution that works.</p>
 <h3>Files to Change</h3>
 <ul>
-  <li><code>path/to/file.ts</code> — what changes and why</li>
+  <li><code>path/to/file.ext</code> — what changes and why</li>
 </ul>
 <h3>Effort Estimate</h3>
 <p>Small (< 100 lines) | Medium (100-300 lines) | Large (300+ lines)</p>
