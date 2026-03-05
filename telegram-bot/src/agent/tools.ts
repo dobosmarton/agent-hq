@@ -183,7 +183,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
   listProjects: createTool({
     id: "list_projects",
     description:
-      "List all projects in the workspace. Returns project name and identifier for each.",
+      "List all projects in the workspace with their names and identifiers. Use this to discover available projects or resolve a project name to its identifier.",
     inputSchema: z.object({}),
     outputSchema: z.object({
       projects: z.array(
@@ -207,7 +207,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
   listTasks: createTool({
     id: "list_tasks",
     description:
-      "List tasks for a specific project. By default shows open tasks (backlog, todo, in progress). Can optionally filter by specific state names.",
+      "List tasks for a specific project, showing task ID, title, state, and priority. By default returns open tasks (Backlog, Todo, In Progress). Can optionally filter by specific state names (e.g. 'Plan Review', 'Done').",
     inputSchema: z.object({
       project_identifier: z
         .string()
@@ -333,7 +333,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
   getTaskDetails: createTool({
     id: "get_task_details",
     description:
-      "Get full details of a specific task including description, timestamps, and metadata. Use the task ID format like 'VERDANDI-5'.",
+      "Get full details of a specific task including description, timestamps, state, priority, and a link to view it on the board.",
     inputSchema: z.object({
       task_id: z
         .string()
@@ -385,7 +385,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
 
   listTaskComments: createTool({
     id: "list_task_comments",
-    description: "List all comments on a specific task. Use the task ID format like 'VERDANDI-5'.",
+    description: "List all comments on a specific task, including status updates, human feedback, and agent notes. For retrieving the agent's implementation plan specifically, prefer get_task_plan instead.",
     inputSchema: z.object({
       task_id: z
         .string()
@@ -430,6 +430,57 @@ export const createPlaneTools = (config: PlaneConfig) => ({
           created_at: c.created_at,
           author: c.actor_detail?.display_name ?? "Unknown",
         })),
+      };
+    },
+  }),
+
+  getTaskPlan: createTool({
+    id: "get_task_plan",
+    description:
+      "Get the agent's implementation plan for a task. Returns the full plan posted during the planning phase. Present the complete plan content to the user without summarizing. Returns has_plan: false if no plan exists yet.",
+    inputSchema: z.object({
+      task_id: z
+        .string()
+        .describe("The task identifier in format PROJECT-NUMBER (e.g. 'HQ-42')."),
+    }),
+    outputSchema: z.object({
+      plan_html: z.string().optional(),
+      has_plan: z.boolean(),
+      error: z.string().optional(),
+    }),
+    execute: async ({ task_id }) => {
+      const parsed = parseIssueIdentifier(task_id);
+      if (!parsed) {
+        return {
+          has_plan: false,
+          error: `Invalid task ID format. Expected format: PROJECT-NUMBER (e.g. HQ-42)`,
+        };
+      }
+
+      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      if (!project) {
+        return { has_plan: false, error: `Project "${parsed.projectIdentifier}" not found` };
+      }
+
+      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      if (!issue) {
+        return { has_plan: false, error: `Task ${task_id} not found` };
+      }
+
+      const comments = await listIssueComments(config, project.id, issue.id);
+      const PLAN_MARKER = "<!-- AGENT_PLAN -->";
+      const planComment = comments.find((c) => c.comment_html.includes(PLAN_MARKER));
+
+      if (!planComment) {
+        return { has_plan: false };
+      }
+
+      const markerIndex = planComment.comment_html.indexOf(PLAN_MARKER);
+      const planContent = planComment.comment_html.slice(markerIndex + PLAN_MARKER.length).trim();
+
+      return {
+        has_plan: true,
+        plan_html: planContent,
       };
     },
   }),
