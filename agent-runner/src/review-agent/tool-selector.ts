@@ -1,8 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { ReviewContext, ReviewResult } from "./types";
 import type { ReviewTool, ToolSelectionResult } from "./review-tools";
 import { buildToolDescriptions } from "./review-tools";
 import { z } from "zod";
+import { extractTextContent, parseClaudeJsonResponse } from "./parse-response";
 
 /**
  * Schema for tool selection response
@@ -17,26 +18,22 @@ const ToolSelectionSchema = z.object({
   rationale: z.string(),
 });
 
-type ToolSelection = z.infer<typeof ToolSelectionSchema>;
-
 /**
  * Selects which review tools to use based on PR context
  *
  * @param context - Review context with PR and task information
  * @param availableTools - Available review tools
- * @param apiKey - Anthropic API key
+ * @param client - Anthropic API client
  * @param model - Claude model to use
  * @returns Selected tools with reasons
  */
 export const selectReviewTools = async (
   context: ReviewContext,
   availableTools: readonly ReviewTool[],
-  apiKey: string,
+  client: Anthropic,
   model: string = "claude-3-5-sonnet-20241022",
 ): Promise<ReviewResult<readonly ToolSelectionResult[]>> => {
   try {
-    const client = new Anthropic({ apiKey });
-
     const toolDescriptions = buildToolDescriptions(availableTools);
 
     const systemPrompt = `You are a code review coordinator. Your job is to select which specialized review tools should be used to review a pull request.
@@ -94,45 +91,21 @@ Select the most relevant review tools and explain your choices.`;
       ],
     });
 
-    // Extract text from response
-    const textContent = response.content.find((block) => block.type === "text");
-    if (!textContent || textContent.type !== "text") {
-      return {
-        success: false,
-        error: "No text content in tool selection response",
-      };
+    const textResult = extractTextContent(response.content, "Tool Selector");
+    if (!textResult.success) {
+      return textResult;
     }
 
-    // Parse JSON
-    let jsonText = textContent.text.trim();
-    if (jsonText.startsWith("```json")) {
-      jsonText = jsonText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
-    } else if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/^```\s*/i, "").replace(/\s*```$/i, "");
+    const selectionResult = parseClaudeJsonResponse(
+      textResult.data,
+      ToolSelectionSchema,
+      "Tool Selector",
+    );
+    if (!selectionResult.success) {
+      return selectionResult;
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch (parseError) {
-      console.error("❌ Tool Selector: Failed to parse JSON response");
-      return {
-        success: false,
-        error: `Failed to parse tool selection: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
-      };
-    }
-
-    // Validate response
-    const validationResult = ToolSelectionSchema.safeParse(parsed);
-    if (!validationResult.success) {
-      console.error("❌ Tool Selector: Invalid response format");
-      return {
-        success: false,
-        error: `Invalid tool selection format: ${validationResult.error.message}`,
-      };
-    }
-
-    const selection: ToolSelection = validationResult.data;
+    const selection = selectionResult.data;
 
     // Map tool names to actual tools
     const selectedTools: ToolSelectionResult[] = [];

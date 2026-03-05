@@ -1,6 +1,6 @@
 import type { Config, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
-import type { ReviewAgentOrchestrator } from "../review-agent/orchestrator";
+import type { ReviewOrchestrator } from "../review-agent/orchestrator";
 import { extractTaskIds } from "./task-matcher";
 import type { GitHubPullRequestEvent, WebhookProcessResult } from "./types";
 import { updateMultipleTasks } from "./updater";
@@ -112,7 +112,7 @@ export const handlePullRequestEvent = async (
  */
 export const handlePullRequestReviewTrigger = async (
   event: GitHubPullRequestEvent,
-  reviewAgent: ReviewAgentOrchestrator | undefined,
+  reviewAgent: ReviewOrchestrator | undefined,
   taskPoller: TaskPoller,
   config: Config,
 ): Promise<WebhookProcessResult> => {

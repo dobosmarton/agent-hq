@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import type {
   ReviewContext,
   ReviewResult,
@@ -7,6 +7,7 @@ import type {
 } from "./types";
 import type { ToolSelectionResult } from "./review-tools";
 import { CodeAnalysisResultSchema } from "./types";
+import { extractTextContent, parseClaudeJsonResponse } from "./parse-response";
 
 /**
  * Review result from a single tool
@@ -35,14 +36,13 @@ export type AggregatedReview = {
 const executeReviewTool = async (
   context: ReviewContext,
   toolSelection: ToolSelectionResult,
-  apiKey: string,
+  client: Anthropic,
   model: string,
 ): Promise<ReviewResult<ToolReviewResult>> => {
   const startTime = Date.now();
 
   try {
     const { tool, reason } = toolSelection;
-    const client = new Anthropic({ apiKey });
 
     console.log(`  🔍 ${tool.category}: Starting review... (${reason})`);
 
@@ -95,43 +95,21 @@ Perform a ${tool.category} review of these code changes.`;
       ],
     });
 
-    // Extract and parse response
-    const textContent = response.content.find((block) => block.type === "text");
-    if (!textContent || textContent.type !== "text") {
-      return {
-        success: false,
-        error: `No text content in ${tool.category} review response`,
-      };
+    const textResult = extractTextContent(response.content, tool.category);
+    if (!textResult.success) {
+      return textResult;
     }
 
-    let jsonText = textContent.text.trim();
-    if (jsonText.startsWith("```json")) {
-      jsonText = jsonText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
-    } else if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/^```\s*/i, "").replace(/\s*```$/i, "");
+    const analysisResult = parseClaudeJsonResponse(
+      textResult.data,
+      CodeAnalysisResultSchema,
+      tool.category,
+    );
+    if (!analysisResult.success) {
+      return analysisResult;
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch (parseError) {
-      console.error(`  ❌ ${tool.category}: Failed to parse JSON`);
-      return {
-        success: false,
-        error: `Failed to parse ${tool.category} review: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
-      };
-    }
-
-    const validationResult = CodeAnalysisResultSchema.safeParse(parsed);
-    if (!validationResult.success) {
-      console.error(`  ❌ ${tool.category}: Invalid response format`);
-      return {
-        success: false,
-        error: `Invalid ${tool.category} review format: ${validationResult.error.message}`,
-      };
-    }
-
-    const analysis = validationResult.data;
+    const analysis = analysisResult.data;
     const executionTimeMs = Date.now() - startTime;
 
     console.log(
@@ -148,7 +126,6 @@ Perform a ${tool.category} review of these code changes.`;
       },
     };
   } catch (error: unknown) {
-    const executionTimeMs = Date.now() - startTime;
     console.error(`  ❌ ${toolSelection.tool.category}: Error:`, error);
 
     if (error instanceof Error) {
@@ -167,14 +144,14 @@ Perform a ${tool.category} review of these code changes.`;
  *
  * @param context - Review context
  * @param selectedTools - Tools to execute
- * @param apiKey - Anthropic API key
+ * @param client - Anthropic API client
  * @param model - Claude model to use
  * @returns Aggregated review results
  */
 export const executeParallelReviews = async (
   context: ReviewContext,
   selectedTools: readonly ToolSelectionResult[],
-  apiKey: string,
+  client: Anthropic,
   model: string,
 ): Promise<ReviewResult<AggregatedReview>> => {
   try {
@@ -186,7 +163,7 @@ export const executeParallelReviews = async (
 
     // Execute all reviews in parallel
     const reviewPromises = selectedTools.map((toolSelection) =>
-      executeReviewTool(context, toolSelection, apiKey, model),
+      executeReviewTool(context, toolSelection, client, model),
     );
 
     const results = await Promise.all(reviewPromises);

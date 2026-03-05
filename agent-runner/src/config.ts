@@ -79,7 +79,15 @@ const ConfigSchema = z.object({
     path: "/webhooks/github/pr",
     taskIdPattern: "([A-Z]+-\\d+)",
   }),
-  review: ReviewConfigSchema.default({}),
+  review: ReviewConfigSchema.optional().default({
+    enabled: false,
+    triggerOnOpened: true,
+    triggerOnSynchronize: true,
+    severityThreshold: "major",
+    maxDiffSizeKb: 100,
+    claudeModel: "claude-3-5-sonnet-20241022",
+    useParallelReview: true,
+  }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

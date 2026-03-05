@@ -1,24 +1,23 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { CodeAnalysisResult, ReviewContext, ReviewResult } from "./types";
 import { CodeAnalysisResultSchema } from "./types";
 import { buildReviewPrompt, buildSystemPrompt } from "./prompts";
+import { extractTextContent, parseClaudeJsonResponse } from "./parse-response";
 
 /**
  * Analyzes code changes using Claude API
  *
  * @param context - Review context with code changes and task information
- * @param apiKey - Anthropic API key
- * @param model - Claude model to use (default: claude-3-5-sonnet-20241022)
+ * @param client - Anthropic API client
+ * @param model - Claude model to use
  * @returns Analysis result with issues and overall assessment
  */
 export const analyzeCode = async (
   context: ReviewContext,
-  apiKey: string,
-  model: string = "claude-3-5-sonnet-20241022",
+  client: Anthropic,
+  model: string,
 ): Promise<ReviewResult<CodeAnalysisResult>> => {
   try {
-    const client = new Anthropic({ apiKey });
-
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildReviewPrompt(context);
 
@@ -36,51 +35,21 @@ export const analyzeCode = async (
       ],
     });
 
-    // Extract text from response
-    const textContent = response.content.find(
-      (block: { type: string }) => block.type === "text",
+    const textResult = extractTextContent(response.content, "Review");
+    if (!textResult.success) {
+      return textResult;
+    }
+
+    const analysisResult = parseClaudeJsonResponse(
+      textResult.data,
+      CodeAnalysisResultSchema,
+      "Review",
     );
-    if (!textContent || textContent.type !== "text") {
-      return {
-        success: false,
-        error: "No text content in Claude response",
-      };
+    if (!analysisResult.success) {
+      return analysisResult;
     }
 
-    // Parse JSON from response
-    let jsonText = textContent.text.trim();
-
-    // Remove markdown code fences if present
-    if (jsonText.startsWith("```json")) {
-      jsonText = jsonText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
-    } else if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/^```\s*/i, "").replace(/\s*```$/i, "");
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch (parseError) {
-      console.error("❌ Review: Failed to parse Claude response as JSON");
-      console.error("Response text:", jsonText.substring(0, 500));
-      return {
-        success: false,
-        error: `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
-      };
-    }
-
-    // Validate response against schema
-    const validationResult = CodeAnalysisResultSchema.safeParse(parsed);
-    if (!validationResult.success) {
-      console.error("❌ Review: Invalid response format from Claude");
-      console.error("Validation errors:", validationResult.error.message);
-      return {
-        success: false,
-        error: `Invalid response format: ${validationResult.error.message}`,
-      };
-    }
-
-    const analysis = validationResult.data;
+    const analysis = analysisResult.data;
 
     console.log(
       `✅ Review: Analysis complete - ${analysis.overallAssessment}, ${analysis.issues.length} issue(s)`,

@@ -2,32 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { selectReviewTools } from "../tool-selector";
 import type { ReviewContext } from "../types";
 import type { ReviewTool } from "../review-tools";
+import type Anthropic from "@anthropic-ai/sdk";
 
-// Mock Anthropic — must use `function` (not arrow) so it can be called with `new`
-vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(function () {
-    return {
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                selectedTools: [
-                  {
-                    toolName: "review_security",
-                    reason: "Code handles authentication",
-                  },
-                ],
-                rationale: "Security review needed for auth code",
-              }),
-            },
-          ],
-        }),
-      },
-    };
-  }),
-}));
+/**
+ * Creates a mock Anthropic client with the given create implementation
+ */
+const createMockClient = (
+  createFn: Anthropic["messages"]["create"],
+): Anthropic =>
+  ({
+    messages: { create: createFn },
+  }) as unknown as Anthropic;
 
 describe("selectReviewTools", () => {
   const mockContext: ReviewContext = {
@@ -83,10 +68,29 @@ describe("selectReviewTools", () => {
   });
 
   it("should select relevant review tools based on PR context", async () => {
+    const mockClient = createMockClient(
+      vi.fn().mockResolvedValue({
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              selectedTools: [
+                {
+                  toolName: "review_security",
+                  reason: "Code handles authentication",
+                },
+              ],
+              rationale: "Security review needed for auth code",
+            }),
+          },
+        ],
+      }),
+    );
+
     const result = await selectReviewTools(
       mockContext,
       mockTools,
-      "test-api-key",
+      mockClient,
       "claude-3-5-sonnet-20241022",
     );
 
@@ -99,20 +103,14 @@ describe("selectReviewTools", () => {
   });
 
   it("should handle API errors gracefully", async () => {
-    const Anthropic = await import("@anthropic-ai/sdk");
-    const mockCreate = vi.fn().mockRejectedValue(new Error("API error"));
-    vi.mocked(Anthropic.default).mockImplementation(function () {
-      return {
-        messages: {
-          create: mockCreate,
-        },
-      } as any;
-    });
+    const mockClient = createMockClient(
+      vi.fn().mockRejectedValue(new Error("API error")),
+    );
 
     const result = await selectReviewTools(
       mockContext,
       mockTools,
-      "test-api-key",
+      mockClient,
       "claude-3-5-sonnet-20241022",
     );
 
@@ -120,27 +118,21 @@ describe("selectReviewTools", () => {
   });
 
   it("should handle invalid response format", async () => {
-    const Anthropic = await import("@anthropic-ai/sdk");
-    const mockCreate = vi.fn().mockResolvedValue({
-      content: [
-        {
-          type: "text",
-          text: "invalid json",
-        },
-      ],
-    });
-    vi.mocked(Anthropic.default).mockImplementation(function () {
-      return {
-        messages: {
-          create: mockCreate,
-        },
-      } as any;
-    });
+    const mockClient = createMockClient(
+      vi.fn().mockResolvedValue({
+        content: [
+          {
+            type: "text",
+            text: "invalid json",
+          },
+        ],
+      }),
+    );
 
     const result = await selectReviewTools(
       mockContext,
       mockTools,
-      "test-api-key",
+      mockClient,
       "claude-3-5-sonnet-20241022",
     );
 

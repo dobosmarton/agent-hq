@@ -1,9 +1,10 @@
+import Anthropic from "@anthropic-ai/sdk";
 import type { PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
 import { addComment, getIssue } from "../plane/client";
-import { GitHubClient } from "../github/client";
+import { createGitHubClient } from "../github/client";
 import { loadSkills } from "../skills/loader";
-import type { ReviewContext, ReviewResult } from "./types";
+import type { ReviewContext, ReviewResult, CodeAnalysisResult } from "./types";
 import { analyzeCode } from "./analyzer";
 import { postReviewToGitHub } from "./github-reviewer";
 import { loadReviewTools } from "./review-tools";
@@ -26,16 +27,73 @@ export type ReviewAgentConfig = {
 };
 
 /**
- * Review agent orchestrator that coordinates the review process
+ * Handles analysis errors by posting to Plane
  */
-export class ReviewAgentOrchestrator {
-  constructor(
-    private readonly reviewConfig: ReviewAgentConfig,
-    private readonly planeConfig: PlaneConfig,
-    private readonly taskPoller: TaskPoller,
-    private readonly anthropicApiKey: string,
-    private readonly githubToken: string,
-  ) {}
+const handleAnalysisError = (
+  planeConfig: PlaneConfig,
+  error: string,
+  projectId: string,
+  taskId: string,
+): ReviewResult<void> => {
+  console.error(`❌ Review: Analysis failed: ${error}`);
+
+  // Post error comment to Plane
+  void addComment(
+    planeConfig,
+    projectId,
+    taskId,
+    `<p><strong>⚠️ Automated PR Review Failed</strong></p><p>Error: ${error}</p><p>Please review the PR manually.</p>`,
+  ).catch((err: unknown) => {
+    console.error(`❌ Review: Failed to post error comment to Plane:`, err);
+  });
+
+  return { success: false, error };
+};
+
+/**
+ * Builds the summary to post to Plane task
+ */
+const buildPlaneSummary = (
+  analysis: CodeAnalysisResult | AggregatedReview,
+  prNumber: number,
+  prUrl: string,
+): string => {
+  const header =
+    analysis.overallAssessment === "approve"
+      ? "<h3>✅ Automated PR Review - No Issues Found</h3>"
+      : analysis.overallAssessment === "request_changes"
+        ? "<h3>❌ Automated PR Review - Changes Requested</h3>"
+        : "<h3>💬 Automated PR Review - Comments</h3>";
+
+  const prLink = `<p><strong>PR:</strong> <a href="${prUrl}">#${prNumber}</a></p>`;
+
+  const summary = `<p>${analysis.summary}</p>`;
+
+  // Show which tools were used if it's an aggregated review
+  const toolsUsed =
+    "toolsUsed" in analysis
+      ? `<p><em>Review tools used: ${analysis.toolsUsed.join(", ")}</em></p>`
+      : "";
+
+  const issuesList =
+    analysis.issues.length > 0
+      ? `<p><strong>Issues Found:</strong></p><ul>${analysis.issues.map((issue) => `<li><strong>${issue.severity} - ${issue.category}:</strong> ${issue.description}${issue.suggestion ? `<br/>💡 ${issue.suggestion}` : ""}</li>`).join("")}</ul>`
+      : "<p><em>No issues found. Code looks good!</em></p>";
+
+  return `${header}${prLink}${summary}${toolsUsed}${issuesList}<p><em>🤖 Automated review by PR Review Agent</em></p>`;
+};
+
+/**
+ * Creates a review agent orchestrator that coordinates the review process
+ */
+export const createReviewOrchestrator = (
+  reviewConfig: ReviewAgentConfig,
+  planeConfig: PlaneConfig,
+  _taskPoller: TaskPoller,
+  anthropicApiKey: string,
+  githubToken: string,
+) => {
+  const anthropicClient = new Anthropic({ apiKey: anthropicApiKey });
 
   /**
    * Reviews a pull request
@@ -47,7 +105,7 @@ export class ReviewAgentOrchestrator {
    * @param projectId - Plane project ID
    * @returns Review result
    */
-  public reviewPullRequest = async (
+  const reviewPullRequest = async (
     owner: string,
     repo: string,
     prNumber: number,
@@ -60,8 +118,8 @@ export class ReviewAgentOrchestrator {
       );
 
       // Create GitHub client
-      const githubClient = new GitHubClient({
-        token: this.githubToken,
+      const githubClient = createGitHubClient({
+        token: githubToken,
         owner,
         repo,
       });
@@ -90,8 +148,8 @@ export class ReviewAgentOrchestrator {
 
       // Check diff size
       const diffSizeKb = Buffer.byteLength(diff, "utf-8") / 1024;
-      if (diffSizeKb > this.reviewConfig.maxDiffSizeKb) {
-        const message = `⚠️ Review: Diff too large (${diffSizeKb.toFixed(1)}KB > ${this.reviewConfig.maxDiffSizeKb}KB), skipping automated review`;
+      if (diffSizeKb > reviewConfig.maxDiffSizeKb) {
+        const message = `⚠️ Review: Diff too large (${diffSizeKb.toFixed(1)}KB > ${reviewConfig.maxDiffSizeKb}KB), skipping automated review`;
         console.log(message);
 
         void githubClient
@@ -108,7 +166,7 @@ export class ReviewAgentOrchestrator {
 
       // Fetch task details
       console.log(`📥 Review: Fetching task details from Plane...`);
-      const task = await getIssue(this.planeConfig, projectId, taskId);
+      const task = await getIssue(planeConfig, projectId, taskId);
       if (!task) {
         return {
           success: false,
@@ -142,7 +200,7 @@ export class ReviewAgentOrchestrator {
       // Choose review strategy based on configuration
       let analysis: CodeAnalysisResult | AggregatedReview;
 
-      if (this.reviewConfig.useParallelReview) {
+      if (reviewConfig.useParallelReview) {
         // Use parallel review with specialized tools
         const reviewTools = loadReviewTools(skills);
 
@@ -152,12 +210,13 @@ export class ReviewAgentOrchestrator {
           );
           const analysisResult = await analyzeCode(
             context,
-            this.anthropicApiKey,
-            this.reviewConfig.claudeModel,
+            anthropicClient,
+            reviewConfig.claudeModel,
           );
 
           if (!analysisResult.success) {
-            return this.handleAnalysisError(
+            return handleAnalysisError(
+              planeConfig,
               analysisResult.error,
               projectId,
               taskId,
@@ -170,15 +229,16 @@ export class ReviewAgentOrchestrator {
           const toolSelectionResult = await selectReviewTools(
             context,
             reviewTools,
-            this.anthropicApiKey,
-            this.reviewConfig.claudeModel,
+            anthropicClient,
+            reviewConfig.claudeModel,
           );
 
           if (!toolSelectionResult.success) {
             console.error(
               `❌ Review: Tool selection failed: ${toolSelectionResult.error}`,
             );
-            return this.handleAnalysisError(
+            return handleAnalysisError(
+              planeConfig,
               toolSelectionResult.error,
               projectId,
               taskId,
@@ -191,15 +251,16 @@ export class ReviewAgentOrchestrator {
           const parallelResult = await executeParallelReviews(
             context,
             selectedTools,
-            this.anthropicApiKey,
-            this.reviewConfig.claudeModel,
+            anthropicClient,
+            reviewConfig.claudeModel,
           );
 
           if (!parallelResult.success) {
             console.error(
               `❌ Review: Parallel review failed: ${parallelResult.error}`,
             );
-            return this.handleAnalysisError(
+            return handleAnalysisError(
+              planeConfig,
               parallelResult.error,
               projectId,
               taskId,
@@ -212,12 +273,13 @@ export class ReviewAgentOrchestrator {
         // Use single-pass review
         const analysisResult = await analyzeCode(
           context,
-          this.anthropicApiKey,
-          this.reviewConfig.claudeModel,
+          anthropicClient,
+          reviewConfig.claudeModel,
         );
 
         if (!analysisResult.success) {
-          return this.handleAnalysisError(
+          return handleAnalysisError(
+            planeConfig,
             analysisResult.error,
             projectId,
             taskId,
@@ -241,13 +303,9 @@ export class ReviewAgentOrchestrator {
 
       // Post summary to Plane task
       console.log(`📝 Review: Posting summary to Plane task...`);
-      const planeSummary = this.buildPlaneSummary(
-        analysis,
-        prNumber,
-        pr.html_url,
-      );
+      const planeSummary = buildPlaneSummary(analysis, prNumber, pr.html_url);
 
-      void addComment(this.planeConfig, projectId, taskId, planeSummary).catch(
+      void addComment(planeConfig, projectId, taskId, planeSummary).catch(
         (err: unknown) => {
           console.error(`❌ Review: Failed to post summary to Plane:`, err);
         },
@@ -266,62 +324,7 @@ export class ReviewAgentOrchestrator {
     }
   };
 
-  /**
-   * Handles analysis errors by posting to Plane
-   */
-  private handleAnalysisError = (
-    error: string,
-    projectId: string,
-    taskId: string,
-  ): ReviewResult<void> => {
-    console.error(`❌ Review: Analysis failed: ${error}`);
+  return { reviewPullRequest };
+};
 
-    // Post error comment to Plane
-    void addComment(
-      this.planeConfig,
-      projectId,
-      taskId,
-      `<p><strong>⚠️ Automated PR Review Failed</strong></p><p>Error: ${error}</p><p>Please review the PR manually.</p>`,
-    ).catch((err: unknown) => {
-      console.error(`❌ Review: Failed to post error comment to Plane:`, err);
-    });
-
-    return { success: false, error };
-  };
-
-  /**
-   * Builds the summary to post to Plane task
-   */
-  private buildPlaneSummary = (
-    analysis: CodeAnalysisResult | AggregatedReview,
-    prNumber: number,
-    prUrl: string,
-  ): string => {
-    const header =
-      analysis.overallAssessment === "approve"
-        ? "<h3>✅ Automated PR Review - No Issues Found</h3>"
-        : analysis.overallAssessment === "request_changes"
-          ? "<h3>❌ Automated PR Review - Changes Requested</h3>"
-          : "<h3>💬 Automated PR Review - Comments</h3>";
-
-    const prLink = `<p><strong>PR:</strong> <a href="${prUrl}">#${prNumber}</a></p>`;
-
-    const summary = `<p>${analysis.summary}</p>`;
-
-    // Show which tools were used if it's an aggregated review
-    const toolsUsed =
-      "toolsUsed" in analysis
-        ? `<p><em>Review tools used: ${analysis.toolsUsed.join(", ")}</em></p>`
-        : "";
-
-    const issuesList =
-      analysis.issues.length > 0
-        ? `<p><strong>Issues Found:</strong></p><ul>${analysis.issues.map((issue) => `<li><strong>${issue.severity} - ${issue.category}:</strong> ${issue.description}${issue.suggestion ? `<br/>💡 ${issue.suggestion}` : ""}</li>`).join("")}</ul>`
-        : "<p><em>No issues found. Code looks good!</em></p>";
-
-    return `${header}${prLink}${summary}${toolsUsed}${issuesList}<p><em>🤖 Automated review by PR Review Agent</em></p>`;
-  };
-}
-
-// Import for type reference
-import type { CodeAnalysisResult } from "./types";
+export type ReviewOrchestrator = ReturnType<typeof createReviewOrchestrator>;

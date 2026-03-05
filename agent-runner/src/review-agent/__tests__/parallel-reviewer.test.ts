@@ -2,28 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { executeParallelReviews } from "../parallel-reviewer";
 import type { ReviewContext } from "../types";
 import type { ToolSelectionResult } from "../review-tools";
+import type Anthropic from "@anthropic-ai/sdk";
 
-// Mock Anthropic — must use `function` (not arrow) so it can be called with `new`
-vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(function () {
-    return {
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                overallAssessment: "approve",
-                summary: "Test review summary",
-                issues: [],
-              }),
-            },
-          ],
-        }),
-      },
-    };
-  }),
-}));
+/**
+ * Creates a mock Anthropic client with the given create implementation
+ */
+const createMockClient = (
+  createFn: Anthropic["messages"]["create"],
+): Anthropic =>
+  ({
+    messages: { create: createFn },
+  }) as unknown as Anthropic;
 
 describe("executeParallelReviews", () => {
   const mockContext: ReviewContext = {
@@ -62,10 +51,25 @@ describe("executeParallelReviews", () => {
   });
 
   it("should execute parallel reviews and aggregate results", async () => {
+    const mockClient = createMockClient(
+      vi.fn().mockResolvedValue({
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              overallAssessment: "approve",
+              summary: "Test review summary",
+              issues: [],
+            }),
+          },
+        ],
+      }),
+    );
+
     const result = await executeParallelReviews(
       mockContext,
       [mockToolSelection],
-      "test-api-key",
+      mockClient,
       "claude-3-5-sonnet-20241022",
     );
 
@@ -78,20 +82,14 @@ describe("executeParallelReviews", () => {
   });
 
   it("should return error if all reviews fail", async () => {
-    const Anthropic = await import("@anthropic-ai/sdk");
-    const mockCreate = vi.fn().mockRejectedValue(new Error("API error"));
-    vi.mocked(Anthropic.default).mockImplementation(function () {
-      return {
-        messages: {
-          create: mockCreate,
-        },
-      } as any;
-    });
+    const mockClient = createMockClient(
+      vi.fn().mockRejectedValue(new Error("API error")),
+    );
 
     const result = await executeParallelReviews(
       mockContext,
       [mockToolSelection],
-      "test-api-key",
+      mockClient,
       "claude-3-5-sonnet-20241022",
     );
 
@@ -102,40 +100,34 @@ describe("executeParallelReviews", () => {
   });
 
   it("should deduplicate similar issues", async () => {
-    const Anthropic = await import("@anthropic-ai/sdk");
-    const mockCreate = vi.fn().mockResolvedValue({
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            overallAssessment: "request_changes",
-            summary: "Found security issues",
-            issues: [
-              {
-                category: "security",
-                severity: "critical",
-                description: "SQL injection vulnerability",
-                suggestion: "Use parameterized queries",
-                file: "db.ts",
-                line: 42,
-              },
-            ],
-          }),
-        },
-      ],
-    });
-    vi.mocked(Anthropic.default).mockImplementation(function () {
-      return {
-        messages: {
-          create: mockCreate,
-        },
-      } as any;
-    });
+    const mockClient = createMockClient(
+      vi.fn().mockResolvedValue({
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              overallAssessment: "request_changes",
+              summary: "Found security issues",
+              issues: [
+                {
+                  category: "security",
+                  severity: "critical",
+                  description: "SQL injection vulnerability",
+                  suggestion: "Use parameterized queries",
+                  file: "db.ts",
+                  line: 42,
+                },
+              ],
+            }),
+          },
+        ],
+      }),
+    );
 
     const result = await executeParallelReviews(
       mockContext,
       [mockToolSelection, mockToolSelection], // Run same review twice
-      "test-api-key",
+      mockClient,
       "claude-3-5-sonnet-20241022",
     );
 

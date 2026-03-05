@@ -10,29 +10,22 @@ import type {
 import { GitHubPRDetailsSchema, GitHubPRFileSchema } from "./types";
 
 /**
- * GitHub API client for PR review operations
+ * Creates a GitHub API client for PR review operations
  */
-export class GitHubClient {
-  private readonly octokit: Octokit;
-  private readonly owner: string;
-  private readonly repo: string;
-
-  constructor(config: GitHubConfig) {
-    this.octokit = new Octokit({ auth: config.token });
-    this.owner = config.owner;
-    this.repo = config.repo;
-  }
+export const createGitHubClient = (config: GitHubConfig) => {
+  const octokit = new Octokit({ auth: config.token });
+  const { owner, repo } = config;
 
   /**
    * Get pull request details
    */
-  public getPullRequest = async (
+  const getPullRequest = async (
     prNumber: number,
   ): Promise<GitHubClientResult<GitHubPRDetails>> => {
     try {
-      const response = await this.octokit.pulls.get({
-        owner: this.owner,
-        repo: this.repo,
+      const response = await octokit.pulls.get({
+        owner,
+        repo,
         pull_number: prNumber,
       });
 
@@ -56,13 +49,13 @@ export class GitHubClient {
   /**
    * List files changed in a pull request
    */
-  public listPullRequestFiles = async (
+  const listPullRequestFiles = async (
     prNumber: number,
   ): Promise<GitHubClientResult<GitHubPRFile[]>> => {
     try {
-      const response = await this.octokit.pulls.listFiles({
-        owner: this.owner,
-        repo: this.repo,
+      const response = await octokit.pulls.listFiles({
+        owner,
+        repo,
         pull_number: prNumber,
         per_page: 100,
       });
@@ -87,13 +80,13 @@ export class GitHubClient {
   /**
    * Get the diff for a pull request
    */
-  public getPullRequestDiff = async (
+  const getPullRequestDiff = async (
     prNumber: number,
   ): Promise<GitHubClientResult<string>> => {
     try {
-      const response = await this.octokit.pulls.get({
-        owner: this.owner,
-        repo: this.repo,
+      const response = await octokit.pulls.get({
+        owner,
+        repo,
         pull_number: prNumber,
         mediaType: {
           format: "diff",
@@ -115,16 +108,16 @@ export class GitHubClient {
   /**
    * Create a review on a pull request
    */
-  public createReview = async (
+  const createReview = async (
     prNumber: number,
     event: GitHubReviewEvent,
     body: string,
     comments?: GitHubReviewComment[],
   ): Promise<GitHubClientResult<void>> => {
     try {
-      await this.octokit.pulls.createReview({
-        owner: this.owner,
-        repo: this.repo,
+      await octokit.pulls.createReview({
+        owner,
+        repo,
         pull_number: prNumber,
         event,
         body,
@@ -147,7 +140,7 @@ export class GitHubClient {
   /**
    * Create a review comment on a specific line
    */
-  public createReviewComment = async (
+  const createReviewComment = async (
     prNumber: number,
     commitId: string,
     path: string,
@@ -155,9 +148,9 @@ export class GitHubClient {
     body: string,
   ): Promise<GitHubClientResult<void>> => {
     try {
-      await this.octokit.pulls.createReviewComment({
-        owner: this.owner,
-        repo: this.repo,
+      await octokit.pulls.createReviewComment({
+        owner,
+        repo,
         pull_number: prNumber,
         commit_id: commitId,
         path,
@@ -177,14 +170,14 @@ export class GitHubClient {
   /**
    * Add a comment to a pull request
    */
-  public addComment = async (
+  const addComment = async (
     prNumber: number,
     body: string,
   ): Promise<GitHubClientResult<void>> => {
     try {
-      await this.octokit.issues.createComment({
-        owner: this.owner,
-        repo: this.repo,
+      await octokit.issues.createComment({
+        owner,
+        repo,
         issue_number: prNumber,
         body,
       });
@@ -197,4 +190,15 @@ export class GitHubClient {
       return { success: false, error: "Unknown error adding comment" };
     }
   };
-}
+
+  return {
+    getPullRequest,
+    listPullRequestFiles,
+    getPullRequestDiff,
+    createReview,
+    createReviewComment,
+    addComment,
+  };
+};
+
+export type GitHubClient = ReturnType<typeof createGitHubClient>;

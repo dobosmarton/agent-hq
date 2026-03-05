@@ -5,11 +5,11 @@ import { postReviewToGitHub } from "../github-reviewer";
 
 describe("postReviewToGitHub", () => {
   it("should post review with REQUEST_CHANGES for critical issues", async () => {
-    const mockClient = {
+    const mockClient: Pick<GitHubClient, "createReview"> = {
       createReview: vi
         .fn()
         .mockResolvedValue({ success: true, data: undefined }),
-    } as unknown as GitHubClient;
+    };
 
     const analysis: CodeAnalysisResult = {
       overallAssessment: "request_changes",
@@ -24,7 +24,11 @@ describe("postReviewToGitHub", () => {
       ],
     };
 
-    const result = await postReviewToGitHub(mockClient, 123, analysis);
+    const result = await postReviewToGitHub(
+      mockClient as GitHubClient,
+      123,
+      analysis,
+    );
 
     expect(result.success).toBe(true);
     expect(mockClient.createReview).toHaveBeenCalledWith(
@@ -35,11 +39,11 @@ describe("postReviewToGitHub", () => {
   });
 
   it("should post review with COMMENT for approval", async () => {
-    const mockClient = {
+    const mockClient: Pick<GitHubClient, "createReview"> = {
       createReview: vi
         .fn()
         .mockResolvedValue({ success: true, data: undefined }),
-    } as unknown as GitHubClient;
+    };
 
     const analysis: CodeAnalysisResult = {
       overallAssessment: "approve",
@@ -47,7 +51,11 @@ describe("postReviewToGitHub", () => {
       issues: [],
     };
 
-    const result = await postReviewToGitHub(mockClient, 123, analysis);
+    const result = await postReviewToGitHub(
+      mockClient as GitHubClient,
+      123,
+      analysis,
+    );
 
     expect(result.success).toBe(true);
     expect(mockClient.createReview).toHaveBeenCalledWith(
@@ -58,11 +66,11 @@ describe("postReviewToGitHub", () => {
   });
 
   it("should handle GitHub API errors", async () => {
-    const mockClient = {
+    const mockClient: Pick<GitHubClient, "createReview"> = {
       createReview: vi
         .fn()
         .mockResolvedValue({ success: false, error: "API error" }),
-    } as unknown as GitHubClient;
+    };
 
     const analysis: CodeAnalysisResult = {
       overallAssessment: "comment",
@@ -70,7 +78,11 @@ describe("postReviewToGitHub", () => {
       issues: [],
     };
 
-    const result = await postReviewToGitHub(mockClient, 123, analysis);
+    const result = await postReviewToGitHub(
+      mockClient as GitHubClient,
+      123,
+      analysis,
+    );
 
     expect(result.success).toBe(false);
     if (!result.success) {
