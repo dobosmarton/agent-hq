@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Config, Env, PlaneClient } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
+import type { Notifier } from "../telegram/notifier";
 import type { ReviewOrchestrator } from "@agent-hq/review-agent";
 import { handlePullRequestEvent, handlePullRequestReviewTrigger } from "./handler";
 import { GitHubPullRequestEventSchema } from "./types";
@@ -15,6 +16,7 @@ export type WebhookDeps = {
   plane: PlaneClient;
   taskPoller: TaskPoller;
   reviewAgent?: ReviewOrchestrator;
+  notifier: Notifier;
 };
 
 type WebhookEnv = {
@@ -187,7 +189,13 @@ export const createWebhookApp = (deps: WebhookDeps): OpenAPIHono<WebhookEnv> => 
 
       // Handle opened/synchronize PRs (trigger review)
       if (event.action === "opened" || event.action === "synchronize") {
-        void handlePullRequestReviewTrigger(event, reviewAgent, taskPoller, config).catch((err) => {
+        void handlePullRequestReviewTrigger(
+          event,
+          reviewAgent,
+          taskPoller,
+          config,
+          c.var.deps.notifier
+        ).catch((err) => {
           console.error(`❌ Webhook: Error triggering review for PR #${event.number}:`, err);
         });
       }

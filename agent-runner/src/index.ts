@@ -68,6 +68,7 @@ const main = async (): Promise<void> => {
         plane,
         taskPoller,
         reviewAgent,
+        notifier,
       });
     } catch (err) {
       console.error("Failed to start webhook server:", err);

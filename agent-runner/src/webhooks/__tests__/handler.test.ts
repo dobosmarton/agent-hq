@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Config, PlaneClient } from "../../config";
 import type { TaskPoller } from "../../poller/task-poller";
-import { handlePullRequestEvent } from "../handler";
+import { createNoopNotifier } from "../../telegram/notifier";
+import { handlePullRequestEvent, handlePullRequestReviewTrigger } from "../handler";
 import type { GitHubPullRequestEvent } from "../types";
 
 // Mock dependencies
@@ -256,5 +257,90 @@ describe("handlePullRequestEvent", () => {
 
     expect(result.taskIds).toEqual(["AGENTHQ-789"]);
     expect(result.updatedTasks).toEqual(["AGENTHQ-789"]);
+  });
+});
+
+describe("handlePullRequestReviewTrigger", () => {
+  const mockNotifier = createNoopNotifier();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should skip when review agent is not enabled", async () => {
+    const event = createMockEvent({ action: "opened" });
+
+    const result = await handlePullRequestReviewTrigger(
+      event,
+      undefined,
+      mockTaskPoller,
+      mockConfig,
+      mockNotifier
+    );
+
+    expect(result.taskIds).toEqual([]);
+  });
+
+  it("should skip non-review actions", async () => {
+    const mockReviewAgent = { reviewPullRequest: vi.fn() };
+    const event = createMockEvent({ action: "closed" });
+
+    const result = await handlePullRequestReviewTrigger(
+      event,
+      mockReviewAgent,
+      mockTaskPoller,
+      mockConfig,
+      mockNotifier
+    );
+
+    expect(result.taskIds).toEqual([]);
+    expect(mockReviewAgent.reviewPullRequest).not.toHaveBeenCalled();
+  });
+
+  it("should trigger review and send notification for opened PR", async () => {
+    const mockReviewAgent = {
+      reviewPullRequest: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+    };
+    const sendSpy = vi.spyOn(mockNotifier, "sendMessage");
+
+    const mockTaskPollerWithCache = {
+      ...mockTaskPoller,
+      getProjectCache: vi.fn().mockReturnValue({
+        project: { id: "project-123" },
+        todoStateId: "state-1",
+      }),
+    } as unknown as TaskPoller;
+
+    const configWithProject: Config = {
+      ...mockConfig,
+      projects: {
+        AGENTHQ: {
+          repoPath: "/repos/agent-hq",
+          repoUrl: "https://github.com/test/repo",
+          defaultBranch: "main",
+          planeIdentifier: "AGENTHQ",
+        },
+      },
+    };
+
+    const event = createMockEvent({ action: "opened" });
+
+    const result = await handlePullRequestReviewTrigger(
+      event,
+      mockReviewAgent,
+      mockTaskPollerWithCache,
+      configWithProject,
+      mockNotifier
+    );
+
+    expect(result.taskIds).toEqual([]);
+    expect(sendSpy).toHaveBeenCalledWith(expect.stringContaining("Review started"));
+    expect(mockReviewAgent.reviewPullRequest).toHaveBeenCalledWith(
+      "test",
+      "test-repo",
+      123,
+      "AGENTHQ-123",
+      "project-123"
+    );
   });
 });

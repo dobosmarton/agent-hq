@@ -1,5 +1,6 @@
 import type { Config, PlaneClient } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
+import type { Notifier } from "../telegram/notifier";
 import type { ReviewOrchestrator } from "@agent-hq/review-agent";
 import { extractTaskIds } from "./task-matcher";
 import type { GitHubPullRequestEvent, WebhookProcessResult } from "./types";
@@ -106,7 +107,8 @@ export const handlePullRequestReviewTrigger = async (
   event: GitHubPullRequestEvent,
   reviewAgent: ReviewOrchestrator | undefined,
   taskPoller: TaskPoller,
-  config: Config
+  config: Config,
+  notifier: Notifier
 ): Promise<WebhookProcessResult> => {
   // Check if review agent is enabled
   if (!reviewAgent) {
@@ -160,11 +162,33 @@ export const handlePullRequestReviewTrigger = async (
 
   console.log(`📋 Webhook: Triggering review for ${taskId} in ${owner}/${repo} PR #${pr.number}`);
 
-  // Trigger review asynchronously
+  const prUrl = pr.html_url;
+
+  // Notify review started
+  void notifier.sendMessage(
+    `<b>Review started</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${pr.title}\nTask: <code>${taskId}</code>`
+  );
+
+  // Trigger review asynchronously with completion notifications
   void reviewAgent
     .reviewPullRequest(owner, repo, pr.number, taskId, projectCache.project.id)
+    .then((result) => {
+      if (result.success) {
+        void notifier.sendMessage(
+          `<b>Review completed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${pr.title}`
+        );
+      } else {
+        void notifier.sendMessage(
+          `<b>Review failed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${pr.title}\n<pre>${result.error?.slice(0, 300) ?? "Unknown error"}</pre>`
+        );
+      }
+    })
     .catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(`❌ Webhook: Review failed for PR #${pr.number}:`, err);
+      void notifier.sendMessage(
+        `<b>Review crashed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${pr.title}\n<pre>${msg.slice(0, 300)}</pre>`
+      );
     });
 
   return EMPTY_RESULT;
