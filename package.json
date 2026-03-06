@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "format": "pnpm -r format",
+    "format:check": "pnpm -r format:check"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.8.1",
+    "typescript": "^5.7.0"
+  }
+}

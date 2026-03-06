@@ -5,15 +5,14 @@ on:
     branches: [main]
     paths:
       - "telegram-bot/**"
+      - "packages/**"
+      - "pnpm-workspace.yaml"
       - ".github/workflows/telegram-bot.yml"
   pull_request:
     branches: [main]
     paths:
       - "telegram-bot/**"
-
-defaults:
-  run:
-    working-directory: telegram-bot
+      - "packages/**"
 
 jobs:
   quality:
@@ -22,25 +21,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: telegram-bot/package-lock.json
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Check formatting
-        run: npx prettier --check .
+        run: pnpm --filter agent-hq-bot format:check
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: pnpm --filter agent-hq-bot build
 
       - name: Run tests
-        run: npm test
-
-      - name: Build
-        run: npx tsc
+        run: pnpm --filter agent-hq-bot test
 
   deploy:
     name: Deploy to VPS
@@ -56,7 +55,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "telegram-bot/src,telegram-bot/package.json,telegram-bot/package-lock.json,telegram-bot/tsconfig.json,telegram-bot/Dockerfile,telegram-bot/docker-compose.yml"
+          source: "telegram-bot/src,telegram-bot/package.json,telegram-bot/tsconfig.json,telegram-bot/Dockerfile,telegram-bot/docker-compose.yml,packages,package.json,pnpm-workspace.yaml,pnpm-lock.yaml,tsconfig.base.json,.prettierrc"
           target: "~/"
           overwrite: true
 

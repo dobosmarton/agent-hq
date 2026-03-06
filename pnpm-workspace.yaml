@@ -1,0 +1,4 @@
+packages:
+  - "packages/*"
+  - "agent-runner"
+  - "telegram-bot"

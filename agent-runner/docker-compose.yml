@@ -1,6 +1,8 @@
 services:
   runner:
-    build: .
+    build:
+      context: ..
+      dockerfile: agent-runner/Dockerfile
     env_file: .env
     network_mode: host
     restart: unless-stopped
@@ -10,9 +12,9 @@ services:
           memory: 3g
           cpus: "3"
     volumes:
-      - ./config.json:/app/config.json:ro
+      - ./config.json:/app/agent-runner/config.json:ro
       - /home/deploy/repos:/repos
-      - runner-state:/app/state
+      - runner-state:/app/agent-runner/state
 
 volumes:
   runner-state:

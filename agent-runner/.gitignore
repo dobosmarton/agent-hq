@@ -1,6 +1,3 @@
-node_modules/
-dist/
-.env
 config.local.json
 state/
 skills/learned/
