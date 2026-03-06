@@ -4,6 +4,8 @@ import { buildPlaneConfig, loadConfig, loadEnv } from "./config";
 import { updateIssue } from "./plane/client";
 import { createTaskPoller } from "./poller/task-poller";
 import { createTaskQueue } from "./queue/task-queue";
+import { createReviewOrchestrator } from "./review-agent/orchestrator";
+import type { ReviewOrchestrator } from "./review-agent/orchestrator";
 import { createStatePersistence } from "./state/persistence";
 import { createTelegramBridge } from "./telegram/bridge";
 import { createNoopNotifier, createNotifier } from "./telegram/notifier";
@@ -46,10 +48,31 @@ const main = async (): Promise<void> => {
   const taskPoller = createTaskPoller(planeConfig, config);
   await taskPoller.initialize();
 
+  // Initialize review agent if enabled
+  let reviewAgent: ReviewOrchestrator | undefined;
+  if (config.review.enabled) {
+    console.log("✅ Review agent enabled");
+    reviewAgent = createReviewOrchestrator(
+      config.review,
+      planeConfig,
+      taskPoller,
+      env.ANTHROPIC_API_KEY,
+      env.GITHUB_PAT,
+    );
+  } else {
+    console.log("ℹ️  Review agent disabled in config");
+  }
+
   // Start webhook server if enabled
   if (config.webhook.enabled) {
     try {
-      await startWebhookServer({ config, env, planeConfig, taskPoller });
+      await startWebhookServer({
+        config,
+        env,
+        planeConfig,
+        taskPoller,
+        reviewAgent,
+      });
     } catch (err) {
       console.error("Failed to start webhook server:", err);
       console.warn("Continuing without webhook server...");

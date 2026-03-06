@@ -21,6 +21,19 @@ const WebhookConfigSchema = z.object({
   taskIdPattern: z.string().default("([A-Z]+-\\d+)"),
 });
 
+const ReviewConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  triggerOnOpened: z.boolean().default(true),
+  triggerOnSynchronize: z.boolean().default(true),
+  severityThreshold: z
+    .enum(["critical", "major", "minor", "suggestion"])
+    .default("major"),
+  skipIfLabelPresent: z.string().optional(),
+  maxDiffSizeKb: z.number().int().positive().default(100),
+  claudeModel: z.string().default("claude-3-5-sonnet-20241022"),
+  useParallelReview: z.boolean().default(true),
+});
+
 const AgentConfigSchema = z.object({
   maxConcurrent: z.number().int().min(1).default(2),
   maxBudgetPerTask: z.number().positive().default(5.0),
@@ -65,6 +78,15 @@ const ConfigSchema = z.object({
     port: 3000,
     path: "/webhooks/github/pr",
     taskIdPattern: "([A-Z]+-\\d+)",
+  }),
+  review: ReviewConfigSchema.optional().default({
+    enabled: true,
+    triggerOnOpened: true,
+    triggerOnSynchronize: true,
+    severityThreshold: "major",
+    maxDiffSizeKb: 100,
+    claudeModel: "claude-3-5-sonnet-20241022",
+    useParallelReview: true,
   }),
 });
 
