@@ -1,25 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import {
-  addIssueComment,
-  buildStateMap,
-  cloneProjectConfiguration,
-  createIssue,
-  createProject,
-  findIssueBySequenceId,
-  findLabelByName,
-  findProjectByIdentifier,
-  getIssue,
-  listIssueComments,
-  listIssues,
-  listLabels,
-  listProjects,
-  listStates,
-  parseIssueIdentifier,
-  updateIssue,
-  updateIssueState,
-} from "../plane";
-import type { GitHubConfig, PlaneConfig } from "../types";
+import type { GitHubConfig, PlaneClient } from "../types";
 import {
   getRepository,
   parseGitHubUrl,
@@ -179,7 +160,7 @@ export const createRunnerTools = (runnerUrl: string) => ({
   }),
 });
 
-export const createPlaneTools = (config: PlaneConfig) => ({
+export const createPlaneTools = (plane: PlaneClient, planeBaseUrl: string) => ({
   listProjects: createTool({
     id: "list_projects",
     description:
@@ -194,7 +175,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       ),
     }),
     execute: async () => {
-      const projects = await listProjects(config);
+      const projects = await plane.listProjects();
       return {
         projects: projects.map((p) => ({
           name: p.name,
@@ -231,19 +212,20 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ project_identifier, state_names }) => {
-      const project = await findProjectByIdentifier(config, project_identifier);
+      const project = await plane.findProjectByIdentifier(project_identifier);
       if (!project) {
         return { tasks: [], error: `Project "${project_identifier}" not found` };
       }
 
-      const states = await listStates(config, project.id);
+      const states = await plane.listStates(project.id);
       const stateMap = new Map(states.map((s) => [s.id, s.name]));
 
-      // If state names provided, find their IDs
-      let stateIds: string[] | undefined;
+      // Build query params — inline the state_group filtering logic
+      // that was previously in the telegram-bot wrapper
+      const params: Record<string, string> = {};
       if (state_names && state_names.length > 0) {
         const normalizedNames = state_names.map((n) => n.toLowerCase().trim());
-        stateIds = states
+        const stateIds = states
           .filter((s) => normalizedNames.includes(s.name.toLowerCase().trim()))
           .map((s) => s.id);
 
@@ -254,9 +236,14 @@ export const createPlaneTools = (config: PlaneConfig) => ({
             error: `No matching states found. Available states: ${availableStates}`,
           };
         }
+
+        params["state"] = stateIds.join(",");
+      } else {
+        // Default: show open tasks only
+        params["state_group"] = "backlog,unstarted,started";
       }
 
-      const issues = await listIssues(config, project.id, { stateIds });
+      const issues = await plane.listIssues(project.id, params);
 
       return {
         tasks: issues.map((issue) => ({
@@ -288,12 +275,12 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ project_identifier, title, description_html }) => {
-      const project = await findProjectByIdentifier(config, project_identifier);
+      const project = await plane.findProjectByIdentifier(project_identifier);
       if (!project) {
         return { error: `Project "${project_identifier}" not found` };
       }
 
-      const issue = await createIssue(config, project.id, title, description_html);
+      const issue = await plane.createIssue(project.id, title, description_html);
       return {
         id: `${project.identifier}-${issue.sequence_id}`,
         title: issue.name,
@@ -318,12 +305,12 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ project_identifier }) => {
-      const project = await findProjectByIdentifier(config, project_identifier);
+      const project = await plane.findProjectByIdentifier(project_identifier);
       if (!project) {
         return { states: [], error: `Project "${project_identifier}" not found` };
       }
 
-      const states = await listStates(config, project.id);
+      const states = await plane.listStates(project.id);
       return {
         states: states.map((s) => ({ name: s.name, group: s.group })),
       };
@@ -351,24 +338,24 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ task_id }) => {
-      const parsed = parseIssueIdentifier(task_id);
+      const parsed = plane.parseIssueIdentifier(task_id);
       if (!parsed) {
         return { error: `Invalid task ID format. Expected format: PROJECT-NUMBER (e.g. HQ-42)` };
       }
 
-      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      const project = await plane.findProjectByIdentifier(parsed.projectIdentifier);
       if (!project) {
         return { error: `Project "${parsed.projectIdentifier}" not found` };
       }
 
-      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      const issue = await plane.findIssueBySequenceId(project.id, parsed.sequenceId);
       if (!issue) {
         return { error: `Task ${task_id} not found` };
       }
 
       // Fetch full details
-      const fullIssue = await getIssue(config, project.id, issue.id);
-      const stateMap = await buildStateMap(config, project.id);
+      const fullIssue = await plane.getIssue(project.id, issue.id);
+      const stateMap = await plane.buildStateMap(project.id);
 
       return {
         id: task_id,
@@ -378,7 +365,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
         priority: fullIssue.priority,
         created_at: fullIssue.created_at,
         updated_at: fullIssue.updated_at,
-        url: `${config.baseUrl.replace("/api/v1", "")}/projects/${project.identifier.toLowerCase()}/issues/${parsed.sequenceId}`,
+        url: `${planeBaseUrl}/projects/${project.identifier.toLowerCase()}/issues/${parsed.sequenceId}`,
       };
     },
   }),
@@ -404,7 +391,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ task_id }) => {
-      const parsed = parseIssueIdentifier(task_id);
+      const parsed = plane.parseIssueIdentifier(task_id);
       if (!parsed) {
         return {
           comments: [],
@@ -412,17 +399,17 @@ export const createPlaneTools = (config: PlaneConfig) => ({
         };
       }
 
-      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      const project = await plane.findProjectByIdentifier(parsed.projectIdentifier);
       if (!project) {
         return { comments: [], error: `Project "${parsed.projectIdentifier}" not found` };
       }
 
-      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      const issue = await plane.findIssueBySequenceId(project.id, parsed.sequenceId);
       if (!issue) {
         return { comments: [], error: `Task ${task_id} not found` };
       }
 
-      const comments = await listIssueComments(config, project.id, issue.id);
+      const comments = await plane.listComments(project.id, issue.id);
 
       return {
         comments: comments.map((c) => ({
@@ -448,7 +435,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ task_id }) => {
-      const parsed = parseIssueIdentifier(task_id);
+      const parsed = plane.parseIssueIdentifier(task_id);
       if (!parsed) {
         return {
           has_plan: false,
@@ -456,17 +443,17 @@ export const createPlaneTools = (config: PlaneConfig) => ({
         };
       }
 
-      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      const project = await plane.findProjectByIdentifier(parsed.projectIdentifier);
       if (!project) {
         return { has_plan: false, error: `Project "${parsed.projectIdentifier}" not found` };
       }
 
-      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      const issue = await plane.findIssueBySequenceId(project.id, parsed.sequenceId);
       if (!issue) {
         return { has_plan: false, error: `Task ${task_id} not found` };
       }
 
-      const comments = await listIssueComments(config, project.id, issue.id);
+      const comments = await plane.listComments(project.id, issue.id);
       const PLAN_MARKER = "<!-- AGENT_PLAN -->";
       const planComment = comments.find((c) => c.comment_html.includes(PLAN_MARKER));
 
@@ -500,7 +487,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ task_id, comment_html }) => {
-      const parsed = parseIssueIdentifier(task_id);
+      const parsed = plane.parseIssueIdentifier(task_id);
       if (!parsed) {
         return {
           success: false,
@@ -508,18 +495,18 @@ export const createPlaneTools = (config: PlaneConfig) => ({
         };
       }
 
-      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      const project = await plane.findProjectByIdentifier(parsed.projectIdentifier);
       if (!project) {
         return { success: false, error: `Project "${parsed.projectIdentifier}" not found` };
       }
 
-      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      const issue = await plane.findIssueBySequenceId(project.id, parsed.sequenceId);
       if (!issue) {
         return { success: false, error: `Task ${task_id} not found` };
       }
 
       try {
-        const comment = await addIssueComment(config, project.id, issue.id, comment_html);
+        const comment = await plane.addComment(project.id, issue.id, comment_html);
         return {
           success: true,
           comment_id: comment.id,
@@ -551,7 +538,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ task_id, state_name }) => {
-      const parsed = parseIssueIdentifier(task_id);
+      const parsed = plane.parseIssueIdentifier(task_id);
       if (!parsed) {
         return {
           success: false,
@@ -559,17 +546,17 @@ export const createPlaneTools = (config: PlaneConfig) => ({
         };
       }
 
-      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      const project = await plane.findProjectByIdentifier(parsed.projectIdentifier);
       if (!project) {
         return { success: false, error: `Project "${parsed.projectIdentifier}" not found` };
       }
 
-      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      const issue = await plane.findIssueBySequenceId(project.id, parsed.sequenceId);
       if (!issue) {
         return { success: false, error: `Task ${task_id} not found` };
       }
 
-      const states = await listStates(config, project.id);
+      const states = await plane.listStates(project.id);
       const targetState = states.find(
         (s) => s.name.toLowerCase().trim() === state_name.toLowerCase().trim()
       );
@@ -583,7 +570,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       }
 
       try {
-        await updateIssueState(config, project.id, issue.id, targetState.id);
+        await plane.updateIssue(project.id, issue.id, { state: targetState.id });
         return {
           success: true,
           new_state: targetState.name,
@@ -612,13 +599,13 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ project_identifier }) => {
-      const project = await findProjectByIdentifier(config, project_identifier);
+      const project = await plane.findProjectByIdentifier(project_identifier);
       if (!project) {
         return { success: false, error: `Project "${project_identifier}" not found` };
       }
 
       try {
-        const labels = await listLabels(config, project.id);
+        const labels = await plane.listLabels(project.id);
         return {
           success: true,
           labels: labels.map((l) => ({ name: l.name, color: l.color })),
@@ -652,7 +639,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ task_id, label_names }) => {
-      const parsed = parseIssueIdentifier(task_id);
+      const parsed = plane.parseIssueIdentifier(task_id);
       if (!parsed) {
         return {
           success: false,
@@ -660,18 +647,18 @@ export const createPlaneTools = (config: PlaneConfig) => ({
         };
       }
 
-      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      const project = await plane.findProjectByIdentifier(parsed.projectIdentifier);
       if (!project) {
         return { success: false, error: `Project "${parsed.projectIdentifier}" not found` };
       }
 
-      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      const issue = await plane.findIssueBySequenceId(project.id, parsed.sequenceId);
       if (!issue) {
         return { success: false, error: `Task ${task_id} not found` };
       }
 
       // Fetch full issue details to get current labels
-      const fullIssue = await getIssue(config, project.id, issue.id);
+      const fullIssue = await plane.getIssue(project.id, issue.id);
       const currentLabelIds = new Set(fullIssue.labels ?? []);
 
       // Validate and resolve label names to IDs
@@ -679,7 +666,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       const notFound: string[] = [];
 
       for (const labelName of label_names) {
-        const label = await findLabelByName(config, project.id, labelName);
+        const label = await plane.findLabelByName(project.id, labelName);
         if (!label) {
           notFound.push(labelName);
         } else {
@@ -689,7 +676,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       }
 
       if (notFound.length > 0) {
-        const allLabels = await listLabels(config, project.id);
+        const allLabels = await plane.listLabels(project.id);
         const availableLabels = allLabels.map((l) => l.name).join(", ");
         return {
           success: false,
@@ -699,7 +686,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
 
       // Update issue with merged label IDs
       try {
-        await updateIssue(config, project.id, issue.id, {
+        await plane.updateIssue(project.id, issue.id, {
           labels: Array.from(currentLabelIds),
         });
         return {
@@ -733,7 +720,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       error: z.string().optional(),
     }),
     execute: async ({ task_id, label_names }) => {
-      const parsed = parseIssueIdentifier(task_id);
+      const parsed = plane.parseIssueIdentifier(task_id);
       if (!parsed) {
         return {
           success: false,
@@ -741,24 +728,24 @@ export const createPlaneTools = (config: PlaneConfig) => ({
         };
       }
 
-      const project = await findProjectByIdentifier(config, parsed.projectIdentifier);
+      const project = await plane.findProjectByIdentifier(parsed.projectIdentifier);
       if (!project) {
         return { success: false, error: `Project "${parsed.projectIdentifier}" not found` };
       }
 
-      const issue = await findIssueBySequenceId(config, project.id, parsed.sequenceId);
+      const issue = await plane.findIssueBySequenceId(project.id, parsed.sequenceId);
       if (!issue) {
         return { success: false, error: `Task ${task_id} not found` };
       }
 
       // Fetch full issue details to get current labels
-      const fullIssue = await getIssue(config, project.id, issue.id);
+      const fullIssue = await plane.getIssue(project.id, issue.id);
       const currentLabelIds = new Set(fullIssue.labels ?? []);
 
       // Resolve label names to IDs and remove them
       const labelsToRemove: string[] = [];
       for (const labelName of label_names) {
-        const label = await findLabelByName(config, project.id, labelName);
+        const label = await plane.findLabelByName(project.id, labelName);
         if (label && currentLabelIds.has(label.id)) {
           currentLabelIds.delete(label.id);
           labelsToRemove.push(label.name);
@@ -767,7 +754,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
 
       // Update issue with remaining labels
       try {
-        await updateIssue(config, project.id, issue.id, {
+        await plane.updateIssue(project.id, issue.id, {
           labels: Array.from(currentLabelIds),
         });
         return {
@@ -785,7 +772,8 @@ export const createPlaneTools = (config: PlaneConfig) => ({
 });
 
 export const createProjectManagementTools = (
-  planeConfig: PlaneConfig,
+  plane: PlaneClient,
+  planeBaseUrl: string,
   githubConfig: GitHubConfig
 ) => {
   return {
@@ -915,7 +903,7 @@ export const createProjectManagementTools = (
       }),
       execute: async ({ query }) => {
         try {
-          const allProjects = await listProjects(planeConfig);
+          const allProjects = await plane.listProjects();
           const normalizedQuery = query.toLowerCase().trim();
 
           // Fuzzy match on name or identifier
@@ -979,20 +967,15 @@ export const createProjectManagementTools = (
       execute: async ({ name, identifier, description, template_identifier }) => {
         try {
           // Create the project
-          const project = await createProject(
-            planeConfig,
-            name,
-            identifier.toUpperCase(),
-            description
-          );
+          const project = await plane.createProject(name, identifier.toUpperCase(), description);
 
           // Clone configuration from template
           const templateId = template_identifier ?? "AGENTHQ";
-          const templateProject = await findProjectByIdentifier(planeConfig, templateId);
+          const templateProject = await plane.findProjectByIdentifier(templateId);
 
           if (templateProject) {
             try {
-              await cloneProjectConfiguration(planeConfig, templateProject.id, project.id);
+              await plane.cloneProjectConfiguration(templateProject.id, project.id);
             } catch (error) {
               console.warn("Failed to clone project configuration:", error);
               // Continue even if cloning fails
@@ -1000,8 +983,7 @@ export const createProjectManagementTools = (
           }
 
           // Build Plane web URL
-          const baseUrl = planeConfig.baseUrl.replace("/api/v1", "");
-          const projectUrl = `${baseUrl}/projects/${project.identifier.toLowerCase()}`;
+          const projectUrl = `${planeBaseUrl}/projects/${project.identifier.toLowerCase()}`;
 
           return {
             success: true,
@@ -1043,7 +1025,7 @@ export const createProjectManagementTools = (
       }),
       execute: async ({ github_repo_name }) => {
         try {
-          const allProjects = await listProjects(planeConfig);
+          const allProjects = await plane.listProjects();
 
           // Normalize GitHub repo name (remove hyphens, underscores)
           const normalized = github_repo_name.toLowerCase().replace(/[-_]/g, "");
@@ -1104,7 +1086,7 @@ export const createProjectManagementTools = (
       }),
       execute: async () => {
         try {
-          const projects = await listProjects(planeConfig);
+          const projects = await plane.listProjects();
           return {
             mappings: projects.map((p) => ({
               identifier: p.identifier,

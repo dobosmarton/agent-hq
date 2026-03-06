@@ -4,7 +4,7 @@ import type {
   PlaneLabel,
   PlaneProject,
   PlaneState,
-} from "../../plane/types";
+} from "@agent-hq/plane-client";
 
 export const makeProject = (overrides?: Partial<PlaneProject>): PlaneProject => ({
   id: "proj-uuid-1",

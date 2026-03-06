@@ -1,9 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import type { Config, Env, PlaneConfig } from "../config";
+import type { Config, Env, PlaneClient } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
-import type { ReviewOrchestrator } from "../review-agent/orchestrator";
+import type { ReviewOrchestrator } from "@agent-hq/review-agent";
 import { handlePullRequestEvent, handlePullRequestReviewTrigger } from "./handler";
 import { GitHubPullRequestEventSchema } from "./types";
 
@@ -12,7 +12,7 @@ import { GitHubPullRequestEventSchema } from "./types";
 export type WebhookDeps = {
   config: Config;
   env: Env;
-  planeConfig: PlaneConfig;
+  plane: PlaneClient;
   taskPoller: TaskPoller;
   reviewAgent?: ReviewOrchestrator;
 };
@@ -140,7 +140,7 @@ export const createWebhookApp = (deps: WebhookDeps): OpenAPIHono<WebhookEnv> => 
   });
 
   app.openapi(webhookRoute, async (c) => {
-    const { env, planeConfig, config, taskPoller, reviewAgent } = c.var.deps;
+    const { env, plane, config, taskPoller, reviewAgent } = c.var.deps;
 
     try {
       const body = await c.req.text();
@@ -180,7 +180,7 @@ export const createWebhookApp = (deps: WebhookDeps): OpenAPIHono<WebhookEnv> => 
 
       // Handle merged PRs (update task status)
       if (event.action === "closed" && event.pull_request.merged) {
-        void handlePullRequestEvent(event, planeConfig, config, taskPoller).catch((err) => {
+        void handlePullRequestEvent(event, plane, config, taskPoller).catch((err) => {
           console.error(`❌ Webhook: Error processing merged PR #${event.number}:`, err);
         });
       }

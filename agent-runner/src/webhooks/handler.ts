@@ -1,6 +1,6 @@
-import type { Config, PlaneConfig } from "../config";
+import type { Config, PlaneClient } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
-import type { ReviewOrchestrator } from "../review-agent/orchestrator";
+import type { ReviewOrchestrator } from "@agent-hq/review-agent";
 import { extractTaskIds } from "./task-matcher";
 import type { GitHubPullRequestEvent, WebhookProcessResult } from "./types";
 import { updateMultipleTasks } from "./updater";
@@ -17,14 +17,14 @@ const EMPTY_RESULT: WebhookProcessResult = {
  * Processes a GitHub pull request webhook event
  *
  * @param event - GitHub webhook event payload
- * @param planeConfig - Plane API configuration
+ * @param plane - Plane API client
  * @param config - Application configuration
  * @param taskPoller - Task poller with project caches
  * @returns Result with updated tasks, skipped tasks, and errors
  */
 export const handlePullRequestEvent = async (
   event: GitHubPullRequestEvent,
-  planeConfig: PlaneConfig,
+  plane: PlaneClient,
   config: Config,
   taskPoller: TaskPoller
 ): Promise<WebhookProcessResult> => {
@@ -57,7 +57,7 @@ export const handlePullRequestEvent = async (
 
   // Update all found tasks
   const updateResults = await updateMultipleTasks(
-    planeConfig,
+    plane,
     taskPoller,
     taskIds,
     pr,

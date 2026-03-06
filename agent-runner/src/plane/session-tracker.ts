@@ -1,4 +1,4 @@
-import type { PlaneComment } from "./types";
+import type { PlaneComment } from "@agent-hq/plane-client";
 
 export type SessionMetadata = {
   sessionId: string;

@@ -1,28 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { makeConfig, makePlaneConfig } from "../fixtures/config";
+import { makeConfig } from "../fixtures/config";
 import { makeIssue, makeLabel, makeProject, makeState } from "../fixtures/plane";
-
-vi.mock("../../plane/client", () => ({
-  listProjects: vi.fn(),
-  listLabels: vi.fn(),
-  listStates: vi.fn(),
-  listIssues: vi.fn(),
-  updateIssue: vi.fn(),
-}));
-
-import { listIssues, listLabels, listProjects, listStates, updateIssue } from "../../plane/client";
+import type { PlaneClient } from "../../config";
 import { createTaskPoller } from "../../poller/task-poller";
 
-const mockedListProjects = vi.mocked(listProjects);
-const mockedListLabels = vi.mocked(listLabels);
-const mockedListStates = vi.mocked(listStates);
-const mockedListIssues = vi.mocked(listIssues);
-const mockedUpdateIssue = vi.mocked(updateIssue);
+const makeMockPlane = (): PlaneClient => ({
+  listProjects: vi.fn(),
+  findProjectByIdentifier: vi.fn(),
+  createProject: vi.fn(),
+  listStates: vi.fn(),
+  buildStateMap: vi.fn(),
+  findStateByGroupAndName: vi.fn(),
+  listLabels: vi.fn(),
+  findLabelByName: vi.fn(),
+  createLabel: vi.fn(),
+  listIssues: vi.fn(),
+  getIssue: vi.fn(),
+  createIssue: vi.fn(),
+  updateIssue: vi.fn(),
+  findIssueBySequenceId: vi.fn(),
+  addComment: vi.fn(),
+  listComments: vi.fn(),
+  addLink: vi.fn(),
+  parseIssueIdentifier: vi.fn() as any,
+  cloneProjectConfiguration: vi.fn(),
+});
 
-const planeConfig = makePlaneConfig();
+let plane: PlaneClient;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  plane = makeMockPlane();
 });
 
 const setupValidProject = () => {
@@ -34,9 +42,9 @@ const setupValidProject = () => {
     makeState({ id: "done-state", name: "Done", group: "completed" }),
   ];
 
-  mockedListProjects.mockResolvedValue([project]);
-  mockedListLabels.mockResolvedValue([label]);
-  mockedListStates.mockResolvedValue(states);
+  vi.mocked(plane.listProjects).mockResolvedValue([project]);
+  vi.mocked(plane.listLabels).mockResolvedValue([label]);
+  vi.mocked(plane.listStates).mockResolvedValue(states);
 
   return { project, label, states };
 };
@@ -45,7 +53,7 @@ describe("initialize", () => {
   it("builds cache for valid project with label and states", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
 
     await poller.initialize();
 
@@ -57,9 +65,9 @@ describe("initialize", () => {
   });
 
   it("skips project not found in Plane", async () => {
-    mockedListProjects.mockResolvedValue([]);
+    vi.mocked(plane.listProjects).mockResolvedValue([]);
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
 
     await poller.initialize();
 
@@ -68,11 +76,11 @@ describe("initialize", () => {
 
   it("skips project with missing agent label", async () => {
     const project = makeProject({ id: "proj-1", identifier: "HQ" });
-    mockedListProjects.mockResolvedValue([project]);
-    mockedListLabels.mockResolvedValue([makeLabel({ name: "other" })]);
+    vi.mocked(plane.listProjects).mockResolvedValue([project]);
+    vi.mocked(plane.listLabels).mockResolvedValue([makeLabel({ name: "other" })]);
 
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
 
     await poller.initialize();
 
@@ -81,14 +89,14 @@ describe("initialize", () => {
 
   it("skips project with missing required states", async () => {
     const project = makeProject({ id: "proj-1", identifier: "HQ" });
-    mockedListProjects.mockResolvedValue([project]);
-    mockedListLabels.mockResolvedValue([makeLabel({ name: "agent" })]);
-    mockedListStates.mockResolvedValue([
+    vi.mocked(plane.listProjects).mockResolvedValue([project]);
+    vi.mocked(plane.listLabels).mockResolvedValue([makeLabel({ name: "agent" })]);
+    vi.mocked(plane.listStates).mockResolvedValue([
       makeState({ group: "completed", name: "Done" }), // no unstarted or started
     ]);
 
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
 
     await poller.initialize();
 
@@ -97,9 +105,9 @@ describe("initialize", () => {
 
   it("finds in_review state when present", async () => {
     const project = makeProject({ id: "proj-1", identifier: "HQ" });
-    mockedListProjects.mockResolvedValue([project]);
-    mockedListLabels.mockResolvedValue([makeLabel({ name: "agent" })]);
-    mockedListStates.mockResolvedValue([
+    vi.mocked(plane.listProjects).mockResolvedValue([project]);
+    vi.mocked(plane.listLabels).mockResolvedValue([makeLabel({ name: "agent" })]);
+    vi.mocked(plane.listStates).mockResolvedValue([
       makeState({ id: "todo", group: "unstarted", name: "Todo" }),
       makeState({ id: "ip", group: "started", name: "In Progress" }),
       makeState({ id: "review", group: "started", name: "In Review" }),
@@ -107,7 +115,7 @@ describe("initialize", () => {
     ]);
 
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
 
     await poller.initialize();
 
@@ -118,7 +126,7 @@ describe("initialize", () => {
   it("sets inReviewStateId to null when no review state", async () => {
     setupValidProject(); // no review state in default setup
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
 
     await poller.initialize();
 
@@ -128,9 +136,9 @@ describe("initialize", () => {
 
   it("finds plan_review state when present", async () => {
     const project = makeProject({ id: "proj-1", identifier: "HQ" });
-    mockedListProjects.mockResolvedValue([project]);
-    mockedListLabels.mockResolvedValue([makeLabel({ name: "agent" })]);
-    mockedListStates.mockResolvedValue([
+    vi.mocked(plane.listProjects).mockResolvedValue([project]);
+    vi.mocked(plane.listLabels).mockResolvedValue([makeLabel({ name: "agent" })]);
+    vi.mocked(plane.listStates).mockResolvedValue([
       makeState({ id: "todo", group: "unstarted", name: "Todo" }),
       makeState({ id: "ip", group: "started", name: "In Progress" }),
       makeState({ id: "plan-review", group: "started", name: "Plan Review" }),
@@ -139,7 +147,7 @@ describe("initialize", () => {
     ]);
 
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
 
     await poller.initialize();
 
@@ -151,7 +159,7 @@ describe("initialize", () => {
   it("sets planReviewStateId to null when no plan review state", async () => {
     setupValidProject(); // no plan review state in default setup
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
 
     await poller.initialize();
 
@@ -164,10 +172,10 @@ describe("pollForTasks", () => {
   it("returns issues with agent label", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
-    mockedListIssues.mockResolvedValue([
+    vi.mocked(plane.listIssues).mockResolvedValue([
       makeIssue({ id: "i1", labels: ["label-1"], state: "todo-state" }),
     ]);
 
@@ -179,10 +187,12 @@ describe("pollForTasks", () => {
   it("skips issues without agent label", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
-    mockedListIssues.mockResolvedValue([makeIssue({ id: "i1", labels: ["other-label"] })]);
+    vi.mocked(plane.listIssues).mockResolvedValue([
+      makeIssue({ id: "i1", labels: ["other-label"] }),
+    ]);
 
     const tasks = await poller.pollForTasks(10);
     expect(tasks).toHaveLength(0);
@@ -191,10 +201,10 @@ describe("pollForTasks", () => {
   it("skips issues not in todo state", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
-    mockedListIssues.mockResolvedValue([
+    vi.mocked(plane.listIssues).mockResolvedValue([
       makeIssue({
         id: "i1",
         labels: ["label-1"],
@@ -209,12 +219,12 @@ describe("pollForTasks", () => {
   it("skips claimed issues", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
     const issue = makeIssue({ id: "i1", labels: ["label-1"] });
-    mockedListIssues.mockResolvedValue([issue]);
-    mockedUpdateIssue.mockResolvedValue(issue);
+    vi.mocked(plane.listIssues).mockResolvedValue([issue]);
+    vi.mocked(plane.updateIssue).mockResolvedValue(issue);
 
     // Claim the issue first
     await poller.claimTask({
@@ -235,10 +245,10 @@ describe("pollForTasks", () => {
   it("respects maxTasks limit", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
-    mockedListIssues.mockResolvedValue([
+    vi.mocked(plane.listIssues).mockResolvedValue([
       makeIssue({ id: "i1", labels: ["label-1"], state: "todo-state" }),
       makeIssue({
         id: "i2",
@@ -267,9 +277,9 @@ describe("pollForTasks", () => {
       name: "App",
     });
 
-    mockedListProjects.mockResolvedValue([project1, project2]);
-    mockedListLabels.mockResolvedValue([makeLabel({ name: "agent" })]);
-    mockedListStates.mockResolvedValue([
+    vi.mocked(plane.listProjects).mockResolvedValue([project1, project2]);
+    vi.mocked(plane.listLabels).mockResolvedValue([makeLabel({ name: "agent" })]);
+    vi.mocked(plane.listStates).mockResolvedValue([
       makeState({ id: "todo", group: "unstarted" }),
       makeState({ id: "ip", group: "started" }),
     ]);
@@ -289,11 +299,11 @@ describe("pollForTasks", () => {
       },
     });
 
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
     // First project errors, second succeeds
-    mockedListIssues
+    vi.mocked(plane.listIssues)
       .mockRejectedValueOnce(new Error("API error"))
       .mockResolvedValueOnce([makeIssue({ id: "i2", labels: ["label-uuid-1"], state: "todo" })]);
 
@@ -307,10 +317,10 @@ describe("claimTask", () => {
   it("calls updateIssue with inProgressStateId", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
-    mockedUpdateIssue.mockResolvedValue(makeIssue());
+    vi.mocked(plane.updateIssue).mockResolvedValue(makeIssue());
 
     const result = await poller.claimTask({
       issueId: "i1",
@@ -324,14 +334,14 @@ describe("claimTask", () => {
     });
 
     expect(result).toBe(true);
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(planeConfig, "proj-1", "i1", {
+    expect(plane.updateIssue).toHaveBeenCalledWith("proj-1", "i1", {
       state: "ip-state",
     });
   });
 
   it("returns false when cache missing", async () => {
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     // Don't initialize — no caches
 
     const result = await poller.claimTask({
@@ -351,10 +361,10 @@ describe("claimTask", () => {
   it("returns false on API error", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
-    mockedUpdateIssue.mockRejectedValue(new Error("API failure"));
+    vi.mocked(plane.updateIssue).mockRejectedValue(new Error("API failure"));
 
     const result = await poller.claimTask({
       issueId: "i1",
@@ -375,7 +385,7 @@ describe("releaseTask", () => {
   it("removes issue from claimed set", async () => {
     setupValidProject();
     const config = makeConfig();
-    const poller = createTaskPoller(planeConfig, config);
+    const poller = createTaskPoller(plane, config);
     await poller.initialize();
 
     const issue = makeIssue({
@@ -383,7 +393,7 @@ describe("releaseTask", () => {
       labels: ["label-1"],
       state: "todo-state",
     });
-    mockedUpdateIssue.mockResolvedValue(issue);
+    vi.mocked(plane.updateIssue).mockResolvedValue(issue);
 
     const task = {
       issueId: "i1",
@@ -399,7 +409,7 @@ describe("releaseTask", () => {
     await poller.claimTask(task);
 
     // Issue should be claimed (not returned by poll)
-    mockedListIssues.mockResolvedValue([issue]);
+    vi.mocked(plane.listIssues).mockResolvedValue([issue]);
     let tasks = await poller.pollForTasks(10);
     expect(tasks).toHaveLength(0);
 

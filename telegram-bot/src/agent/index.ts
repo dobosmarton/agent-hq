@@ -1,6 +1,7 @@
 import { Agent } from "@mastra/core/agent";
 import { LibSQLStore } from "@mastra/libsql";
 import { Memory } from "@mastra/memory";
+import { createPlaneClient } from "@agent-hq/plane-client";
 import type { GitHubConfig, PlaneConfig } from "../types";
 import { createPlaneTools, createProjectManagementTools, createRunnerTools } from "./tools";
 
@@ -131,13 +132,16 @@ export const createAgentHQ = (options: AgentHQOptions): Agent => {
     },
   });
 
-  const planeTools = createPlaneTools(options.planeConfig);
+  const plane = createPlaneClient(options.planeConfig);
+  const planeBaseUrl = options.planeConfig.baseUrl.replace("/api/v1", "");
+
+  const planeTools = createPlaneTools(plane, planeBaseUrl);
   const runnerTools = options.agentRunnerUrl ? createRunnerTools(options.agentRunnerUrl) : {};
 
   let tools = { ...planeTools, ...runnerTools };
 
   if (options.githubConfig) {
-    const projectTools = createProjectManagementTools(options.planeConfig, options.githubConfig);
+    const projectTools = createProjectManagementTools(plane, planeBaseUrl, options.githubConfig);
     tools = { ...tools, ...projectTools };
   }
 

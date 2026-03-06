@@ -6,7 +6,7 @@ export const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   ALLOWED_USER_ID: z.string().min(1),
   PLANE_API_KEY: z.string().min(1),
-  PLANE_BASE_URL: z.string().url(),
+  PLANE_BASE_URL: z.url(),
   PLANE_WORKSPACE_SLUG: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().min(1),
   ANTHROPIC_MODEL: z.string().default("claude-haiku-4-5-20251001"),
@@ -14,8 +14,8 @@ export const EnvSchema = z.object({
   GITHUB_PAT: z.string().min(1).optional(),
   PROGRESS_FEEDBACK_ENABLED: z
     .string()
-    .transform((v) => v === "true")
-    .default("true"),
+    .default("true")
+    .transform((v) => v === "true"),
   PROGRESS_UPDATE_INTERVAL_MS: z.coerce.number().default(2500),
 });
 
@@ -28,6 +28,7 @@ export type GitHubConfig = {
 // --- Plane types (re-exported from shared package) ---
 
 export type {
+  PlaneClient,
   PlaneComment,
   PlaneConfig,
   PlaneIssue,
@@ -36,69 +37,3 @@ export type {
   PlaneState,
 } from "@agent-hq/plane-client";
 
-// --- Plane zod schemas (used by tests for validation) ---
-
-export const PlaneProjectSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    identifier: z.string(),
-  })
-  .passthrough();
-
-export const PlaneStateSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    group: z.string(),
-  })
-  .passthrough();
-
-export const PlaneLabelSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    color: z.string().optional(),
-    description: z.string().optional(),
-  })
-  .passthrough();
-
-export const PlaneIssueSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    priority: z.string(),
-    state: z.string(),
-    sequence_id: z.number(),
-    description_html: z.string().optional(),
-    description: z.string().optional(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
-    project: z.string().optional(),
-    labels: z.array(z.string()).optional(),
-  })
-  .passthrough();
-
-export const PlaneCommentSchema = z
-  .object({
-    id: z.string(),
-    comment_html: z.string(),
-    created_at: z.string(),
-    updated_at: z.string(),
-    created_by: z.string(),
-    actor_detail: z
-      .object({
-        first_name: z.string(),
-        last_name: z.string(),
-        display_name: z.string(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough();
-
-export const PlanePaginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
-  z.object({
-    total_count: z.number(),
-    results: z.array(itemSchema),
-  });

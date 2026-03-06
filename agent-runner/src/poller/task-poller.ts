@@ -1,7 +1,6 @@
-import type { Config, PlaneConfig } from "../config";
-import { listIssues, listLabels, listProjects, listStates, updateIssue } from "../plane/client";
-import type { PlaneProject } from "../plane/types";
-import type { AgentTask } from "../types";
+import type { Config, PlaneClient } from "../config";
+import type { PlaneProject } from "@agent-hq/plane-client";
+import type { AgentTask } from "@agent-hq/shared-types";
 
 type ProjectCache = {
   project: PlaneProject;
@@ -14,13 +13,13 @@ type ProjectCache = {
   doneStateId: string | null;
 };
 
-export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
+export const createTaskPoller = (plane: PlaneClient, config: Config) => {
   const projectCaches = new Map<string, ProjectCache>();
   const claimedIssues = new Set<string>();
 
   const initialize = async (): Promise<void> => {
     console.log("Initializing task poller...");
-    const projects = await listProjects(planeConfig);
+    const projects = await plane.listProjects();
 
     for (const [identifier, _projectConfig] of Object.entries(config.projects)) {
       const project = projects.find((p) => p.identifier === identifier.toUpperCase());
@@ -30,7 +29,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
       }
 
       // Find the "agent" label
-      const labels = await listLabels(planeConfig, project.id);
+      const labels = await plane.listLabels(project.id);
       const agentLabel = labels.find(
         (l) => l.name.toLowerCase() === config.agent.labelName.toLowerCase()
       );
@@ -40,7 +39,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
       }
 
       // Find state IDs
-      const states = await listStates(planeConfig, project.id);
+      const states = await plane.listStates(project.id);
       const backlogState = states.find((s) => s.group === "backlog");
       const todoState = states.find((s) => s.group === "unstarted");
       const inProgressState = states.find((s) => s.group === "started");
@@ -86,7 +85,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
       if (tasks.length >= maxTasks) break;
 
       try {
-        const issues = await listIssues(planeConfig, cache.project.id, {
+        const issues = await plane.listIssues(cache.project.id, {
           state: cache.todoStateId,
         });
 
@@ -126,7 +125,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
     if (!cache) return false;
 
     try {
-      await updateIssue(planeConfig, task.projectId, task.issueId, {
+      await plane.updateIssue(task.projectId, task.issueId, {
         state: cache.inProgressStateId,
       });
       claimedIssues.add(task.issueId);
