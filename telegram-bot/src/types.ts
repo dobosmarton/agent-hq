@@ -21,17 +21,22 @@ export const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
-export type PlaneConfig = {
-  apiKey: string;
-  baseUrl: string;
-  workspaceSlug: string;
-};
-
 export type GitHubConfig = {
   pat: string;
 };
 
-// --- Plane API response types ---
+// --- Plane types (re-exported from shared package) ---
+
+export type {
+  PlaneComment,
+  PlaneConfig,
+  PlaneIssue,
+  PlaneLabel,
+  PlaneProject,
+  PlaneState,
+} from "@agent-hq/plane-client";
+
+// --- Plane zod schemas (used by tests for validation) ---
 
 export const PlaneProjectSchema = z
   .object({
@@ -41,8 +46,6 @@ export const PlaneProjectSchema = z
   })
   .passthrough();
 
-export type PlaneProject = z.infer<typeof PlaneProjectSchema>;
-
 export const PlaneStateSchema = z
   .object({
     id: z.string(),
@@ -50,8 +53,6 @@ export const PlaneStateSchema = z
     group: z.string(),
   })
   .passthrough();
-
-export type PlaneState = z.infer<typeof PlaneStateSchema>;
 
 export const PlaneLabelSchema = z
   .object({
@@ -61,8 +62,6 @@ export const PlaneLabelSchema = z
     description: z.string().optional(),
   })
   .passthrough();
-
-export type PlaneLabel = z.infer<typeof PlaneLabelSchema>;
 
 export const PlaneIssueSchema = z
   .object({
@@ -79,8 +78,6 @@ export const PlaneIssueSchema = z
     labels: z.array(z.string()).optional(),
   })
   .passthrough();
-
-export type PlaneIssue = z.infer<typeof PlaneIssueSchema>;
 
 export const PlaneCommentSchema = z
   .object({
@@ -99,8 +96,6 @@ export const PlaneCommentSchema = z
       .optional(),
   })
   .passthrough();
-
-export type PlaneComment = z.infer<typeof PlaneCommentSchema>;
 
 export const PlanePaginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({

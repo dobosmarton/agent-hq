@@ -59,7 +59,7 @@ describe("listProjects", () => {
 
   it("throws on non-OK response", async () => {
     mockError(500, "Server Error");
-    await expect(listProjects(config)).rejects.toThrow("Plane API error: 500 Server Error");
+    await expect(listProjects(config)).rejects.toThrow("Plane API error: 500 error body");
   });
 
   it("constructs correct URL", async () => {
@@ -165,8 +165,8 @@ describe("buildStateMap", () => {
     mockOk(paginate(states));
 
     const map = await buildStateMap(config, "proj-1");
-    expect(map.get("s1")).toBe("Todo");
-    expect(map.get("s2")).toBe("Done");
+    expect(map.get("s1")?.name).toBe("Todo");
+    expect(map.get("s2")?.name).toBe("Done");
   });
 });
 

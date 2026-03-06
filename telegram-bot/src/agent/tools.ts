@@ -373,8 +373,8 @@ export const createPlaneTools = (config: PlaneConfig) => ({
       return {
         id: task_id,
         title: fullIssue.name,
-        description_html: fullIssue.description_html,
-        state: stateMap.get(fullIssue.state) ?? "Unknown",
+        description_html: fullIssue.description_html ?? undefined,
+        state: stateMap.get(fullIssue.state)?.name ?? "Unknown",
         priority: fullIssue.priority,
         created_at: fullIssue.created_at,
         updated_at: fullIssue.updated_at,

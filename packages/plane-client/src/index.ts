@@ -1,4 +1,5 @@
-// Re-export all Plane types from the shared package
+export { createPlaneClient } from "./client";
+export type { PlaneClient } from "./client";
 export type {
   PlaneComment,
   PlaneConfig,
@@ -7,4 +8,4 @@ export type {
   PlaneLink,
   PlaneProject,
   PlaneState,
-} from "@agent-hq/plane-client";
+} from "./types";

@@ -98,7 +98,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
           if (issue.state !== cache.todoStateId) continue;
 
           // Check if issue has the agent label
-          const hasAgentLabel = issue.labels.includes(cache.agentLabelId);
+          const hasAgentLabel = issue.labels?.includes(cache.agentLabelId) ?? false;
           if (!hasAgentLabel) continue;
 
           tasks.push({
@@ -109,7 +109,7 @@ export const createTaskPoller = (planeConfig: PlaneConfig, config: Config) => {
             title: issue.name,
             descriptionHtml: issue.description_html ?? "",
             stateId: issue.state,
-            labelIds: issue.labels,
+            labelIds: issue.labels ?? [],
           });
         }
       } catch (err) {

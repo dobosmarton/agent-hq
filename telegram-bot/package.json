@@ -13,6 +13,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@agent-hq/plane-client": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.45",
     "@mastra/core": "^1.4.0",
     "@mastra/libsql": "^1.4.0",

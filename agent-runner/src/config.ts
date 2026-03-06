@@ -114,11 +114,8 @@ export const loadEnv = (): Env => {
   return EnvSchema.parse(process.env);
 };
 
-export type PlaneConfig = {
-  apiKey: string;
-  baseUrl: string;
-  workspaceSlug: string;
-};
+import type { PlaneConfig } from "@agent-hq/plane-client";
+export type { PlaneConfig } from "@agent-hq/plane-client";
 
 export const buildPlaneConfig = (config: Config, env: Env): PlaneConfig => ({
   apiKey: env.PLANE_API_KEY,

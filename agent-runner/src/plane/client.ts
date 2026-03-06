@@ -1,107 +1,56 @@
-import type { PlaneConfig } from "../config";
-import {
-  type PlaneComment,
-  PlaneCommentSchema,
-  type PlaneIssue,
-  PlaneIssueSchema,
-  type PlaneLabel,
-  PlaneLabelSchema,
-  type PlaneLink,
-  PlaneLinkSchema,
-  PlanePaginatedSchema,
-  type PlaneProject,
-  PlaneProjectSchema,
-  type PlaneState,
-  PlaneStateSchema,
-} from "./types";
+import { createPlaneClient } from "@agent-hq/plane-client";
+import type {
+  PlaneComment,
+  PlaneConfig,
+  PlaneIssue,
+  PlaneLabel,
+  PlaneLink,
+  PlaneProject,
+  PlaneState,
+} from "@agent-hq/plane-client";
 
-const headers = (config: PlaneConfig): Record<string, string> => ({
-  "X-API-Key": config.apiKey,
-  "Content-Type": "application/json",
-});
-
-const workspaceUrl = (config: PlaneConfig): string =>
-  `${config.baseUrl}/workspaces/${config.workspaceSlug}`;
-
-const planeRequest = async (
-  url: string,
-  config: PlaneConfig,
-  init?: RequestInit
-): Promise<unknown> => {
-  const res = await fetch(url, {
-    ...init,
-    headers: { ...headers(config), ...init?.headers },
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Plane API error: ${res.status} ${body}`);
-  }
-
-  return res.json();
-};
+// Standalone function wrappers that delegate to the shared client.
+// These preserve the existing call-site API (config as first arg) while
+// using @agent-hq/plane-client as the single implementation.
 
 // --- Projects ---
 
-export const listProjects = async (config: PlaneConfig): Promise<PlaneProject[]> => {
-  const data = await planeRequest(`${workspaceUrl(config)}/projects/`, config);
-  return PlanePaginatedSchema(PlaneProjectSchema).parse(data).results;
-};
+export const listProjects = async (config: PlaneConfig): Promise<PlaneProject[]> =>
+  createPlaneClient(config).listProjects();
 
 export const findProjectByIdentifier = async (
   config: PlaneConfig,
   identifier: string
-): Promise<PlaneProject | null> => {
-  const projects = await listProjects(config);
-  const upper = identifier.toUpperCase();
-  return projects.find((p) => p.identifier === upper) ?? null;
-};
+): Promise<PlaneProject | null> => createPlaneClient(config).findProjectByIdentifier(identifier);
 
 // --- States ---
 
-export const listStates = async (config: PlaneConfig, projectId: string): Promise<PlaneState[]> => {
-  const data = await planeRequest(`${workspaceUrl(config)}/projects/${projectId}/states/`, config);
-  return PlanePaginatedSchema(PlaneStateSchema).parse(data).results;
-};
+export const listStates = async (config: PlaneConfig, projectId: string): Promise<PlaneState[]> =>
+  createPlaneClient(config).listStates(projectId);
 
 export const buildStateMap = async (
   config: PlaneConfig,
   projectId: string
-): Promise<Map<string, PlaneState>> => {
-  const states = await listStates(config, projectId);
-  return new Map(states.map((s) => [s.id, s]));
-};
+): Promise<Map<string, PlaneState>> => createPlaneClient(config).buildStateMap(projectId);
 
 export const findStateByGroupAndName = async (
   config: PlaneConfig,
   projectId: string,
   group: string,
   name?: string
-): Promise<PlaneState | null> => {
-  const states = await listStates(config, projectId);
-  return (
-    states.find(
-      (s) =>
-        s.group === group && (name === undefined || s.name.toLowerCase() === name.toLowerCase())
-    ) ?? null
-  );
-};
+): Promise<PlaneState | null> =>
+  createPlaneClient(config).findStateByGroupAndName(projectId, group, name);
 
 // --- Labels ---
 
-export const listLabels = async (config: PlaneConfig, projectId: string): Promise<PlaneLabel[]> => {
-  const data = await planeRequest(`${workspaceUrl(config)}/projects/${projectId}/labels/`, config);
-  return PlanePaginatedSchema(PlaneLabelSchema).parse(data).results;
-};
+export const listLabels = async (config: PlaneConfig, projectId: string): Promise<PlaneLabel[]> =>
+  createPlaneClient(config).listLabels(projectId);
 
 export const findLabelByName = async (
   config: PlaneConfig,
   projectId: string,
   name: string
-): Promise<PlaneLabel | null> => {
-  const labels = await listLabels(config, projectId);
-  return labels.find((l) => l.name.toLowerCase() === name.toLowerCase()) ?? null;
-};
+): Promise<PlaneLabel | null> => createPlaneClient(config).findLabelByName(projectId, name);
 
 // --- Issues ---
 
@@ -109,47 +58,20 @@ export const listIssues = async (
   config: PlaneConfig,
   projectId: string,
   params?: Record<string, string>
-): Promise<PlaneIssue[]> => {
-  const searchParams = new URLSearchParams({
-    per_page: "50",
-    ...params,
-  });
-
-  const data = await planeRequest(
-    `${workspaceUrl(config)}/projects/${projectId}/issues/?${searchParams.toString()}`,
-    config
-  );
-  return PlanePaginatedSchema(PlaneIssueSchema).parse(data).results;
-};
+): Promise<PlaneIssue[]> => createPlaneClient(config).listIssues(projectId, params);
 
 export const getIssue = async (
   config: PlaneConfig,
   projectId: string,
   issueId: string
-): Promise<PlaneIssue> => {
-  const data = await planeRequest(
-    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`,
-    config
-  );
-  return PlaneIssueSchema.parse(data);
-};
+): Promise<PlaneIssue> => createPlaneClient(config).getIssue(projectId, issueId);
 
 export const updateIssue = async (
   config: PlaneConfig,
   projectId: string,
   issueId: string,
   update: Record<string, unknown>
-): Promise<PlaneIssue> => {
-  const data = await planeRequest(
-    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`,
-    config,
-    {
-      method: "PATCH",
-      body: JSON.stringify(update),
-    }
-  );
-  return PlaneIssueSchema.parse(data);
-};
+): Promise<PlaneIssue> => createPlaneClient(config).updateIssue(projectId, issueId, update);
 
 // --- Comments ---
 
@@ -158,29 +80,13 @@ export const addComment = async (
   projectId: string,
   issueId: string,
   commentHtml: string
-): Promise<PlaneComment> => {
-  const data = await planeRequest(
-    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/comments/`,
-    config,
-    {
-      method: "POST",
-      body: JSON.stringify({ comment_html: commentHtml }),
-    }
-  );
-  return PlaneCommentSchema.parse(data);
-};
+): Promise<PlaneComment> => createPlaneClient(config).addComment(projectId, issueId, commentHtml);
 
 export const listComments = async (
   config: PlaneConfig,
   projectId: string,
   issueId: string
-): Promise<PlaneComment[]> => {
-  const data = await planeRequest(
-    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/comments/`,
-    config
-  );
-  return PlanePaginatedSchema(PlaneCommentSchema).parse(data).results;
-};
+): Promise<PlaneComment[]> => createPlaneClient(config).listComments(projectId, issueId);
 
 // --- Links ---
 
@@ -190,14 +96,4 @@ export const addLink = async (
   issueId: string,
   title: string,
   url: string
-): Promise<PlaneLink> => {
-  const data = await planeRequest(
-    `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/links/`,
-    config,
-    {
-      method: "POST",
-      body: JSON.stringify({ title, url }),
-    }
-  );
-  return PlaneLinkSchema.parse(data);
-};
+): Promise<PlaneLink> => createPlaneClient(config).addLink(projectId, issueId, title, url);

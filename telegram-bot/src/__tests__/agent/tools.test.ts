@@ -244,7 +244,9 @@ describe("get_task_details tool", () => {
     mockedGetIssue.mockResolvedValue(
       makeIssue({ name: "Test task", description_html: "<p>Details</p>" })
     );
-    mockedBuildStateMap.mockResolvedValue(new Map([["state-uuid-1", "Todo"]]));
+    mockedBuildStateMap.mockResolvedValue(
+      new Map([["state-uuid-1", { id: "state-uuid-1", name: "Todo", group: "unstarted" }]])
+    );
 
     const tools = createPlaneTools(config);
     const result = (await tools.getTaskDetails.execute!(
