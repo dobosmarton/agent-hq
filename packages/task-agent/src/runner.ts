@@ -53,6 +53,7 @@ const IMPLEMENTATION_TOOLS = [
   "mcp__agent-plane-tools__remove_labels_from_task",
   "mcp__agent-plane-tools__load_skill",
   "mcp__agent-plane-tools__create_skill",
+  "mcp__agent-plane-tools__validate_quality_gate",
 ];
 
 // Blocklist for destructive commands — takes precedence over allowedTools
@@ -141,6 +142,7 @@ export const runAgent = async (
     skills,
     projectRepoPath,
     agentRunnerRoot,
+    ciCommands: ciContext.overrideCommands ?? [],
   });
 
   progressTracker.update("Loading skills", "completed");

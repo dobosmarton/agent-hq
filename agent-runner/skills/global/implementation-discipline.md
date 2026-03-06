@@ -32,3 +32,25 @@ You are executing an approved plan. Your job is precise implementation, not crea
 - Don't add backwards-compatibility shims for things that don't need them
 - Don't rename variables or reformat code outside the plan scope
 - Don't add empty catch blocks, excessive logging, or defensive checks for impossible states
+
+## Completion Standards
+
+Before marking a task complete or creating a PR, you MUST verify every item below. This is not optional.
+
+### Test Quality — Zero Tolerance Policy
+
+- **Never ship with failing tests** — if a test fails, fix it before proceeding. Do not mark it as "pre-existing" or skip it
+- **Never ship with flaky tests** — a flaky test is a broken test. Fix the flakiness, not just the failure
+- **Run the full test suite** — not just the tests for the files you changed. Your change may break unrelated tests
+- **All CI checks must pass** — run every check from the CI config before creating the PR
+
+### Acceptance Criteria Checklist
+
+Before creating a PR, go through each acceptance criterion from the task description one by one:
+
+1. Copy each criterion from the task's acceptance criteria list
+2. Confirm you have implemented or addressed it
+3. If a criterion cannot be verified automatically, add a comment explaining how it was satisfied
+4. If any criterion is NOT met, implement it before creating the PR — do not leave items unaddressed
+
+**Rule**: Do not create a PR until every acceptance criterion is satisfied and every CI check passes.

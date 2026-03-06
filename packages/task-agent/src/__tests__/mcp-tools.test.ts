@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeComment, makeIssue, makeLabel, paginate } from "./fixtures/plane";
 import type { PlaneClient } from "@agent-hq/plane-client";
 
+// Mock the exec used by validate_quality_gate
+// vi.hoisted ensures the variable is created before vi.mock hoisting
+const { mockExecImpl } = vi.hoisted(() => ({ mockExecImpl: vi.fn() }));
+vi.mock("node:child_process", () => ({ exec: mockExecImpl }));
+vi.mock("node:util", () => ({ promisify: (fn: unknown) => fn }));
+
 // Mock the SDK so we can capture the tool handlers
 const toolHandlers = new Map<string, (...args: any[]) => any>();
 
@@ -55,6 +61,7 @@ const makeContext = (overrides?: Record<string, unknown>) => {
     skills: [] as import("@agent-hq/skills").Skill[],
     projectRepoPath: "/tmp/test-repo",
     agentRunnerRoot: "/tmp/test-agent-runner",
+    ciCommands: [] as string[],
     ...overrides,
   };
 };
@@ -547,5 +554,49 @@ This is the content.`,
     const result = await handler({ skill_id: "test-skill" });
 
     expect(result.content[0].text).toContain("not found");
+  });
+});
+
+describe("validate_quality_gate", () => {
+  it("returns message when no CI commands configured", async () => {
+    const ctx = makeContext({ ciCommands: [] });
+    createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("validate_quality_gate")!;
+    const result = await handler({});
+
+    expect(result.content[0].text).toContain("No CI commands configured");
+  });
+
+  it("reports PASSED when all commands succeed", async () => {
+    mockExecImpl.mockResolvedValue({ stdout: "All good", stderr: "" });
+
+    const ctx = makeContext({ ciCommands: ["pnpm test", "pnpm build"] });
+    createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("validate_quality_gate")!;
+    const result = await handler({});
+
+    expect(result.content[0].text).toContain("PASSED");
+    expect(result.content[0].text).toContain("2/2 checks passed");
+    expect(result.content[0].text).toContain("✓ pnpm test");
+    expect(result.content[0].text).toContain("✓ pnpm build");
+  });
+
+  it("reports FAILED when a command fails", async () => {
+    mockExecImpl
+      .mockResolvedValueOnce({ stdout: "OK", stderr: "" })
+      .mockRejectedValueOnce({ stdout: "", stderr: "Type error", message: "Command failed" });
+
+    const ctx = makeContext({ ciCommands: ["pnpm build", "pnpm test"] });
+    createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("validate_quality_gate")!;
+    const result = await handler({});
+
+    expect(result.content[0].text).toContain("FAILED");
+    expect(result.content[0].text).toContain("1/2 checks passed");
+    expect(result.content[0].text).toContain("✓ pnpm build");
+    expect(result.content[0].text).toContain("✗ pnpm test");
   });
 });
