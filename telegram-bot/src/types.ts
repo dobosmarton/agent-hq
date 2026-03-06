@@ -36,4 +36,3 @@ export type {
   PlaneProject,
   PlaneState,
 } from "@agent-hq/plane-client";
-
