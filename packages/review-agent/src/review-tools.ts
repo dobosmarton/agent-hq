@@ -1,4 +1,4 @@
-import type { Skill } from "../skills/types";
+import type { Skill } from "@agent-hq/skills";
 
 /**
  * Review tool definition

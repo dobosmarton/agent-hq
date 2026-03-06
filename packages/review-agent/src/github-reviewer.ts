@@ -1,5 +1,5 @@
-import type { GitHubClient } from "../github/client";
-import type { GitHubReviewEvent } from "../github/types";
+import type { GitHubClient } from "./github/client";
+import type { GitHubReviewEvent } from "./github/types";
 import type { CodeAnalysisResult, IssueSeverity, ReviewResult } from "./types";
 import type { AggregatedReview } from "./parallel-reviewer";
 

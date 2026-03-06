@@ -1,9 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { PlaneConfig } from "../config";
-import type { TaskPoller } from "../poller/task-poller";
-import { addComment, getIssue } from "../plane/client";
-import { createGitHubClient } from "../github/client";
-import { loadSkills } from "../skills/loader";
+import type { PlaneClient } from "@agent-hq/plane-client";
+import { createGitHubClient } from "./github/client";
+import { loadSkills } from "@agent-hq/skills";
 import type { ReviewContext, ReviewResult, CodeAnalysisResult } from "./types";
 import { analyzeCode } from "./analyzer";
 import { postReviewToGitHub } from "./github-reviewer";
@@ -30,7 +28,7 @@ export type ReviewAgentConfig = {
  * Handles analysis errors by posting to Plane
  */
 const handleAnalysisError = (
-  planeConfig: PlaneConfig,
+  plane: PlaneClient,
   error: string,
   projectId: string,
   taskId: string
@@ -38,14 +36,15 @@ const handleAnalysisError = (
   console.error(`❌ Review: Analysis failed: ${error}`);
 
   // Post error comment to Plane
-  void addComment(
-    planeConfig,
-    projectId,
-    taskId,
-    `<p><strong>⚠️ Automated PR Review Failed</strong></p><p>Error: ${error}</p><p>Please review the PR manually.</p>`
-  ).catch((err: unknown) => {
-    console.error(`❌ Review: Failed to post error comment to Plane:`, err);
-  });
+  void plane
+    .addComment(
+      projectId,
+      taskId,
+      `<p><strong>⚠️ Automated PR Review Failed</strong></p><p>Error: ${error}</p><p>Please review the PR manually.</p>`
+    )
+    .catch((err: unknown) => {
+      console.error(`❌ Review: Failed to post error comment to Plane:`, err);
+    });
 
   return { success: false, error };
 };
@@ -88,8 +87,7 @@ const buildPlaneSummary = (
  */
 export const createReviewOrchestrator = (
   reviewConfig: ReviewAgentConfig,
-  planeConfig: PlaneConfig,
-  _taskPoller: TaskPoller,
+  plane: PlaneClient,
   anthropicApiKey: string,
   githubToken: string
 ) => {
@@ -164,7 +162,7 @@ export const createReviewOrchestrator = (
 
       // Fetch task details
       console.log(`📥 Review: Fetching task details from Plane...`);
-      const task = await getIssue(planeConfig, projectId, taskId);
+      const task = await plane.getIssue(projectId, taskId);
       if (!task) {
         return {
           success: false,
@@ -211,7 +209,7 @@ export const createReviewOrchestrator = (
           );
 
           if (!analysisResult.success) {
-            return handleAnalysisError(planeConfig, analysisResult.error, projectId, taskId);
+            return handleAnalysisError(plane, analysisResult.error, projectId, taskId);
           }
 
           analysis = analysisResult.data;
@@ -226,7 +224,7 @@ export const createReviewOrchestrator = (
 
           if (!toolSelectionResult.success) {
             console.error(`❌ Review: Tool selection failed: ${toolSelectionResult.error}`);
-            return handleAnalysisError(planeConfig, toolSelectionResult.error, projectId, taskId);
+            return handleAnalysisError(plane, toolSelectionResult.error, projectId, taskId);
           }
 
           const selectedTools = toolSelectionResult.data;
@@ -241,7 +239,7 @@ export const createReviewOrchestrator = (
 
           if (!parallelResult.success) {
             console.error(`❌ Review: Parallel review failed: ${parallelResult.error}`);
-            return handleAnalysisError(planeConfig, parallelResult.error, projectId, taskId);
+            return handleAnalysisError(plane, parallelResult.error, projectId, taskId);
           }
 
           analysis = parallelResult.data;
@@ -255,7 +253,7 @@ export const createReviewOrchestrator = (
         );
 
         if (!analysisResult.success) {
-          return handleAnalysisError(planeConfig, analysisResult.error, projectId, taskId);
+          return handleAnalysisError(plane, analysisResult.error, projectId, taskId);
         }
 
         analysis = analysisResult.data;
@@ -271,7 +269,7 @@ export const createReviewOrchestrator = (
       console.log(`📝 Review: Posting summary to Plane task...`);
       const planeSummary = buildPlaneSummary(analysis, prNumber, pr.html_url);
 
-      void addComment(planeConfig, projectId, taskId, planeSummary).catch((err: unknown) => {
+      void plane.addComment(projectId, taskId, planeSummary).catch((err: unknown) => {
         console.error(`❌ Review: Failed to post summary to Plane:`, err);
       });
 

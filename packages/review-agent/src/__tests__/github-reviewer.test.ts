@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { GitHubClient } from "../../github/client";
+import type { GitHubClient } from "../github/client";
 import type { CodeAnalysisResult } from "../types";
 import { postReviewToGitHub } from "../github-reviewer";
 
