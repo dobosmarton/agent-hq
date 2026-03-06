@@ -55,9 +55,7 @@ export const makeEnv = (overrides?: Partial<Env>): Env => ({
   ...overrides,
 });
 
-export const makePlaneConfig = (
-  overrides?: Partial<PlaneConfig>,
-): PlaneConfig => ({
+export const makePlaneConfig = (overrides?: Partial<PlaneConfig>): PlaneConfig => ({
   apiKey: "test-api-key",
   baseUrl: "http://localhost/api/v1",
   workspaceSlug: "test-ws",

@@ -14,7 +14,7 @@ import type { GitHubPullRequest } from "./types";
 export const extractTaskIds = (
   pr: GitHubPullRequest,
   commits?: Array<{ message: string }>,
-  pattern = "([A-Z]+-\\d+)",
+  pattern = "([A-Z]+-\\d+)"
 ): string[] => {
   const taskIds = new Set<string>();
   const regex = new RegExp(pattern, "g");
@@ -59,10 +59,7 @@ export const extractTaskIds = (
  * @param pattern - Regex pattern to match (default: ([A-Z]+-\d+))
  * @returns true if valid, false otherwise
  */
-export const validateTaskId = (
-  taskId: string,
-  pattern = "([A-Z]+-\\d+)",
-): boolean => {
+export const validateTaskId = (taskId: string, pattern = "([A-Z]+-\\d+)"): boolean => {
   const regex = new RegExp(`^${pattern}$`);
   return regex.test(taskId);
 };

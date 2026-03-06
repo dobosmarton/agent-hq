@@ -206,7 +206,7 @@ describe("phase detection", () => {
       expect.anything(),
       expect.any(String),
       expect.any(String),
-      null,
+      null
     );
   });
 
@@ -241,7 +241,7 @@ describe("phase detection", () => {
       expect.anything(),
       expect.any(String),
       expect.any(String),
-      null,
+      null
     );
   });
 });
@@ -251,9 +251,7 @@ describe("spawnAgent", () => {
     const deps = makeDeps();
     const manager = createAgentManager(deps);
 
-    const result = await manager.spawnAgent(
-      makeTask({ projectIdentifier: "UNKNOWN" }),
-    );
+    const result = await manager.spawnAgent(makeTask({ projectIdentifier: "UNKNOWN" }));
 
     expect(result).toEqual({
       outcome: "rejected",
@@ -284,7 +282,7 @@ describe("spawnAgent", () => {
     expect(notifier.agentErrored).toHaveBeenCalledWith(
       "HQ-42",
       "Fix the bug",
-      expect.stringContaining("Worktree setup failed"),
+      expect.stringContaining("Worktree setup failed")
     );
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
     expect(mockedRunAgent).not.toHaveBeenCalled();
@@ -321,7 +319,7 @@ describe("spawnAgent", () => {
     expect(onAgentDone).toHaveBeenCalledWith(
       expect.objectContaining({ issueId: "issue-1" }),
       expect.objectContaining({ costUsd: 2.5 }),
-      0,
+      0
     );
     expect(manager.getDailySpend()).toBe(2.5);
   });
@@ -358,7 +356,7 @@ describe("spawnAgent", () => {
     expect(onAgentDone).toHaveBeenCalledWith(
       expect.objectContaining({ issueId: "issue-1" }),
       expect.objectContaining({ crashed: true, error: "agent crashed" }),
-      0,
+      0
     );
     expect(mockedRemoveWorktree).not.toHaveBeenCalled();
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
@@ -385,7 +383,7 @@ describe("spawnAgent", () => {
       }),
       expect.any(String),
       expect.any(String),
-      null,
+      null
     );
   });
 
@@ -436,7 +434,7 @@ describe("checkStaleAgents", () => {
     await manager.checkStaleAgents();
 
     expect(notifier.sendMessage).toHaveBeenCalledWith(
-      expect.stringContaining("Stale agent detected"),
+      expect.stringContaining("Stale agent detected")
     );
   });
 

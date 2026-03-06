@@ -6,9 +6,7 @@ import type { AggregatedReview } from "./parallel-reviewer";
 /**
  * Formats review issues by severity for display
  */
-const formatIssuesBySeverity = (
-  issues: CodeAnalysisResult["issues"],
-): string => {
+const formatIssuesBySeverity = (issues: CodeAnalysisResult["issues"]): string => {
   const bySeverity: Record<IssueSeverity, typeof issues> = {
     critical: [],
     major: [],
@@ -26,7 +24,7 @@ const formatIssuesBySeverity = (
     sections.push(`### ❌ Critical Issues\n`);
     for (const issue of bySeverity.critical) {
       sections.push(
-        `- **${issue.category}**: ${issue.description}${issue.suggestion ? `\n  💡 ${issue.suggestion}` : ""}`,
+        `- **${issue.category}**: ${issue.description}${issue.suggestion ? `\n  💡 ${issue.suggestion}` : ""}`
       );
     }
     sections.push("");
@@ -36,7 +34,7 @@ const formatIssuesBySeverity = (
     sections.push(`### ⚠️ Major Issues\n`);
     for (const issue of bySeverity.major) {
       sections.push(
-        `- **${issue.category}**: ${issue.description}${issue.suggestion ? `\n  💡 ${issue.suggestion}` : ""}`,
+        `- **${issue.category}**: ${issue.description}${issue.suggestion ? `\n  💡 ${issue.suggestion}` : ""}`
       );
     }
     sections.push("");
@@ -46,7 +44,7 @@ const formatIssuesBySeverity = (
     sections.push(`### 💡 Minor Issues\n`);
     for (const issue of bySeverity.minor) {
       sections.push(
-        `- **${issue.category}**: ${issue.description}${issue.suggestion ? `\n  💡 ${issue.suggestion}` : ""}`,
+        `- **${issue.category}**: ${issue.description}${issue.suggestion ? `\n  💡 ${issue.suggestion}` : ""}`
       );
     }
     sections.push("");
@@ -56,7 +54,7 @@ const formatIssuesBySeverity = (
     sections.push(`### 💬 Suggestions\n`);
     for (const issue of bySeverity.suggestion) {
       sections.push(
-        `- **${issue.category}**: ${issue.description}${issue.suggestion ? `\n  💡 ${issue.suggestion}` : ""}`,
+        `- **${issue.category}**: ${issue.description}${issue.suggestion ? `\n  💡 ${issue.suggestion}` : ""}`
       );
     }
     sections.push("");
@@ -69,7 +67,7 @@ const formatIssuesBySeverity = (
  * Maps analysis assessment to GitHub review event
  */
 const mapAssessmentToEvent = (
-  assessment: CodeAnalysisResult["overallAssessment"],
+  assessment: CodeAnalysisResult["overallAssessment"]
 ): GitHubReviewEvent => {
   switch (assessment) {
     case "approve":
@@ -84,9 +82,7 @@ const mapAssessmentToEvent = (
 /**
  * Builds the review body text
  */
-const buildReviewBody = (
-  analysis: CodeAnalysisResult | AggregatedReview,
-): string => {
+const buildReviewBody = (analysis: CodeAnalysisResult | AggregatedReview): string => {
   const header =
     analysis.overallAssessment === "approve"
       ? "## ✅ Code Review - No Issues Found"
@@ -97,9 +93,7 @@ const buildReviewBody = (
   const summary = `\n${analysis.summary}\n`;
 
   const toolsUsed =
-    "toolsUsed" in analysis
-      ? `\n_Review tools used: ${analysis.toolsUsed.join(", ")}_\n`
-      : "";
+    "toolsUsed" in analysis ? `\n_Review tools used: ${analysis.toolsUsed.join(", ")}_\n` : "";
 
   const issuesSection =
     analysis.issues.length > 0
@@ -122,7 +116,7 @@ const buildReviewBody = (
 export const postReviewToGitHub = async (
   client: GitHubClient,
   prNumber: number,
-  analysis: CodeAnalysisResult | AggregatedReview,
+  analysis: CodeAnalysisResult | AggregatedReview
 ): Promise<ReviewResult<void>> => {
   try {
     const event = mapAssessmentToEvent(analysis.overallAssessment);

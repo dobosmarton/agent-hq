@@ -15,7 +15,7 @@ import { extractTextContent, parseClaudeJsonResponse } from "./parse-response";
 export const analyzeCode = async (
   context: ReviewContext,
   client: Anthropic,
-  model: string,
+  model: string
 ): Promise<ReviewResult<CodeAnalysisResult>> => {
   try {
     const systemPrompt = buildSystemPrompt();
@@ -43,7 +43,7 @@ export const analyzeCode = async (
     const analysisResult = parseClaudeJsonResponse(
       textResult.data,
       CodeAnalysisResultSchema,
-      "Review",
+      "Review"
     );
     if (!analysisResult.success) {
       return analysisResult;
@@ -52,7 +52,7 @@ export const analyzeCode = async (
     const analysis = analysisResult.data;
 
     console.log(
-      `✅ Review: Analysis complete - ${analysis.overallAssessment}, ${analysis.issues.length} issue(s)`,
+      `✅ Review: Analysis complete - ${analysis.overallAssessment}, ${analysis.issues.length} issue(s)`
     );
 
     return { success: true, data: analysis };

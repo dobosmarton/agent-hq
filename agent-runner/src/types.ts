@@ -9,11 +9,7 @@ export type AgentTask = {
   labelIds: string[];
 };
 
-export type AgentErrorType =
-  | "rate_limited"
-  | "budget_exceeded"
-  | "max_turns"
-  | "unknown";
+export type AgentErrorType = "rate_limited" | "budget_exceeded" | "max_turns" | "unknown";
 
 export type ActiveAgent = {
   task: AgentTask;

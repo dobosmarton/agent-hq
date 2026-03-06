@@ -86,6 +86,4 @@ export const GitHubPRDetailsSchema = z
  * Result types for GitHub operations
  */
 
-export type GitHubClientResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: string };
+export type GitHubClientResult<T> = { success: true; data: T } | { success: false; error: string };

@@ -50,7 +50,7 @@ describe("skills loader", () => {
 <!-- skill:priority = 80 -->
 
 # Test Skill
-Content here`,
+Content here`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -69,7 +69,7 @@ Content here`,
 <!-- skill:category = patterns -->
 
 # Project Skill
-Content here`,
+Content here`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -85,7 +85,7 @@ Content here`,
 <!-- skill:description = Global -->
 <!-- skill:category = best-practices -->
 
-# Global`,
+# Global`
       );
 
       writeFileSync(
@@ -94,7 +94,7 @@ Content here`,
 <!-- skill:description = Project -->
 <!-- skill:category = patterns -->
 
-# Project`,
+# Project`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -109,7 +109,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:priority = 50 -->
 
-# Global Content`,
+# Global Content`
       );
 
       writeFileSync(
@@ -119,7 +119,7 @@ Content here`,
 <!-- skill:category = patterns -->
 <!-- skill:priority = 90 -->
 
-# Project Content`,
+# Project Content`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -137,7 +137,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:appliesTo = planning -->
 
-# Planning`,
+# Planning`
       );
 
       writeFileSync(
@@ -147,7 +147,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:appliesTo = implementation -->
 
-# Implementation`,
+# Implementation`
       );
 
       const skills = loadSkills("planning", projectDir, defaultConfig);
@@ -163,7 +163,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:appliesTo = planning -->
 
-# Planning`,
+# Planning`
       );
 
       writeFileSync(
@@ -173,7 +173,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:appliesTo = implementation -->
 
-# Implementation`,
+# Implementation`
       );
 
       const skills = loadSkills("implementation", projectDir, defaultConfig);
@@ -189,15 +189,11 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:appliesTo = both -->
 
-# Both`,
+# Both`
       );
 
       const planningSkills = loadSkills("planning", projectDir, defaultConfig);
-      const implementationSkills = loadSkills(
-        "implementation",
-        projectDir,
-        defaultConfig,
-      );
+      const implementationSkills = loadSkills("implementation", projectDir, defaultConfig);
 
       expect(planningSkills).toHaveLength(1);
       expect(implementationSkills).toHaveLength(1);
@@ -211,7 +207,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:priority = 30 -->
 
-# Low`,
+# Low`
       );
 
       writeFileSync(
@@ -221,7 +217,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:priority = 90 -->
 
-# High`,
+# High`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -238,7 +234,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:priority = ${i} -->
 
-# Skill ${i}`,
+# Skill ${i}`
         );
       }
 
@@ -257,7 +253,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:enabled = false -->
 
-# Disabled`,
+# Disabled`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -284,7 +280,7 @@ Content here`,
 <!-- skill:priority = 30 -->
 
 # Learned Skill
-Content here`,
+Content here`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -301,7 +297,7 @@ Content here`,
 <!-- skill:category = best-practices -->
 <!-- skill:priority = 80 -->
 
-# Top Level`,
+# Top Level`
       );
 
       const learnedDir = join(globalDir, "learned");
@@ -314,7 +310,7 @@ Content here`,
 <!-- skill:category = learned -->
 <!-- skill:priority = 30 -->
 
-# Sub Skill`,
+# Sub Skill`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -334,7 +330,7 @@ Content here`,
 <!-- skill:description = A project learned skill -->
 <!-- skill:category = learned -->
 
-# Project Learned`,
+# Project Learned`
       );
 
       const skills = loadSkills("both", projectDir, defaultConfig);
@@ -352,7 +348,7 @@ Content here`,
 <!-- skill:description = Global -->
 <!-- skill:category = best-practices -->
 
-# Global`,
+# Global`
       );
 
       writeFileSync(
@@ -361,7 +357,7 @@ Content here`,
 <!-- skill:description = Project -->
 <!-- skill:category = patterns -->
 
-# Project`,
+# Project`
       );
 
       const result = listAllSkills(projectDir, defaultConfig);

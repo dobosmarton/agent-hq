@@ -17,9 +17,7 @@ const noopTracker = {
   update: (_step: string, _status: ProgressStep["status"]): void => {},
 };
 
-export const createAgentProgressTracker = (
-  config: AgentProgressTrackerConfig,
-) => {
+export const createAgentProgressTracker = (config: AgentProgressTrackerConfig) => {
   if (config.messageId === 0 || config.enabled === false) {
     return noopTracker;
   }
@@ -54,20 +52,16 @@ export const createAgentProgressTracker = (
           config.taskDisplayId,
           config.taskTitle,
           steps,
-          startTime,
+          startTime
         );
-        void config.notifier
-          .agentProgress(config.messageId, message)
-          .catch((err: unknown) => {
-            console.error(
-              `Progress update failed: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          });
+        void config.notifier.agentProgress(config.messageId, message).catch((err: unknown) => {
+          console.error(
+            `Progress update failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+        });
       }
     },
   };
 };
 
-export type AgentProgressTracker = ReturnType<
-  typeof createAgentProgressTracker
->;
+export type AgentProgressTracker = ReturnType<typeof createAgentProgressTracker>;

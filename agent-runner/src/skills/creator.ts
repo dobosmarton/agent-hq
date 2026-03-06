@@ -48,12 +48,12 @@ export const generateSkillMarkdown = (input: CreateSkillInput): string =>
  */
 export const createSkillFile = (
   input: CreateSkillInput,
-  target: CreateSkillTarget,
+  target: CreateSkillTarget
 ): { filePath: string; slug: string } => {
   const slug = slugify(input.name);
   if (!slug) {
     throw new Error(
-      "Could not generate a valid filename from the skill name. Use a name with alphanumeric characters.",
+      "Could not generate a valid filename from the skill name. Use a name with alphanumeric characters."
     );
   }
 

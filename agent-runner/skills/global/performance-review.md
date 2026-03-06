@@ -97,15 +97,11 @@ This skill guides the review agent to identify performance bottlenecks and optim
 
 ```typescript
 const getOrdersWithItems = async (userId: string) => {
-  const orders = await db.query("SELECT * FROM orders WHERE user_id = ?", [
-    userId,
-  ]);
+  const orders = await db.query("SELECT * FROM orders WHERE user_id = ?", [userId]);
 
   for (const order of orders) {
     // Separate query for each order!
-    order.items = await db.query("SELECT * FROM items WHERE order_id = ?", [
-      order.id,
-    ]);
+    order.items = await db.query("SELECT * FROM items WHERE order_id = ?", [order.id]);
   }
 
   return orders;
@@ -127,7 +123,7 @@ const getOrdersWithItems = async (userId: string) => {
     LEFT JOIN items ON items.order_id = orders.id
     WHERE orders.user_id = ?
   `,
-    [userId],
+    [userId]
   );
 };
 ```

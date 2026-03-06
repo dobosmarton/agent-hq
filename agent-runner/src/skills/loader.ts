@@ -28,7 +28,7 @@ const parseSkillMetadata = (
   content: string,
   id: string,
   filePath: string,
-  isProjectSkill: boolean,
+  isProjectSkill: boolean
 ): Skill => {
   const metadata: Record<string, string> = {};
   const lines = content.split("\n");
@@ -63,10 +63,7 @@ const parseSkillMetadata = (
 /**
  * Load .md skill files from a single flat directory (no recursion)
  */
-const loadSkillsFromFlat = (
-  absolutePath: string,
-  isProjectSkill: boolean,
-): Skill[] => {
+const loadSkillsFromFlat = (absolutePath: string, isProjectSkill: boolean): Skill[] => {
   const skills: Skill[] = [];
   const entries = readdirSync(absolutePath);
 
@@ -88,7 +85,7 @@ const loadSkillsFromFlat = (
     } catch (err) {
       console.warn(
         `Failed to parse skill from ${filePath}:`,
-        err instanceof Error ? err.message : String(err),
+        err instanceof Error ? err.message : String(err)
       );
     }
   }
@@ -121,19 +118,14 @@ const loadSkillsFromDir = (dir: string, isProjectSkill: boolean): Skill[] => {
       const id = basename(entry, ".md");
 
       try {
-        const skill = parseSkillMetadata(
-          content,
-          id,
-          entryPath,
-          isProjectSkill,
-        );
+        const skill = parseSkillMetadata(content, id, entryPath, isProjectSkill);
         if (skill.enabled) {
           skills.push(skill);
         }
       } catch (err) {
         console.warn(
           `Failed to parse skill from ${entryPath}:`,
-          err instanceof Error ? err.message : String(err),
+          err instanceof Error ? err.message : String(err)
         );
       }
     }
@@ -182,10 +174,7 @@ const loadProjectSkills = (projectRepoPath: string): Skill[] => {
  * Merge global and project skills
  * Project skills override global skills with the same ID
  */
-const mergeSkills = (
-  globalSkills: Skill[],
-  projectSkills: Skill[],
-): Skill[] => {
+const mergeSkills = (globalSkills: Skill[], projectSkills: Skill[]): Skill[] => {
   const skillMap = new Map<string, Skill>();
 
   // Add global skills first
@@ -204,13 +193,9 @@ const mergeSkills = (
 /**
  * Filter skills by phase and sort by priority
  */
-const filterAndSortSkills = (
-  skills: Skill[],
-  phase: SkillPhase,
-  maxSkills: number,
-): Skill[] => {
+const filterAndSortSkills = (skills: Skill[], phase: SkillPhase, maxSkills: number): Skill[] => {
   const filtered = skills.filter(
-    (skill) => skill.appliesTo === phase || skill.appliesTo === "both",
+    (skill) => skill.appliesTo === phase || skill.appliesTo === "both"
   );
 
   // Sort by priority (descending), then by name (ascending)
@@ -230,7 +215,7 @@ const filterAndSortSkills = (
 export const loadSkills = (
   phase: SkillPhase,
   projectRepoPath: string,
-  config: SkillsConfig,
+  config: SkillsConfig
 ): Skill[] => {
   if (!config.enabled) {
     return [];
@@ -244,11 +229,7 @@ export const loadSkills = (
   const projectSkills = loadProjectSkills(projectRepoPath);
 
   const merged = mergeSkills(globalSkills, projectSkills);
-  const filtered = filterAndSortSkills(
-    merged,
-    phase,
-    config.maxSkillsPerPrompt,
-  );
+  const filtered = filterAndSortSkills(merged, phase, config.maxSkillsPerPrompt);
 
   return filtered;
 };
@@ -266,7 +247,7 @@ export const clearSkillCache = (): void => {
  */
 export const listAllSkills = (
   projectRepoPath: string,
-  config: SkillsConfig,
+  config: SkillsConfig
 ): { global: Skill[]; project: Skill[] } => {
   const agentRunnerRoot = resolve(process.cwd());
   const globalSkillsPath = resolve(agentRunnerRoot, config.globalSkillsPath);

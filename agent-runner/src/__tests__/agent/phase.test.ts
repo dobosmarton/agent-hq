@@ -14,10 +14,7 @@ describe("detectPhase", () => {
   });
 
   it("returns 'planning' when comments have no plan marker", () => {
-    const comments = [
-      makeComment("<p>Regular comment</p>"),
-      makeComment("<p>Another comment</p>"),
-    ];
+    const comments = [makeComment("<p>Regular comment</p>"), makeComment("<p>Another comment</p>")];
     expect(detectPhase(comments)).toBe("planning");
   });
 

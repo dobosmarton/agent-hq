@@ -181,7 +181,7 @@ const healthRoute = createRoute({
 
 const createBridgeApp = (
   deps: BridgeDeps,
-  pending: Map<string, PendingQuestion>,
+  pending: Map<string, PendingQuestion>
 ): OpenAPIHono<BridgeEnv> => {
   const app = new OpenAPIHono<BridgeEnv>();
 
@@ -211,9 +211,7 @@ const createBridgeApp = (
       sequenceId: e.task.sequenceId,
       title: e.task.title,
       retryCount: e.retryCount,
-      nextAttemptAt: e.nextAttemptAt
-        ? new Date(e.nextAttemptAt).toISOString()
-        : null,
+      nextAttemptAt: e.nextAttemptAt ? new Date(e.nextAttemptAt).toISOString() : null,
       enqueuedAt: new Date(e.enqueuedAt).toISOString(),
     }));
 
@@ -236,7 +234,7 @@ const createBridgeApp = (
         dailySpend: d.agentManager?.getDailySpend() ?? 0,
         dailyBudget: d.agentManager?.getDailyBudget() ?? 0,
       },
-      200,
+      200
     );
   });
 
@@ -246,10 +244,7 @@ const createBridgeApp = (
     const { issueId } = c.req.valid("param");
 
     if (d.agentManager?.isTaskActive(issueId)) {
-      return c.json(
-        { error: "Task is currently active and cannot be removed" },
-        409,
-      );
+      return c.json({ error: "Task is currently active and cannot be removed" }, 409);
     }
 
     const removed = d.queue?.remove(issueId) ?? false;
@@ -305,25 +300,18 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
         hostname: "127.0.0.1",
       },
       () => {
-        console.log(
-          `Answer server listening on http://127.0.0.1:${ANSWER_PORT}`,
-        );
-      },
+        console.log(`Answer server listening on http://127.0.0.1:${ANSWER_PORT}`);
+      }
     );
   };
 
-  const askAndWait = async (
-    taskId: string,
-    question: string,
-  ): Promise<string> => {
+  const askAndWait = async (taskId: string, question: string): Promise<string> => {
     const messageId = await deps.notifier.agentBlocked(taskId, question);
 
     return new Promise<string>((resolve) => {
       const timeoutHandle = setTimeout(() => {
         pending.delete(taskId);
-        resolve(
-          "[No answer received within timeout. Proceeding with best judgment.]",
-        );
+        resolve("[No answer received within timeout. Proceeding with best judgment.]");
       }, DEFAULT_TIMEOUT_MS);
 
       pending.set(taskId, { taskId, messageId, resolve, timeoutHandle });

@@ -90,6 +90,4 @@ export const CodeAnalysisResultSchema = z.object({
 /**
  * Result type for review operations
  */
-export type ReviewResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: string };
+export type ReviewResult<T> = { success: true; data: T } | { success: false; error: string };

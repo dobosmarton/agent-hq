@@ -25,9 +25,7 @@ const ReviewConfigSchema = z.object({
   enabled: z.boolean().default(true),
   triggerOnOpened: z.boolean().default(true),
   triggerOnSynchronize: z.boolean().default(true),
-  severityThreshold: z
-    .enum(["critical", "major", "minor", "suggestion"])
-    .default("major"),
+  severityThreshold: z.enum(["critical", "major", "minor", "suggestion"]).default("major"),
   skipIfLabelPresent: z.string().optional(),
   maxDiffSizeKb: z.number().int().positive().default(100),
   claudeModel: z.string().default("claude-3-5-sonnet-20241022"),
@@ -107,10 +105,7 @@ const EnvSchema = z.object({
 export type Env = z.infer<typeof EnvSchema>;
 
 export const loadConfig = (configPath?: string): Config => {
-  const path =
-    configPath ??
-    process.env.CONFIG_PATH ??
-    resolve(process.cwd(), "config.json");
+  const path = configPath ?? process.env.CONFIG_PATH ?? resolve(process.cwd(), "config.json");
   const raw = readFileSync(path, "utf-8");
   return ConfigSchema.parse(JSON.parse(raw));
 };

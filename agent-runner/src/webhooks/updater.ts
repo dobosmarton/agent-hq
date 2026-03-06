@@ -2,11 +2,7 @@ import type { PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
 import { addComment, listIssues, updateIssue } from "../plane/client";
 import type { GitHubPullRequest } from "./types";
-import {
-  extractProjectIdentifier,
-  extractSequenceId,
-  validateTaskId,
-} from "./task-matcher";
+import { extractProjectIdentifier, extractSequenceId, validateTaskId } from "./task-matcher";
 
 export type UpdateResult =
   | {
@@ -32,7 +28,7 @@ export const updateTaskState = async (
   taskPoller: TaskPoller,
   taskId: string,
   pr: GitHubPullRequest,
-  pattern: string,
+  pattern: string
 ): Promise<UpdateResult> => {
   // Validate task ID format
   if (!validateTaskId(taskId, pattern)) {
@@ -100,9 +96,7 @@ export const updateTaskState = async (
     const commentHtml = `<p>✅ <strong>PR merged</strong>: <a href="${pr.html_url}">#${pr.number} ${pr.title}</a></p><p>Task automatically moved to Done by webhook automation.</p>`;
     await addComment(planeConfig, cache.project.id, issue.id, commentHtml);
 
-    console.log(
-      `✅ Updated ${taskId} to Done (PR #${pr.number}: ${pr.html_url})`,
-    );
+    console.log(`✅ Updated ${taskId} to Done (PR #${pr.number}: ${pr.html_url})`);
 
     return {
       taskId,
@@ -137,18 +131,12 @@ export const updateMultipleTasks = async (
   taskPoller: TaskPoller,
   taskIds: string[],
   pr: GitHubPullRequest,
-  pattern: string,
+  pattern: string
 ): Promise<UpdateResult[]> => {
   const results: UpdateResult[] = [];
 
   for (const taskId of taskIds) {
-    const result = await updateTaskState(
-      planeConfig,
-      taskPoller,
-      taskId,
-      pr,
-      pattern,
-    );
+    const result = await updateTaskState(planeConfig, taskPoller, taskId, pr, pattern);
     results.push(result);
   }
 

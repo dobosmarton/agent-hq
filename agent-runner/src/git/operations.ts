@@ -14,15 +14,10 @@ const git = async (repoPath: string, args: string[]): Promise<string> => {
 export const getCommitLog = async (
   repoPath: string,
   baseRef: string,
-  headRef: string = "HEAD",
+  headRef: string = "HEAD"
 ): Promise<string> => {
   try {
-    return await git(repoPath, [
-      "log",
-      "--oneline",
-      "--no-decorate",
-      `${baseRef}..${headRef}`,
-    ]);
+    return await git(repoPath, ["log", "--oneline", "--no-decorate", `${baseRef}..${headRef}`]);
   } catch {
     return "";
   }
@@ -34,7 +29,7 @@ export const getCommitLog = async (
 export const getDiff = async (
   repoPath: string,
   baseRef: string,
-  headRef: string = "HEAD",
+  headRef: string = "HEAD"
 ): Promise<string> => {
   try {
     // Use --stat for a summary view
@@ -47,9 +42,7 @@ export const getDiff = async (
 /**
  * Get the last commit message from a repo
  */
-export const getLastCommitMessage = async (
-  repoPath: string,
-): Promise<string | null> => {
+export const getLastCommitMessage = async (repoPath: string): Promise<string | null> => {
   try {
     return await git(repoPath, ["log", "-1", "--format=%s"]);
   } catch {
@@ -63,7 +56,7 @@ export const getLastCommitMessage = async (
 export const isBranchBehind = async (
   repoPath: string,
   branchName: string,
-  baseBranch: string,
+  baseBranch: string
 ): Promise<{ behind: boolean; commitCount: number }> => {
   try {
     const output = await git(repoPath, [
@@ -81,9 +74,7 @@ export const isBranchBehind = async (
 /**
  * Check for uncommitted changes in a worktree
  */
-export const hasUncommittedChanges = async (
-  repoPath: string,
-): Promise<boolean> => {
+export const hasUncommittedChanges = async (repoPath: string): Promise<boolean> => {
   try {
     const status = await git(repoPath, ["status", "--porcelain"]);
     return status.trim().length > 0;
@@ -98,14 +89,10 @@ export const hasUncommittedChanges = async (
 export const getFileChangeSummary = async (
   repoPath: string,
   baseRef: string,
-  headRef: string = "HEAD",
+  headRef: string = "HEAD"
 ): Promise<{ filesChanged: number; insertions: number; deletions: number }> => {
   try {
-    const output = await git(repoPath, [
-      "diff",
-      "--shortstat",
-      `${baseRef}...${headRef}`,
-    ]);
+    const output = await git(repoPath, ["diff", "--shortstat", `${baseRef}...${headRef}`]);
 
     // Parse: " 5 files changed, 120 insertions(+), 30 deletions(-)"
     const filesMatch = output.match(/(\d+) files? changed/);

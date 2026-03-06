@@ -7,9 +7,7 @@ import {
 } from "../task-matcher";
 import type { GitHubPullRequest } from "../types";
 
-const createMockPR = (
-  overrides?: Partial<GitHubPullRequest>,
-): GitHubPullRequest => ({
+const createMockPR = (overrides?: Partial<GitHubPullRequest>): GitHubPullRequest => ({
   id: 1,
   number: 123,
   title: "Test PR",
@@ -80,10 +78,7 @@ describe("extractTaskIds", () => {
 
   it("should extract task IDs from commit messages", () => {
     const pr = createMockPR();
-    const commits = [
-      { message: "AGENTHQ-111: Add feature" },
-      { message: "AGENTHQ-222: Fix bug" },
-    ];
+    const commits = [{ message: "AGENTHQ-111: Add feature" }, { message: "AGENTHQ-222: Fix bug" }];
 
     const taskIds = extractTaskIds(pr, commits);
     expect(taskIds).toContain("AGENTHQ-111");

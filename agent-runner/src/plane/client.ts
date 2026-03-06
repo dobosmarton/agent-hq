@@ -26,7 +26,7 @@ const workspaceUrl = (config: PlaneConfig): string =>
 const planeRequest = async (
   url: string,
   config: PlaneConfig,
-  init?: RequestInit,
+  init?: RequestInit
 ): Promise<unknown> => {
   const res = await fetch(url, {
     ...init,
@@ -43,16 +43,14 @@ const planeRequest = async (
 
 // --- Projects ---
 
-export const listProjects = async (
-  config: PlaneConfig,
-): Promise<PlaneProject[]> => {
+export const listProjects = async (config: PlaneConfig): Promise<PlaneProject[]> => {
   const data = await planeRequest(`${workspaceUrl(config)}/projects/`, config);
   return PlanePaginatedSchema(PlaneProjectSchema).parse(data).results;
 };
 
 export const findProjectByIdentifier = async (
   config: PlaneConfig,
-  identifier: string,
+  identifier: string
 ): Promise<PlaneProject | null> => {
   const projects = await listProjects(config);
   const upper = identifier.toUpperCase();
@@ -61,20 +59,14 @@ export const findProjectByIdentifier = async (
 
 // --- States ---
 
-export const listStates = async (
-  config: PlaneConfig,
-  projectId: string,
-): Promise<PlaneState[]> => {
-  const data = await planeRequest(
-    `${workspaceUrl(config)}/projects/${projectId}/states/`,
-    config,
-  );
+export const listStates = async (config: PlaneConfig, projectId: string): Promise<PlaneState[]> => {
+  const data = await planeRequest(`${workspaceUrl(config)}/projects/${projectId}/states/`, config);
   return PlanePaginatedSchema(PlaneStateSchema).parse(data).results;
 };
 
 export const buildStateMap = async (
   config: PlaneConfig,
-  projectId: string,
+  projectId: string
 ): Promise<Map<string, PlaneState>> => {
   const states = await listStates(config, projectId);
   return new Map(states.map((s) => [s.id, s]));
@@ -84,40 +76,31 @@ export const findStateByGroupAndName = async (
   config: PlaneConfig,
   projectId: string,
   group: string,
-  name?: string,
+  name?: string
 ): Promise<PlaneState | null> => {
   const states = await listStates(config, projectId);
   return (
     states.find(
       (s) =>
-        s.group === group &&
-        (name === undefined || s.name.toLowerCase() === name.toLowerCase()),
+        s.group === group && (name === undefined || s.name.toLowerCase() === name.toLowerCase())
     ) ?? null
   );
 };
 
 // --- Labels ---
 
-export const listLabels = async (
-  config: PlaneConfig,
-  projectId: string,
-): Promise<PlaneLabel[]> => {
-  const data = await planeRequest(
-    `${workspaceUrl(config)}/projects/${projectId}/labels/`,
-    config,
-  );
+export const listLabels = async (config: PlaneConfig, projectId: string): Promise<PlaneLabel[]> => {
+  const data = await planeRequest(`${workspaceUrl(config)}/projects/${projectId}/labels/`, config);
   return PlanePaginatedSchema(PlaneLabelSchema).parse(data).results;
 };
 
 export const findLabelByName = async (
   config: PlaneConfig,
   projectId: string,
-  name: string,
+  name: string
 ): Promise<PlaneLabel | null> => {
   const labels = await listLabels(config, projectId);
-  return (
-    labels.find((l) => l.name.toLowerCase() === name.toLowerCase()) ?? null
-  );
+  return labels.find((l) => l.name.toLowerCase() === name.toLowerCase()) ?? null;
 };
 
 // --- Issues ---
@@ -125,7 +108,7 @@ export const findLabelByName = async (
 export const listIssues = async (
   config: PlaneConfig,
   projectId: string,
-  params?: Record<string, string>,
+  params?: Record<string, string>
 ): Promise<PlaneIssue[]> => {
   const searchParams = new URLSearchParams({
     per_page: "50",
@@ -134,7 +117,7 @@ export const listIssues = async (
 
   const data = await planeRequest(
     `${workspaceUrl(config)}/projects/${projectId}/issues/?${searchParams.toString()}`,
-    config,
+    config
   );
   return PlanePaginatedSchema(PlaneIssueSchema).parse(data).results;
 };
@@ -142,11 +125,11 @@ export const listIssues = async (
 export const getIssue = async (
   config: PlaneConfig,
   projectId: string,
-  issueId: string,
+  issueId: string
 ): Promise<PlaneIssue> => {
   const data = await planeRequest(
     `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`,
-    config,
+    config
   );
   return PlaneIssueSchema.parse(data);
 };
@@ -155,7 +138,7 @@ export const updateIssue = async (
   config: PlaneConfig,
   projectId: string,
   issueId: string,
-  update: Record<string, unknown>,
+  update: Record<string, unknown>
 ): Promise<PlaneIssue> => {
   const data = await planeRequest(
     `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/`,
@@ -163,7 +146,7 @@ export const updateIssue = async (
     {
       method: "PATCH",
       body: JSON.stringify(update),
-    },
+    }
   );
   return PlaneIssueSchema.parse(data);
 };
@@ -174,7 +157,7 @@ export const addComment = async (
   config: PlaneConfig,
   projectId: string,
   issueId: string,
-  commentHtml: string,
+  commentHtml: string
 ): Promise<PlaneComment> => {
   const data = await planeRequest(
     `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/comments/`,
@@ -182,7 +165,7 @@ export const addComment = async (
     {
       method: "POST",
       body: JSON.stringify({ comment_html: commentHtml }),
-    },
+    }
   );
   return PlaneCommentSchema.parse(data);
 };
@@ -190,11 +173,11 @@ export const addComment = async (
 export const listComments = async (
   config: PlaneConfig,
   projectId: string,
-  issueId: string,
+  issueId: string
 ): Promise<PlaneComment[]> => {
   const data = await planeRequest(
     `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/comments/`,
-    config,
+    config
   );
   return PlanePaginatedSchema(PlaneCommentSchema).parse(data).results;
 };
@@ -206,7 +189,7 @@ export const addLink = async (
   projectId: string,
   issueId: string,
   title: string,
-  url: string,
+  url: string
 ): Promise<PlaneLink> => {
   const data = await planeRequest(
     `${workspaceUrl(config)}/projects/${projectId}/issues/${issueId}/links/`,
@@ -214,7 +197,7 @@ export const addLink = async (
     {
       method: "POST",
       body: JSON.stringify({ title, url }),
-    },
+    }
   );
   return PlaneLinkSchema.parse(data);
 };

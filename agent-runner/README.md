@@ -156,12 +156,11 @@ The agent can now **resume work on existing tasks** instead of always starting f
 **Resume comment format:**
 
 ```html
-✅ Resuming work on this task Found existing branch: agent/PROJECT-42 Previous
-work completed: 5 commit(s) New feedback from comments: - [2024-02-20] User
-requested feature X instead of Y - [2024-02-21] Clarified acceptance criteria
-for feature Z Plan for this session: - Review existing work and new feedback -
-Update implementation based on new requirements - Complete remaining acceptance
-criteria
+✅ Resuming work on this task Found existing branch: agent/PROJECT-42 Previous work completed: 5
+commit(s) New feedback from comments: - [2024-02-20] User requested feature X instead of Y -
+[2024-02-21] Clarified acceptance criteria for feature Z Plan for this session: - Review existing
+work and new feedback - Update implementation based on new requirements - Complete remaining
+acceptance criteria
 ```
 
 ### Retries

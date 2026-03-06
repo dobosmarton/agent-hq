@@ -35,8 +35,7 @@ export type CommentAnalysis = {
 export const analyzeComments = (comments: PlaneComment[]): CommentAnalysis => {
   // Sort comments chronologically
   const sorted = [...comments].sort(
-    (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
   const agentComments: PlaneComment[] = [];
@@ -66,10 +65,7 @@ export const analyzeComments = (comments: PlaneComment[]): CommentAnalysis => {
   if (latestAgentTimestamp) {
     const latestAgentTime = new Date(latestAgentTimestamp).getTime();
     for (const comment of sorted) {
-      if (
-        !isAgentComment(comment) &&
-        new Date(comment.created_at).getTime() > latestAgentTime
-      ) {
+      if (!isAgentComment(comment) && new Date(comment.created_at).getTime() > latestAgentTime) {
         newCommentsSinceAgent.push(comment);
       }
     }
@@ -89,12 +85,8 @@ export const analyzeComments = (comments: PlaneComment[]): CommentAnalysis => {
 /**
  * Extract the plan content from comments (if it exists)
  */
-export const extractPlanFromComments = (
-  comments: PlaneComment[],
-): string | null => {
-  const planComment = comments.find((c) =>
-    c.comment_html.includes(PLAN_MARKER),
-  );
+export const extractPlanFromComments = (comments: PlaneComment[]): string | null => {
+  const planComment = comments.find((c) => c.comment_html.includes(PLAN_MARKER));
 
   if (!planComment) return null;
 
@@ -111,18 +103,13 @@ export const extractPlanFromComments = (
 /**
  * Format user comments for inclusion in agent prompts
  */
-export const formatUserCommentsForPrompt = (
-  comments: PlaneComment[],
-): string => {
+export const formatUserCommentsForPrompt = (comments: PlaneComment[]): string => {
   if (comments.length === 0) {
     return "<p>No user feedback yet.</p>";
   }
 
   return comments
-    .map(
-      (c) =>
-        `<div class="user-comment" data-date="${c.created_at}">${c.comment_html}</div>`,
-    )
+    .map((c) => `<div class="user-comment" data-date="${c.created_at}">${c.comment_html}</div>`)
     .join("\n");
 };
 
@@ -136,9 +123,7 @@ export const summarizeNewFeedback = (comments: PlaneComment[]): string => {
   }
 
   const summary: string[] = [];
-  summary.push(
-    `${comments.length} new comment(s) from user since last work session:`,
-  );
+  summary.push(`${comments.length} new comment(s) from user since last work session:`);
 
   for (const comment of comments) {
     // Strip HTML tags for basic text extraction

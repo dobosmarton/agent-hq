@@ -1,10 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type {
-  ReviewContext,
-  ReviewResult,
-  CodeAnalysisResult,
-  ReviewIssue,
-} from "./types";
+import type { ReviewContext, ReviewResult, CodeAnalysisResult, ReviewIssue } from "./types";
 import type { ToolSelectionResult } from "./review-tools";
 import { CodeAnalysisResultSchema } from "./types";
 import { extractTextContent, parseClaudeJsonResponse } from "./parse-response";
@@ -37,7 +32,7 @@ const executeReviewTool = async (
   context: ReviewContext,
   toolSelection: ToolSelectionResult,
   client: Anthropic,
-  model: string,
+  model: string
 ): Promise<ReviewResult<ToolReviewResult>> => {
   const startTime = Date.now();
 
@@ -103,7 +98,7 @@ Perform a ${tool.category} review of these code changes.`;
     const analysisResult = parseClaudeJsonResponse(
       textResult.data,
       CodeAnalysisResultSchema,
-      tool.category,
+      tool.category
     );
     if (!analysisResult.success) {
       return analysisResult;
@@ -113,7 +108,7 @@ Perform a ${tool.category} review of these code changes.`;
     const executionTimeMs = Date.now() - startTime;
 
     console.log(
-      `  ✅ ${tool.category}: Complete - ${analysis.issues.length} issue(s) (${executionTimeMs}ms)`,
+      `  ✅ ${tool.category}: Complete - ${analysis.issues.length} issue(s) (${executionTimeMs}ms)`
     );
 
     return {
@@ -152,18 +147,18 @@ export const executeParallelReviews = async (
   context: ReviewContext,
   selectedTools: readonly ToolSelectionResult[],
   client: Anthropic,
-  model: string,
+  model: string
 ): Promise<ReviewResult<AggregatedReview>> => {
   try {
     console.log(
-      `\n🔄 Parallel Reviewer: Executing ${selectedTools.length} review(s) in parallel...`,
+      `\n🔄 Parallel Reviewer: Executing ${selectedTools.length} review(s) in parallel...`
     );
 
     const startTime = Date.now();
 
     // Execute all reviews in parallel
     const reviewPromises = selectedTools.map((toolSelection) =>
-      executeReviewTool(context, toolSelection, client, model),
+      executeReviewTool(context, toolSelection, client, model)
     );
 
     const results = await Promise.all(reviewPromises);
@@ -189,7 +184,7 @@ export const executeParallelReviews = async (
 
     if (failures.length > 0) {
       console.warn(
-        `⚠️  Parallel Reviewer: ${failures.length} review(s) failed: ${failures.join("; ")}`,
+        `⚠️  Parallel Reviewer: ${failures.length} review(s) failed: ${failures.join("; ")}`
       );
     }
 
@@ -198,7 +193,7 @@ export const executeParallelReviews = async (
     const totalExecutionTimeMs = Date.now() - startTime;
 
     console.log(
-      `\n✅ Parallel Reviewer: Complete in ${totalExecutionTimeMs}ms - ${aggregated.overallAssessment}, ${aggregated.issues.length} total issue(s)`,
+      `\n✅ Parallel Reviewer: Complete in ${totalExecutionTimeMs}ms - ${aggregated.overallAssessment}, ${aggregated.issues.length} total issue(s)`
     );
 
     return {
@@ -223,7 +218,7 @@ export const executeParallelReviews = async (
  * Aggregates review results from multiple tools
  */
 const aggregateReviews = (
-  reviews: readonly ToolReviewResult[],
+  reviews: readonly ToolReviewResult[]
 ): Omit<AggregatedReview, "totalExecutionTimeMs"> => {
   // Collect all issues
   const allIssues: ReviewIssue[] = [];
@@ -260,9 +255,7 @@ const aggregateReviews = (
 /**
  * Deduplicates similar issues
  */
-const deduplicateIssues = (
-  issues: readonly ReviewIssue[],
-): readonly ReviewIssue[] => {
+const deduplicateIssues = (issues: readonly ReviewIssue[]): readonly ReviewIssue[] => {
   const seen = new Set<string>();
   const unique: ReviewIssue[] = [];
 

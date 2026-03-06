@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeConfig, makePlaneConfig } from "../fixtures/config";
-import {
-  makeIssue,
-  makeLabel,
-  makeProject,
-  makeState,
-} from "../fixtures/plane";
+import { makeIssue, makeLabel, makeProject, makeState } from "../fixtures/plane";
 
 vi.mock("../../plane/client", () => ({
   listProjects: vi.fn(),
@@ -15,13 +10,7 @@ vi.mock("../../plane/client", () => ({
   updateIssue: vi.fn(),
 }));
 
-import {
-  listIssues,
-  listLabels,
-  listProjects,
-  listStates,
-  updateIssue,
-} from "../../plane/client";
+import { listIssues, listLabels, listProjects, listStates, updateIssue } from "../../plane/client";
 import { createTaskPoller } from "../../poller/task-poller";
 
 const mockedListProjects = vi.mocked(listProjects);
@@ -193,9 +182,7 @@ describe("pollForTasks", () => {
     const poller = createTaskPoller(planeConfig, config);
     await poller.initialize();
 
-    mockedListIssues.mockResolvedValue([
-      makeIssue({ id: "i1", labels: ["other-label"] }),
-    ]);
+    mockedListIssues.mockResolvedValue([makeIssue({ id: "i1", labels: ["other-label"] })]);
 
     const tasks = await poller.pollForTasks(10);
     expect(tasks).toHaveLength(0);
@@ -308,9 +295,7 @@ describe("pollForTasks", () => {
     // First project errors, second succeeds
     mockedListIssues
       .mockRejectedValueOnce(new Error("API error"))
-      .mockResolvedValueOnce([
-        makeIssue({ id: "i2", labels: ["label-uuid-1"], state: "todo" }),
-      ]);
+      .mockResolvedValueOnce([makeIssue({ id: "i2", labels: ["label-uuid-1"], state: "todo" })]);
 
     const tasks = await poller.pollForTasks(10);
     expect(tasks).toHaveLength(1);
@@ -339,12 +324,9 @@ describe("claimTask", () => {
     });
 
     expect(result).toBe(true);
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      planeConfig,
-      "proj-1",
-      "i1",
-      { state: "ip-state" },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(planeConfig, "proj-1", "i1", {
+      state: "ip-state",
+    });
   });
 
   it("returns false when cache missing", async () => {

@@ -28,7 +28,7 @@ const stripCodeFences = (text: string): string => {
 export const parseClaudeJsonResponse = <T>(
   text: string,
   schema: z.ZodSchema<T>,
-  label: string,
+  label: string
 ): ReviewResult<T> => {
   const jsonText = stripCodeFences(text);
 
@@ -66,7 +66,7 @@ export const parseClaudeJsonResponse = <T>(
  */
 export const extractTextContent = (
   content: readonly { type: string; text?: string }[],
-  label: string,
+  label: string
 ): ReviewResult<string> => {
   const textContent = content.find((block) => block.type === "text");
   if (!textContent || textContent.type !== "text" || !textContent.text) {

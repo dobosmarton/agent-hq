@@ -29,9 +29,7 @@ const listSkills = (projectPath: string): void => {
   const { global, project } = listAllSkills(projectPath, config.agent.skills);
 
   console.log(formatSkillsList(global, project));
-  console.log(
-    `Total: ${global.length} global, ${project.length} project-level`,
-  );
+  console.log(`Total: ${global.length} global, ${project.length} project-level`);
 };
 
 const showSkill = (skillId: string, projectPath: string): void => {
@@ -89,7 +87,7 @@ const validateSkills = (projectPath: string): void => {
   }
 
   console.log(
-    `\nValidation complete: ${allSkills.length - errorCount} passed, ${errorCount} failed`,
+    `\nValidation complete: ${allSkills.length - errorCount} passed, ${errorCount} failed`
   );
 
   if (errorCount > 0) {

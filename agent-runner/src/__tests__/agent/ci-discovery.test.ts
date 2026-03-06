@@ -37,17 +37,13 @@ describe("readCiWorkflows", () => {
       "ci.yml" as unknown as never,
       "deploy.yaml" as unknown as never,
     ]);
-    mockedReadFileSync
-      .mockReturnValueOnce("name: CI")
-      .mockReturnValueOnce("name: Deploy");
+    mockedReadFileSync.mockReturnValueOnce("name: CI").mockReturnValueOnce("name: Deploy");
 
     const result = readCiWorkflows("/repos/my-app");
 
     expect(Object.keys(result.workflowFiles)).toHaveLength(2);
     expect(result.workflowFiles[".github/workflows/ci.yml"]).toBe("name: CI");
-    expect(result.workflowFiles[".github/workflows/deploy.yaml"]).toBe(
-      "name: Deploy",
-    );
+    expect(result.workflowFiles[".github/workflows/deploy.yaml"]).toBe("name: Deploy");
   });
 
   it("returns empty map when directory does not exist", () => {
@@ -78,11 +74,9 @@ describe("readCiWorkflows", () => {
       "ci.yml" as unknown as never,
       "broken.yml" as unknown as never,
     ]);
-    mockedReadFileSync
-      .mockReturnValueOnce("name: CI")
-      .mockImplementationOnce(() => {
-        throw new Error("Permission denied");
-      });
+    mockedReadFileSync.mockReturnValueOnce("name: CI").mockImplementationOnce(() => {
+      throw new Error("Permission denied");
+    });
 
     const result = readCiWorkflows("/repos/my-app");
 

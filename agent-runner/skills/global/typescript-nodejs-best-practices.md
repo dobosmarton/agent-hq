@@ -403,20 +403,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const isValid = actualSignature === expectedSignature;
 
 // ✅ GOOD: Constant-time HMAC verification
-const verifyHmac = (
-  payload: string,
-  signature: string,
-  secret: string,
-): boolean => {
+const verifyHmac = (payload: string, signature: string, secret: string): boolean => {
   const expected = createHmac("sha256", secret).update(payload).digest("hex");
   // Length check prevents timingSafeEqual from throwing on mismatched sizes
   if (signature.length !== expected.length) {
     return false;
   }
-  return timingSafeEqual(
-    Buffer.from(signature, "hex"),
-    Buffer.from(expected, "hex"),
-  );
+  return timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expected, "hex"));
 };
 ```
 
@@ -648,7 +641,7 @@ class User {
   constructor(
     public id: string,
     public name: string,
-    public email: string,
+    public email: string
   ) {}
 
   getDisplayName(): string {
@@ -1036,7 +1029,7 @@ const addItem = (arr: readonly string[], item: string): string[] => {
 class Point {
   constructor(
     public x: number,
-    public y: number,
+    public y: number
   ) {}
 }
 

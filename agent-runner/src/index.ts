@@ -37,9 +37,7 @@ const main = async (): Promise<void> => {
       try {
         ensureWorktreeGitignore(projectConfig.repoPath);
       } catch (err) {
-        console.warn(
-          `Could not update .gitignore in ${projectConfig.repoPath}: ${err}`,
-        );
+        console.warn(`Could not update .gitignore in ${projectConfig.repoPath}: ${err}`);
       }
     }
   }
@@ -57,7 +55,7 @@ const main = async (): Promise<void> => {
       planeConfig,
       taskPoller,
       env.ANTHROPIC_API_KEY,
-      env.GITHUB_PAT,
+      env.GITHUB_PAT
     );
   } else {
     console.log("ℹ️  Review agent disabled in config");
@@ -82,8 +80,7 @@ const main = async (): Promise<void> => {
   }
 
   // Initialize state persistence
-  const statePath =
-    env.STATE_PATH ?? resolve(process.cwd(), "state/runner-state.json");
+  const statePath = env.STATE_PATH ?? resolve(process.cwd(), "state/runner-state.json");
   const statePersistence = createStatePersistence(statePath);
 
   // Initialize task queue
@@ -93,14 +90,12 @@ const main = async (): Promise<void> => {
   const savedState = statePersistence.load();
   if (savedState.queuedTasks?.length) {
     queue.hydrate(savedState.queuedTasks);
-    console.log(
-      `Restored ${savedState.queuedTasks.length} queued tasks from state`,
-    );
+    console.log(`Restored ${savedState.queuedTasks.length} queued tasks from state`);
   }
 
   // Recover orphaned agents from previous run
   const orphaned = Object.values(savedState.activeAgents).filter(
-    (a) => a.status === "running" || a.status === "blocked",
+    (a) => a.status === "running" || a.status === "blocked"
   );
   for (const agent of orphaned) {
     const slug = `${agent.task.projectIdentifier}-${agent.task.sequenceId}`;
@@ -109,14 +104,9 @@ const main = async (): Promise<void> => {
     const cache = taskPoller.getProjectCache(agent.task.projectIdentifier);
     if (cache) {
       try {
-        await updateIssue(
-          planeConfig,
-          agent.task.projectId,
-          agent.task.issueId,
-          {
-            state: cache.todoStateId,
-          },
-        );
+        await updateIssue(planeConfig, agent.task.projectId, agent.task.issueId, {
+          state: cache.todoStateId,
+        });
       } catch (err) {
         console.error(`Failed to reset state for ${slug}:`, err);
       }
@@ -147,25 +137,20 @@ const main = async (): Promise<void> => {
 
       // Handle retryable errors
       const isRetryable =
-        (result.errorType && RETRYABLE_ERRORS.has(result.errorType)) ||
-        result.crashed;
+        (result.errorType && RETRYABLE_ERRORS.has(result.errorType)) || result.crashed;
 
       if (isRetryable && retryCount < config.agent.maxRetries) {
         const nextRetry = retryCount + 1;
-        const delay = Math.round(
-          config.agent.retryBaseDelayMs * Math.pow(2, retryCount),
-        );
-        const reason = result.crashed
-          ? `Crashed: ${result.error}`
-          : `Error: ${result.errorType}`;
+        const delay = Math.round(config.agent.retryBaseDelayMs * Math.pow(2, retryCount));
+        const reason = result.crashed ? `Crashed: ${result.error}` : `Error: ${result.errorType}`;
 
         console.log(
-          `Agent ${taskSlug} failed (${reason}), scheduling retry ${nextRetry}/${config.agent.maxRetries} in ${delay / 1000}s`,
+          `Agent ${taskSlug} failed (${reason}), scheduling retry ${nextRetry}/${config.agent.maxRetries} in ${delay / 1000}s`
         );
 
         notifier
           .sendMessage(
-            `<b>Retrying ${taskSlug}</b>\n${reason}\nAttempt ${nextRetry}/${config.agent.maxRetries} in ${delay / 1000}s`,
+            `<b>Retrying ${taskSlug}</b>\n${reason}\nAttempt ${nextRetry}/${config.agent.maxRetries} in ${delay / 1000}s`
           )
           .catch(() => {});
 
@@ -174,9 +159,7 @@ const main = async (): Promise<void> => {
         if (cache) {
           updateIssue(planeConfig, task.projectId, task.issueId, {
             state: cache.todoStateId,
-          }).catch((err) =>
-            console.error(`Failed to reset state for ${taskSlug}:`, err),
-          );
+          }).catch((err) => console.error(`Failed to reset state for ${taskSlug}:`, err));
         }
 
         queue.requeue(task, nextRetry);
@@ -192,11 +175,9 @@ const main = async (): Promise<void> => {
 
   // Start polling loop
   console.log(
-    `Polling every ${config.agent.pollIntervalMs}ms, spawning every ${config.agent.spawnDelayMs}ms (max ${config.agent.maxConcurrent} concurrent)`,
+    `Polling every ${config.agent.pollIntervalMs}ms, spawning every ${config.agent.spawnDelayMs}ms (max ${config.agent.maxConcurrent} concurrent)`
   );
-  await notifier.sendMessage(
-    "<b>Agent Runner started</b>\nPolling for tasks...",
-  );
+  await notifier.sendMessage("<b>Agent Runner started</b>\nPolling for tasks...");
 
   // Save initial state (clears orphaned agents)
   saveState();
@@ -217,7 +198,7 @@ const main = async (): Promise<void> => {
         // Skip if no project config — don't claim tasks we can't handle
         if (!config.projects[task.projectIdentifier]) {
           console.warn(
-            `Skipping task ${task.projectIdentifier}-${task.sequenceId}: no project config`,
+            `Skipping task ${task.projectIdentifier}-${task.sequenceId}: no project config`
           );
           continue;
         }
@@ -239,8 +220,7 @@ const main = async (): Promise<void> => {
   // Processing: dequeue and spawn agents one at a time
   const processCycle = async (): Promise<void> => {
     try {
-      const availableSlots =
-        config.agent.maxConcurrent - agentManager.activeCount();
+      const availableSlots = config.agent.maxConcurrent - agentManager.activeCount();
       if (availableSlots <= 0) return;
 
       const entry = queue.dequeue();
@@ -251,15 +231,9 @@ const main = async (): Promise<void> => {
         console.log(`Dequeued ${taskId} for retry attempt ${entry.retryCount}`);
       }
 
-      const result = await agentManager.spawnAgent(
-        entry.task,
-        entry.retryCount,
-      );
+      const result = await agentManager.spawnAgent(entry.task, entry.retryCount);
 
-      if (
-        result.outcome === "rejected" &&
-        result.reason === "budget_exceeded"
-      ) {
+      if (result.outcome === "rejected" && result.reason === "budget_exceeded") {
         // Budget exceeded — move task back to Plan Review instead of
         // re-queuing to avoid infinite re-queue loop while budget remains
         // exhausted. The task can be manually re-queued or will wait for
@@ -268,35 +242,22 @@ const main = async (): Promise<void> => {
         const cache = taskPoller.getProjectCache(entry.task.projectIdentifier);
         const fallbackState = cache?.planReviewStateId ?? cache?.backlogStateId;
         if (cache && fallbackState) {
-          await updateIssue(
-            planeConfig,
-            entry.task.projectId,
-            entry.task.issueId,
-            { state: fallbackState },
-          ).catch((err) =>
-            console.error(`Failed to reset state for ${taskId}:`, err),
-          );
+          await updateIssue(planeConfig, entry.task.projectId, entry.task.issueId, {
+            state: fallbackState,
+          }).catch((err) => console.error(`Failed to reset state for ${taskId}:`, err));
         }
-        const targetStatus = cache?.planReviewStateId
-          ? "Plan Review"
-          : "Backlog";
+        const targetStatus = cache?.planReviewStateId ? "Plan Review" : "Backlog";
         await notifier.sendMessage(
-          `<b>Budget limit reached</b>\nDaily spend: $${agentManager.getDailySpend().toFixed(2)} / $${agentManager.getDailyBudget()}\nMoving <code>${taskId}</code> back to ${targetStatus}: ${entry.task.title}`,
+          `<b>Budget limit reached</b>\nDaily spend: $${agentManager.getDailySpend().toFixed(2)} / $${agentManager.getDailyBudget()}\nMoving <code>${taskId}</code> back to ${targetStatus}: ${entry.task.title}`
         );
-      } else if (
-        result.outcome === "rejected" &&
-        result.reason === "no_project_config"
-      ) {
+      } else if (result.outcome === "rejected" && result.reason === "no_project_config") {
         // No config — release the task back to Plane
         taskPoller.releaseTask(entry.task.issueId);
         const cache = taskPoller.getProjectCache(entry.task.projectIdentifier);
         if (cache) {
-          await updateIssue(
-            planeConfig,
-            entry.task.projectId,
-            entry.task.issueId,
-            { state: cache.todoStateId },
-          ).catch(() => {});
+          await updateIssue(planeConfig, entry.task.projectId, entry.task.issueId, {
+            state: cache.todoStateId,
+          }).catch(() => {});
         }
       }
 
@@ -313,10 +274,7 @@ const main = async (): Promise<void> => {
   await processCycle();
 
   // Recurring intervals
-  const discoveryInterval = setInterval(
-    discoveryCycle,
-    config.agent.pollIntervalMs,
-  );
+  const discoveryInterval = setInterval(discoveryCycle, config.agent.pollIntervalMs);
   const processInterval = setInterval(processCycle, config.agent.spawnDelayMs);
 
   // Graceful shutdown
@@ -335,7 +293,7 @@ const main = async (): Promise<void> => {
         .join(", ");
       await notifier
         .sendMessage(
-          `<b>Agent Runner shutting down</b>\n${active.length} agent(s) still running: ${names}`,
+          `<b>Agent Runner shutting down</b>\n${active.length} agent(s) still running: ${names}`
         )
         .catch(() => {});
     }

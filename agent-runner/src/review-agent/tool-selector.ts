@@ -13,7 +13,7 @@ const ToolSelectionSchema = z.object({
     z.object({
       toolName: z.string(),
       reason: z.string(),
-    }),
+    })
   ),
   rationale: z.string(),
 });
@@ -31,7 +31,7 @@ export const selectReviewTools = async (
   context: ReviewContext,
   availableTools: readonly ReviewTool[],
   client: Anthropic,
-  model: string = "claude-3-5-sonnet-20241022",
+  model: string = "claude-3-5-sonnet-20241022"
 ): Promise<ReviewResult<readonly ToolSelectionResult[]>> => {
   try {
     const toolDescriptions = buildToolDescriptions(availableTools);
@@ -99,7 +99,7 @@ Select the most relevant review tools and explain your choices.`;
     const selectionResult = parseClaudeJsonResponse(
       textResult.data,
       ToolSelectionSchema,
-      "Tool Selector",
+      "Tool Selector"
     );
     if (!selectionResult.success) {
       return selectionResult;
@@ -122,7 +122,7 @@ Select the most relevant review tools and explain your choices.`;
     }
 
     console.log(
-      `✅ Tool Selector: Selected ${selectedTools.length} tool(s): ${selectedTools.map((t) => t.tool.category).join(", ")}`,
+      `✅ Tool Selector: Selected ${selectedTools.length} tool(s): ${selectedTools.map((t) => t.tool.category).join(", ")}`
     );
     console.log(`   Rationale: ${selection.rationale}`);
 

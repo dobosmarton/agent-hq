@@ -9,9 +9,7 @@ vi.mock("../updater", () => ({
   updateMultipleTasks: vi.fn(),
 }));
 
-const createMockEvent = (
-  overrides?: Partial<GitHubPullRequestEvent>,
-): GitHubPullRequestEvent => ({
+const createMockEvent = (overrides?: Partial<GitHubPullRequestEvent>): GitHubPullRequestEvent => ({
   action: "closed",
   number: 123,
   pull_request: {
@@ -115,12 +113,7 @@ describe("handlePullRequestEvent", () => {
       },
     });
 
-    const result = await handlePullRequestEvent(
-      event,
-      mockPlaneConfig,
-      mockConfig,
-      mockTaskPoller,
-    );
+    const result = await handlePullRequestEvent(event, mockPlaneConfig, mockConfig, mockTaskPoller);
 
     expect(result.success).toBe(true);
     expect(result.taskIds).toEqual([]);
@@ -136,12 +129,7 @@ describe("handlePullRequestEvent", () => {
       },
     });
 
-    const result = await handlePullRequestEvent(
-      event,
-      mockPlaneConfig,
-      mockConfig,
-      mockTaskPoller,
-    );
+    const result = await handlePullRequestEvent(event, mockPlaneConfig, mockConfig, mockTaskPoller);
 
     expect(result.success).toBe(true);
     expect(result.taskIds).toEqual([]);
@@ -160,12 +148,7 @@ describe("handlePullRequestEvent", () => {
 
     const event = createMockEvent();
 
-    const result = await handlePullRequestEvent(
-      event,
-      mockPlaneConfig,
-      mockConfig,
-      mockTaskPoller,
-    );
+    const result = await handlePullRequestEvent(event, mockPlaneConfig, mockConfig, mockTaskPoller);
 
     expect(result.taskIds).toEqual(["AGENTHQ-123"]);
     expect(result.updatedTasks).toEqual(["AGENTHQ-123"]);
@@ -180,12 +163,7 @@ describe("handlePullRequestEvent", () => {
       },
     });
 
-    const result = await handlePullRequestEvent(
-      event,
-      mockPlaneConfig,
-      mockConfig,
-      mockTaskPoller,
-    );
+    const result = await handlePullRequestEvent(event, mockPlaneConfig, mockConfig, mockTaskPoller);
 
     expect(result.taskIds).toEqual([]);
     expect(result.success).toBe(true);
@@ -213,12 +191,7 @@ describe("handlePullRequestEvent", () => {
       },
     });
 
-    const result = await handlePullRequestEvent(
-      event,
-      mockPlaneConfig,
-      mockConfig,
-      mockTaskPoller,
-    );
+    const result = await handlePullRequestEvent(event, mockPlaneConfig, mockConfig, mockTaskPoller);
 
     expect(result.taskIds).toContain("AGENTHQ-123");
     expect(result.taskIds).toContain("AGENTHQ-456");
@@ -237,12 +210,7 @@ describe("handlePullRequestEvent", () => {
 
     const event = createMockEvent();
 
-    const result = await handlePullRequestEvent(
-      event,
-      mockPlaneConfig,
-      mockConfig,
-      mockTaskPoller,
-    );
+    const result = await handlePullRequestEvent(event, mockPlaneConfig, mockConfig, mockTaskPoller);
 
     expect(result.skippedTasks).toEqual(["AGENTHQ-123"]);
     expect(result.updatedTasks).toEqual([]);
@@ -261,12 +229,7 @@ describe("handlePullRequestEvent", () => {
 
     const event = createMockEvent();
 
-    const result = await handlePullRequestEvent(
-      event,
-      mockPlaneConfig,
-      mockConfig,
-      mockTaskPoller,
-    );
+    const result = await handlePullRequestEvent(event, mockPlaneConfig, mockConfig, mockTaskPoller);
 
     expect(result.errors).toEqual(["AGENTHQ-123: Task not found"]);
     expect(result.success).toBe(false);
@@ -293,12 +256,7 @@ describe("handlePullRequestEvent", () => {
       },
     });
 
-    const result = await handlePullRequestEvent(
-      event,
-      mockPlaneConfig,
-      mockConfig,
-      mockTaskPoller,
-    );
+    const result = await handlePullRequestEvent(event, mockPlaneConfig, mockConfig, mockTaskPoller);
 
     expect(result.taskIds).toEqual(["AGENTHQ-789"]);
     expect(result.updatedTasks).toEqual(["AGENTHQ-789"]);

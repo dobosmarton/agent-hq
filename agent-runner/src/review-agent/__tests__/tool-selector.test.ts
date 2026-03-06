@@ -7,9 +7,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 /**
  * Creates a mock Anthropic client with the given create implementation
  */
-const createMockClient = (
-  createFn: Anthropic["messages"]["create"],
-): Anthropic =>
+const createMockClient = (createFn: Anthropic["messages"]["create"]): Anthropic =>
   ({
     messages: { create: createFn },
   }) as unknown as Anthropic;
@@ -84,14 +82,14 @@ describe("selectReviewTools", () => {
             }),
           },
         ],
-      }),
+      })
     );
 
     const result = await selectReviewTools(
       mockContext,
       mockTools,
       mockClient,
-      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20241022"
     );
 
     expect(result.success).toBe(true);
@@ -103,15 +101,13 @@ describe("selectReviewTools", () => {
   });
 
   it("should handle API errors gracefully", async () => {
-    const mockClient = createMockClient(
-      vi.fn().mockRejectedValue(new Error("API error")),
-    );
+    const mockClient = createMockClient(vi.fn().mockRejectedValue(new Error("API error")));
 
     const result = await selectReviewTools(
       mockContext,
       mockTools,
       mockClient,
-      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20241022"
     );
 
     expect(result.success).toBe(false);
@@ -126,14 +122,14 @@ describe("selectReviewTools", () => {
             text: "invalid json",
           },
         ],
-      }),
+      })
     );
 
     const result = await selectReviewTools(
       mockContext,
       mockTools,
       mockClient,
-      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20241022"
     );
 
     expect(result.success).toBe(false);

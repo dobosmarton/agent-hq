@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   slugify,
@@ -63,9 +57,7 @@ describe("skills creator", () => {
 
       const md = generateSkillMarkdown(input);
       expect(md).toContain("<!-- skill:name = Test Skill -->");
-      expect(md).toContain(
-        "<!-- skill:description = A test skill description -->",
-      );
+      expect(md).toContain("<!-- skill:description = A test skill description -->");
       expect(md).toContain("<!-- skill:category = learned -->");
       expect(md).toContain("<!-- skill:priority = 30 -->");
       expect(md).toContain("<!-- skill:appliesTo = both -->");
@@ -133,7 +125,7 @@ describe("skills creator", () => {
     it("should throw for empty/invalid names", () => {
       const badInput = { ...input, name: "!!!" };
       expect(() => createSkillFile(badInput, target)).toThrow(
-        "Could not generate a valid filename",
+        "Could not generate a valid filename"
       );
     });
   });

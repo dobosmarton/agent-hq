@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CiContext } from "../../agent/ci-discovery";
 import { PLAN_MARKER } from "../../agent/phase";
-import {
-  buildImplementationPrompt,
-  buildPlanningPrompt,
-} from "../../agent/prompt-builder";
+import { buildImplementationPrompt, buildPlanningPrompt } from "../../agent/prompt-builder";
 import type { PlaneComment } from "../../plane/types";
 import type { AgentTask } from "../../types";
 
@@ -68,125 +65,63 @@ describe("buildPlanningPrompt", () => {
 
 describe("buildImplementationPrompt", () => {
   it("includes the task ID", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("HQ-42");
   });
 
   it("includes the task title", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("Fix the login bug");
   });
 
   it("includes the branch name", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("agent/HQ-42");
   });
 
   it("includes the description when provided", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("Users cannot log in after password reset.");
   });
 
   it("includes commit prefix instruction", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain('"HQ-42:"');
   });
 
   it("includes git push instruction with branch", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("git push -u origin agent/HQ-42");
   });
 
   it("includes comments in the prompt", () => {
-    const comments = [
-      makeComment({ comment_html: "<p>Plan looks good, proceed.</p>" }),
-    ];
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      comments,
-      emptyCiContext,
-    );
+    const comments = [makeComment({ comment_html: "<p>Plan looks good, proceed.</p>" })];
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", comments, emptyCiContext);
     expect(prompt).toContain("Plan looks good, proceed.");
   });
 
   it("shows fallback when no comments", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("No previous comments.");
   });
 
   it("includes PR creation instruction", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("gh pr create");
   });
 
   it("instructs not to ask questions", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("Do NOT ask questions");
   });
 
   it("instructs to never commit failing code", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("NEVER commit code that fails");
   });
 
   it("instructs to add PR link to the task", () => {
-    const prompt = buildImplementationPrompt(
-      makeTask(),
-      "agent/HQ-42",
-      [],
-      emptyCiContext,
-    );
+    const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
     expect(prompt).toContain("add_task_link");
   });
 
@@ -196,12 +131,7 @@ describe("buildImplementationPrompt", () => {
         workflowFiles: {},
         overrideCommands: ["pnpm lint", "pnpm typecheck", "pnpm test"],
       };
-      const prompt = buildImplementationPrompt(
-        makeTask(),
-        "agent/HQ-42",
-        [],
-        ciContext,
-      );
+      const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], ciContext);
       expect(prompt).toContain("`pnpm lint`");
       expect(prompt).toContain("`pnpm typecheck`");
       expect(prompt).toContain("`pnpm test`");
@@ -216,12 +146,7 @@ describe("buildImplementationPrompt", () => {
             "name: CI\non: push\njobs:\n  test:\n    steps:\n      - run: npm test",
         },
       };
-      const prompt = buildImplementationPrompt(
-        makeTask(),
-        "agent/HQ-42",
-        [],
-        ciContext,
-      );
+      const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], ciContext);
       expect(prompt).toContain(".github/workflows/ci.yml");
       expect(prompt).toContain("name: CI");
       expect(prompt).toContain("npm test");
@@ -234,12 +159,7 @@ describe("buildImplementationPrompt", () => {
           ".github/workflows/ci.yml": "name: CI\non: push",
         },
       };
-      const prompt = buildImplementationPrompt(
-        makeTask(),
-        "agent/HQ-42",
-        [],
-        ciContext,
-      );
+      const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], ciContext);
       expect(prompt).toContain("Do NOT run checks that are not in the CI");
     });
 
@@ -250,12 +170,7 @@ describe("buildImplementationPrompt", () => {
           ".github/workflows/deploy.yml": "name: Deploy",
         },
       };
-      const prompt = buildImplementationPrompt(
-        makeTask(),
-        "agent/HQ-42",
-        [],
-        ciContext,
-      );
+      const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], ciContext);
       expect(prompt).toContain(".github/workflows/ci.yml");
       expect(prompt).toContain(".github/workflows/deploy.yml");
     });
@@ -263,12 +178,7 @@ describe("buildImplementationPrompt", () => {
 
   describe("CI context: fallback", () => {
     it("shows fallback message when no CI files and no overrides", () => {
-      const prompt = buildImplementationPrompt(
-        makeTask(),
-        "agent/HQ-42",
-        [],
-        emptyCiContext,
-      );
+      const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
       expect(prompt).toContain("No CI workflow files were found");
       expect(prompt).toContain("build/task configuration");
     });

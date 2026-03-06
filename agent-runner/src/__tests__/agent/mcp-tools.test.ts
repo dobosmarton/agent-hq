@@ -22,13 +22,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 }));
 
 import { createAgentMcpServer } from "../../agent/mcp-tools";
-import {
-  addComment,
-  addLink,
-  getIssue,
-  listLabels,
-  updateIssue,
-} from "../../plane/client";
+import { addComment, addLink, getIssue, listLabels, updateIssue } from "../../plane/client";
 
 const mockedUpdateIssue = vi.mocked(updateIssue);
 const mockedAddComment = vi.mocked(addComment);
@@ -64,12 +58,9 @@ describe("update_task_status", () => {
     const handler = toolHandlers.get("update_task_status")!;
     const result = await handler({ state: "plan_review" });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { state: "plan-review-state" },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      state: "plan-review-state",
+    });
     expect(result.content[0].text).toContain("moved to plan_review");
   });
 
@@ -81,12 +72,9 @@ describe("update_task_status", () => {
     const handler = toolHandlers.get("update_task_status")!;
     const result = await handler({ state: "in_review" });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { state: "review-state" },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      state: "review-state",
+    });
     expect(result.content[0].text).toContain("moved to in_review");
   });
 
@@ -98,12 +86,9 @@ describe("update_task_status", () => {
     const handler = toolHandlers.get("update_task_status")!;
     await handler({ state: "done" });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { state: "done-state" },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      state: "done-state",
+    });
   });
 
   it("returns error when stateId is null", async () => {
@@ -131,7 +116,7 @@ describe("add_task_comment", () => {
       ctx.planeConfig,
       "proj-1",
       "issue-1",
-      "<p>Progress</p>",
+      "<p>Progress</p>"
     );
     expect(result.content[0].text).toContain("Comment added");
   });
@@ -158,7 +143,7 @@ describe("add_task_link", () => {
       "proj-1",
       "issue-1",
       "Pull Request",
-      "https://github.com/test/repo/pull/1",
+      "https://github.com/test/repo/pull/1"
     );
     expect(result.content[0].text).toContain("Link");
   });
@@ -239,20 +224,15 @@ describe("add_labels_to_task", () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: [] }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("add_labels_to_task")!;
     const result = await handler({ label_names: ["agent"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1"],
+    });
     expect(result.content[0].text).toContain("Added label(s) agent");
   });
 
@@ -269,32 +249,24 @@ describe("add_labels_to_task", () => {
     const handler = toolHandlers.get("add_labels_to_task")!;
     await handler({ label_names: ["agent", "bug"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1", "label-2"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1", "label-2"],
+    });
   });
 
   it("performs case-insensitive matching", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: [] }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("add_labels_to_task")!;
     await handler({ label_names: ["Agent"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1"],
+    });
   });
 
   it("merges with existing labels", async () => {
@@ -310,41 +282,31 @@ describe("add_labels_to_task", () => {
     const handler = toolHandlers.get("add_labels_to_task")!;
     await handler({ label_names: ["bug"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1", "label-2"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1", "label-2"],
+    });
   });
 
   it("deduplicates labels", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: ["label-1"] }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("add_labels_to_task")!;
     await handler({ label_names: ["agent"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1"],
+    });
   });
 
   it("returns error when label not found", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: [] }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
 
     const handler = toolHandlers.get("add_labels_to_task")!;
     const result = await handler({ label_names: ["nonexistent"] });
@@ -359,40 +321,30 @@ describe("add_labels_to_task", () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: ["label-1"] }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("add_labels_to_task")!;
     await handler({ label_names: [] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1"],
+    });
   });
 
   it("handles issue with undefined labels", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: undefined }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("add_labels_to_task")!;
     await handler({ label_names: ["agent"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1"],
+    });
   });
 });
 
@@ -400,9 +352,7 @@ describe("remove_labels_from_task", () => {
   it("removes single label from task", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
-    mockedGetIssue.mockResolvedValue(
-      makeIssue({ labels: ["label-1", "label-2"] }),
-    );
+    mockedGetIssue.mockResolvedValue(makeIssue({ labels: ["label-1", "label-2"] }));
     mockedListLabels.mockResolvedValue([
       makeLabel({ id: "label-1", name: "agent" }),
       makeLabel({ id: "label-2", name: "bug" }),
@@ -412,21 +362,16 @@ describe("remove_labels_from_task", () => {
     const handler = toolHandlers.get("remove_labels_from_task")!;
     const result = await handler({ label_names: ["agent"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-2"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-2"],
+    });
     expect(result.content[0].text).toContain("Removed label(s) agent");
   });
 
   it("removes multiple labels from task", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
-    mockedGetIssue.mockResolvedValue(
-      makeIssue({ labels: ["label-1", "label-2", "label-3"] }),
-    );
+    mockedGetIssue.mockResolvedValue(makeIssue({ labels: ["label-1", "label-2", "label-3"] }));
     mockedListLabels.mockResolvedValue([
       makeLabel({ id: "label-1", name: "agent" }),
       makeLabel({ id: "label-2", name: "bug" }),
@@ -437,52 +382,39 @@ describe("remove_labels_from_task", () => {
     const handler = toolHandlers.get("remove_labels_from_task")!;
     await handler({ label_names: ["agent", "bug"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-3"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-3"],
+    });
   });
 
   it("performs case-insensitive matching", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: ["label-1"] }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("remove_labels_from_task")!;
     await handler({ label_names: ["Agent"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: [] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: [],
+    });
   });
 
   it("handles non-existent labels gracefully", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: ["label-1"] }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("remove_labels_from_task")!;
     const result = await handler({ label_names: ["nonexistent"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1"],
+    });
     expect(result.content[0].text).toContain("Removed label(s)");
   });
 
@@ -490,48 +422,36 @@ describe("remove_labels_from_task", () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: ["label-1"] }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("remove_labels_from_task")!;
     await handler({ label_names: [] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: ["label-1"] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: ["label-1"],
+    });
   });
 
   it("handles issue with undefined labels", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
     mockedGetIssue.mockResolvedValue(makeIssue({ labels: undefined }));
-    mockedListLabels.mockResolvedValue([
-      makeLabel({ id: "label-1", name: "agent" }),
-    ]);
+    mockedListLabels.mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     mockedUpdateIssue.mockResolvedValue(makeIssue());
 
     const handler = toolHandlers.get("remove_labels_from_task")!;
     await handler({ label_names: ["agent"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: [] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: [],
+    });
   });
 
   it("removes all labels when all are specified", async () => {
     const ctx = makeContext();
     createAgentMcpServer(ctx);
-    mockedGetIssue.mockResolvedValue(
-      makeIssue({ labels: ["label-1", "label-2"] }),
-    );
+    mockedGetIssue.mockResolvedValue(makeIssue({ labels: ["label-1", "label-2"] }));
     mockedListLabels.mockResolvedValue([
       makeLabel({ id: "label-1", name: "agent" }),
       makeLabel({ id: "label-2", name: "bug" }),
@@ -541,18 +461,15 @@ describe("remove_labels_from_task", () => {
     const handler = toolHandlers.get("remove_labels_from_task")!;
     await handler({ label_names: ["agent", "bug"] });
 
-    expect(mockedUpdateIssue).toHaveBeenCalledWith(
-      ctx.planeConfig,
-      "proj-1",
-      "issue-1",
-      { labels: [] },
-    );
+    expect(mockedUpdateIssue).toHaveBeenCalledWith(ctx.planeConfig, "proj-1", "issue-1", {
+      labels: [],
+    });
   });
 });
 
 describe("load_skill", () => {
   const makeSkill = (
-    overrides?: Partial<import("../../skills/types").Skill>,
+    overrides?: Partial<import("../../skills/types").Skill>
   ): import("../../skills/types").Skill => ({
     id: "test-skill",
     name: "Test Skill",

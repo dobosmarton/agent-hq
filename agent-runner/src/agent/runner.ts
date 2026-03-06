@@ -9,10 +9,7 @@ import type { AgentErrorType, AgentTask } from "../types";
 import type { CiContext } from "./ci-discovery";
 import { createAgentMcpServer } from "./mcp-tools";
 import type { AgentPhase } from "./phase";
-import {
-  buildImplementationPrompt,
-  buildPlanningPrompt,
-} from "./prompt-builder";
+import { buildImplementationPrompt, buildPlanningPrompt } from "./prompt-builder";
 import type { CommentAnalysis } from "../plane/comment-analyzer";
 import { createAgentProgressTracker } from "../telegram/progress-tracker";
 
@@ -93,26 +90,22 @@ export const runAgent = async (
   deps: RunnerDeps,
   projectRepoPath: string,
   agentRunnerRoot: string,
-  resumeContext: ResumeContext | null = null,
+  resumeContext: ResumeContext | null = null
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
-  const hasRetriesRemaining =
-    deps.retryContext.retryCount < deps.retryContext.maxRetries;
+  const hasRetriesRemaining = deps.retryContext.retryCount < deps.retryContext.maxRetries;
   const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
 
   const isRetry = deps.retryContext.retryCount > 0;
 
   console.log(
-    `Starting ${phase} agent for ${taskDisplayId}: "${task.title}"${isRetry ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})` : ""}`,
+    `Starting ${phase} agent for ${taskDisplayId}: "${task.title}"${isRetry ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})` : ""}`
   );
 
   // Notify on Telegram and start progress tracking
   let progressMessageId = 0;
   if (!isRetry) {
-    progressMessageId = await deps.notifier.agentStarted(
-      taskDisplayId,
-      task.title,
-    );
+    progressMessageId = await deps.notifier.agentStarted(taskDisplayId, task.title);
   }
 
   const progressTracker = createAgentProgressTracker({
@@ -136,7 +129,7 @@ export const runAgent = async (
     deps.planeConfig,
     task.projectId,
     task.issueId,
-    `<p><strong>Agent started ${phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`,
+    `<p><strong>Agent started ${phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`
   );
 
   progressTracker.update("Setting up environment", "completed");
@@ -167,15 +160,13 @@ export const runAgent = async (
           comments,
           ciContext,
           skillsSection,
-          resumeContext,
+          resumeContext
         );
 
   // Phase-specific settings
   const maxTurns = phase === "planning" ? 50 : deps.config.agent.maxTurns;
-  const maxBudgetUsd =
-    phase === "planning" ? 2.0 : deps.config.agent.maxBudgetPerTask;
-  const allowedTools =
-    phase === "planning" ? PLANNING_TOOLS : IMPLEMENTATION_TOOLS;
+  const maxBudgetUsd = phase === "planning" ? 2.0 : deps.config.agent.maxBudgetPerTask;
+  const allowedTools = phase === "planning" ? PLANNING_TOOLS : IMPLEMENTATION_TOOLS;
   const permissionMode = phase === "planning" ? "plan" : "acceptEdits";
 
   let totalCostUsd = 0;
@@ -183,7 +174,7 @@ export const runAgent = async (
   try {
     progressTracker.update(
       phase === "planning" ? "Planning implementation" : "Implementing changes",
-      "in_progress",
+      "in_progress"
     );
 
     for await (const message of query({
@@ -203,10 +194,7 @@ export const runAgent = async (
       },
     })) {
       if (message.type === "result") {
-        if (
-          "total_cost_usd" in message &&
-          typeof message.total_cost_usd === "number"
-        ) {
+        if ("total_cost_usd" in message && typeof message.total_cost_usd === "number") {
           totalCostUsd = message.total_cost_usd;
         }
 
@@ -216,24 +204,21 @@ export const runAgent = async (
               ? ` (succeeded after ${deps.retryContext.retryCount} ${deps.retryContext.retryCount === 1 ? "retry" : "retries"})`
               : "";
           console.log(
-            `Agent ${taskDisplayId} (${phase}) completed successfully${retryNote} (cost: $${totalCostUsd.toFixed(2)})`,
+            `Agent ${taskDisplayId} (${phase}) completed successfully${retryNote} (cost: $${totalCostUsd.toFixed(2)})`
           );
           await deps.notifier.agentCompleted(taskDisplayId, task.title);
           await addComment(
             deps.planeConfig,
             task.projectId,
             task.issueId,
-            `<p><strong>Agent completed ${phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`,
+            `<p><strong>Agent completed ${phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`
           );
         } else {
           const errors =
-            "errors" in message && Array.isArray(message.errors)
-              ? message.errors.join(", ")
-              : "";
+            "errors" in message && Array.isArray(message.errors) ? message.errors.join(", ") : "";
           const subtype = String(message.subtype ?? "");
           const errorText =
-            errors ||
-            `result subtype: ${subtype}, cost: $${totalCostUsd.toFixed(2)}`;
+            errors || `result subtype: ${subtype}, cost: $${totalCostUsd.toFixed(2)}`;
 
           // Classify error type for retry decisions
           let errorType: AgentErrorType = "unknown";
@@ -246,23 +231,18 @@ export const runAgent = async (
           }
 
           console.error(
-            `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${subtype}, type=${errorType}): ${errorText}`,
+            `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${subtype}, type=${errorType}): ${errorText}`
           );
 
           // Suppress notifications for retryable errors when retries remain
-          const isRetryableError =
-            errorType === "rate_limited" || errorType === "unknown";
+          const isRetryableError = errorType === "rate_limited" || errorType === "unknown";
           if (!(isRetryableError && hasRetriesRemaining)) {
-            await deps.notifier.agentErrored(
-              taskDisplayId,
-              task.title,
-              errorText,
-            );
+            await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
             await addComment(
               deps.planeConfig,
               task.projectId,
               task.issueId,
-              `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`,
+              `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`
             );
           }
 
@@ -286,7 +266,7 @@ export const runAgent = async (
         deps.planeConfig,
         task.projectId,
         task.issueId,
-        `<p><strong>Agent crashed during ${phaseLabel}:</strong></p><pre>${errorMsg.slice(0, 1000)}</pre>`,
+        `<p><strong>Agent crashed during ${phaseLabel}:</strong></p><pre>${errorMsg.slice(0, 1000)}</pre>`
       );
     }
     throw err;

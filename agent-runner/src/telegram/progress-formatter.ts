@@ -24,7 +24,7 @@ export const formatAgentProgress = (
   taskId: string,
   title: string,
   steps: readonly ProgressStep[],
-  startTime: number,
+  startTime: number
 ): string => {
   const lines: string[] = [];
 

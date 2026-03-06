@@ -1,9 +1,6 @@
 import type { PlaneComment } from "../plane/types";
 import type { CommentAnalysis } from "../plane/comment-analyzer";
-import {
-  extractPlanFromComments,
-  summarizeNewFeedback,
-} from "../plane/comment-analyzer";
+import { extractPlanFromComments, summarizeNewFeedback } from "../plane/comment-analyzer";
 
 /**
  * Create a "resuming work" comment for the task
@@ -12,11 +9,9 @@ export const createResumeComment = (
   analysis: CommentAnalysis,
   branchName: string,
   gitLog: string,
-  commitCount: number,
+  commitCount: number
 ): string => {
-  const newFeedbackSummary = summarizeNewFeedback(
-    analysis.newCommentsSinceAgent,
-  );
+  const newFeedbackSummary = summarizeNewFeedback(analysis.newCommentsSinceAgent);
 
   const previousWorkSection =
     commitCount > 0
@@ -63,9 +58,7 @@ ${feedbackSection}
 /**
  * Format user comments for prompt inclusion with clear labeling
  */
-export const formatUserCommentsForPrompt = (
-  comments: PlaneComment[],
-): string => {
+export const formatUserCommentsForPrompt = (comments: PlaneComment[]): string => {
   if (comments.length === 0) {
     return "";
   }
@@ -91,7 +84,7 @@ export const buildResumeContext = (
   analysis: CommentAnalysis,
   gitLog: string,
   gitDiff: string,
-  lastCommit: string | null,
+  lastCommit: string | null
 ): string => {
   const plan = extractPlanFromComments(analysis.allComments);
 

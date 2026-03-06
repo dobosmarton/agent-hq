@@ -18,7 +18,7 @@ const git = async (repoPath: string, args: string[]): Promise<string> => {
 export const createWorktree = async (
   repoPath: string,
   taskSlug: string,
-  defaultBranch: string,
+  defaultBranch: string
 ): Promise<{ worktreePath: string; branchName: string }> => {
   const branchName = `agent/${taskSlug}`;
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
@@ -30,17 +30,13 @@ export const createWorktree = async (
 
   // If worktree already exists, someone is working on this task
   if (existsSync(wtPath)) {
-    throw new Error(
-      `Worktree already exists at ${wtPath} — task is already in progress`,
-    );
+    throw new Error(`Worktree already exists at ${wtPath} — task is already in progress`);
   }
 
   // If branch already exists, task is being worked on (or PR not yet merged)
   try {
     await git(repoPath, ["rev-parse", "--verify", branchName]);
-    throw new Error(
-      `Branch ${branchName} already exists — task is already in progress`,
-    );
+    throw new Error(`Branch ${branchName} already exists — task is already in progress`);
   } catch (err) {
     // rev-parse throws if branch doesn't exist — that's the happy path
     if (err instanceof Error && err.message.includes("already in progress")) {
@@ -49,22 +45,12 @@ export const createWorktree = async (
   }
 
   // Create worktree with new branch based on origin/main
-  await git(repoPath, [
-    "worktree",
-    "add",
-    wtPath,
-    "-b",
-    branchName,
-    `origin/${defaultBranch}`,
-  ]);
+  await git(repoPath, ["worktree", "add", wtPath, "-b", branchName, `origin/${defaultBranch}`]);
 
   return { worktreePath: wtPath, branchName };
 };
 
-export const removeWorktree = async (
-  repoPath: string,
-  taskSlug: string,
-): Promise<void> => {
+export const removeWorktree = async (repoPath: string, taskSlug: string): Promise<void> => {
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
 
   try {
@@ -100,10 +86,7 @@ export const ensureWorktreeGitignore = (repoPath: string): void => {
   }
 };
 
-export const pushBranch = async (
-  worktreePath: string,
-  branchName: string,
-): Promise<void> => {
+export const pushBranch = async (worktreePath: string, branchName: string): Promise<void> => {
   await git(worktreePath, ["push", "-u", "origin", branchName]);
 };
 
@@ -112,7 +95,7 @@ export const pushBranch = async (
  */
 export const checkBranchExists = async (
   repoPath: string,
-  branchName: string,
+  branchName: string
 ): Promise<{ local: boolean; remote: boolean }> => {
   const result = { local: false, remote: false };
 
@@ -138,10 +121,7 @@ export const checkBranchExists = async (
 /**
  * Check if a worktree exists for a task
  */
-export const checkWorktreeExists = async (
-  repoPath: string,
-  taskSlug: string,
-): Promise<boolean> => {
+export const checkWorktreeExists = async (repoPath: string, taskSlug: string): Promise<boolean> => {
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
   return existsSync(wtPath);
 };
@@ -151,7 +131,7 @@ export const checkWorktreeExists = async (
  */
 export const findWorktreeForBranch = async (
   repoPath: string,
-  branchName: string,
+  branchName: string
 ): Promise<string | null> => {
   try {
     const output = await git(repoPath, ["worktree", "list", "--porcelain"]);
@@ -180,7 +160,7 @@ export const findWorktreeForBranch = async (
  */
 export const getLastCommitMessage = async (
   repoPath: string,
-  branchName?: string,
+  branchName?: string
 ): Promise<string | null> => {
   try {
     const args = branchName
@@ -206,7 +186,7 @@ export type WorktreeResult = {
 export const getOrCreateWorktree = async (
   repoPath: string,
   taskSlug: string,
-  defaultBranch: string,
+  defaultBranch: string
 ): Promise<WorktreeResult> => {
   const branchName = `agent/${taskSlug}`;
   const wtPath = worktreePath(repoPath, `agent-${taskSlug}`);
@@ -222,17 +202,12 @@ export const getOrCreateWorktree = async (
   if (branchExists.local || branchExists.remote) {
     // Branch exists — this is a resume scenario
     console.log(
-      `Branch ${branchName} exists (local: ${branchExists.local}, remote: ${branchExists.remote}) — resuming work`,
+      `Branch ${branchName} exists (local: ${branchExists.local}, remote: ${branchExists.remote}) — resuming work`
     );
 
     // If remote but not local, fetch it
     if (branchExists.remote && !branchExists.local) {
-      await git(repoPath, [
-        "branch",
-        "--track",
-        branchName,
-        `origin/${branchName}`,
-      ]);
+      await git(repoPath, ["branch", "--track", branchName, `origin/${branchName}`]);
     }
 
     // Check if worktree already exists
@@ -249,14 +224,10 @@ export const getOrCreateWorktree = async (
       };
     } else if (existsSync(wtPath)) {
       // Worktree directory exists but is broken/orphaned — remove and recreate
-      console.warn(
-        `Worktree directory ${wtPath} exists but is not tracked by git — removing`,
-      );
-      await git(repoPath, ["worktree", "remove", wtPath, "--force"]).catch(
-        () => {
-          // If removal fails, continue anyway
-        },
-      );
+      console.warn(`Worktree directory ${wtPath} exists but is not tracked by git — removing`);
+      await git(repoPath, ["worktree", "remove", wtPath, "--force"]).catch(() => {
+        // If removal fails, continue anyway
+      });
     }
 
     // Create worktree for existing branch
@@ -274,18 +245,11 @@ export const getOrCreateWorktree = async (
   // Branch doesn't exist — create new worktree with new branch
   if (existsSync(wtPath)) {
     throw new Error(
-      `Worktree directory ${wtPath} exists but branch ${branchName} doesn't exist — inconsistent state`,
+      `Worktree directory ${wtPath} exists but branch ${branchName} doesn't exist — inconsistent state`
     );
   }
 
-  await git(repoPath, [
-    "worktree",
-    "add",
-    wtPath,
-    "-b",
-    branchName,
-    `origin/${defaultBranch}`,
-  ]);
+  await git(repoPath, ["worktree", "add", wtPath, "-b", branchName, `origin/${defaultBranch}`]);
 
   return {
     worktreePath: wtPath,

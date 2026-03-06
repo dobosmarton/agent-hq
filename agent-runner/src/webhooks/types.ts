@@ -50,9 +50,7 @@ export type GitHubPullRequest = {
  * Zod schema for validating GitHub webhook PR event payloads at the boundary.
  * Uses .passthrough() to allow additional fields GitHub may add without breaking.
  */
-const GitHubUserSchema = z
-  .object({ login: z.string(), id: z.number() })
-  .passthrough();
+const GitHubUserSchema = z.object({ login: z.string(), id: z.number() }).passthrough();
 
 const GitHubPullRequestSchema = z
   .object({
@@ -87,9 +85,7 @@ export const GitHubPullRequestEventSchema = z
   })
   .passthrough();
 
-export type GitHubPullRequestEvent = z.infer<
-  typeof GitHubPullRequestEventSchema
->;
+export type GitHubPullRequestEvent = z.infer<typeof GitHubPullRequestEventSchema>;
 
 export type WebhookProcessResult = {
   success: boolean;

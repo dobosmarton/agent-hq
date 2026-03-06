@@ -67,7 +67,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
-        },
+        }
       ),
 
       tool(
@@ -75,12 +75,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         "Add a progress comment to the current Plane task. Use HTML formatting: <p>, <ul>, <li>, <code>, <strong>. Call this at key milestones to keep the human informed of progress.",
         { comment_html: z.string().describe("HTML-formatted comment content") },
         async ({ comment_html }) => {
-          await addComment(
-            ctx.planeConfig,
-            ctx.projectId,
-            ctx.issueId,
-            comment_html,
-          );
+          await addComment(ctx.planeConfig, ctx.projectId, ctx.issueId, comment_html);
           return {
             content: [
               {
@@ -89,7 +84,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
-        },
+        }
       ),
 
       tool(
@@ -97,11 +92,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         "Retrieve all comments on the current task with timestamps and content. Use this to review feedback and understand the task's history.",
         {},
         async () => {
-          const comments = await listComments(
-            ctx.planeConfig,
-            ctx.projectId,
-            ctx.issueId,
-          );
+          const comments = await listComments(ctx.planeConfig, ctx.projectId, ctx.issueId);
 
           if (comments.length === 0) {
             return {
@@ -122,7 +113,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
-        },
+        }
       ),
 
       tool(
@@ -133,13 +124,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
           url: z.string().url().describe("The URL to link"),
         },
         async ({ title, url }) => {
-          await addLink(
-            ctx.planeConfig,
-            ctx.projectId,
-            ctx.issueId,
-            title,
-            url,
-          );
+          await addLink(ctx.planeConfig, ctx.projectId, ctx.issueId, title, url);
           return {
             content: [
               {
@@ -148,7 +133,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
-        },
+        }
       ),
 
       tool(
@@ -190,16 +175,14 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
-        },
+        }
       ),
 
       tool(
         "add_labels_to_task",
         "Add one or more labels to the current task. Label names are case-insensitive.",
         {
-          label_names: z
-            .array(z.string())
-            .describe("Array of label names to add"),
+          label_names: z.array(z.string()).describe("Array of label names to add"),
         },
         async ({ label_names }) => {
           // Fetch current issue and available labels
@@ -209,9 +192,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
           ]);
 
           // Build lookup map (case-insensitive)
-          const labelMap = new Map(
-            availableLabels.map((l) => [l.name.toLowerCase(), l.id]),
-          );
+          const labelMap = new Map(availableLabels.map((l) => [l.name.toLowerCase(), l.id]));
 
           // Find label IDs
           const notFound: string[] = [];
@@ -241,9 +222,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
 
           // Merge with existing labels and deduplicate
           const currentLabels = issue.labels ?? [];
-          const mergedLabels = Array.from(
-            new Set([...currentLabels, ...labelIdsToAdd]),
-          );
+          const mergedLabels = Array.from(new Set([...currentLabels, ...labelIdsToAdd]));
 
           // Update issue
           await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, {
@@ -258,16 +237,14 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
-        },
+        }
       ),
 
       tool(
         "remove_labels_from_task",
         "Remove one or more labels from the current task. Label names are case-insensitive.",
         {
-          label_names: z
-            .array(z.string())
-            .describe("Array of label names to remove"),
+          label_names: z.array(z.string()).describe("Array of label names to remove"),
         },
         async ({ label_names }) => {
           // Fetch current issue and available labels
@@ -277,22 +254,18 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
           ]);
 
           // Build lookup map (case-insensitive)
-          const labelMap = new Map(
-            availableLabels.map((l) => [l.name.toLowerCase(), l.id]),
-          );
+          const labelMap = new Map(availableLabels.map((l) => [l.name.toLowerCase(), l.id]));
 
           // Find label IDs to remove
           const labelIdsToRemove = new Set(
             label_names
               .map((name) => labelMap.get(name.toLowerCase()))
-              .filter((id): id is string => id !== undefined),
+              .filter((id): id is string => id !== undefined)
           );
 
           // Filter out labels to remove
           const currentLabels = issue.labels ?? [];
-          const updatedLabels = currentLabels.filter(
-            (id) => !labelIdsToRemove.has(id),
-          );
+          const updatedLabels = currentLabels.filter((id) => !labelIdsToRemove.has(id));
 
           // Update issue
           await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, {
@@ -307,16 +280,14 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
-        },
+        }
       ),
 
       tool(
         "load_skill",
         "Load the full content of a coding standards skill. Call this at the start of your work to load skills relevant to the project's language and task. Use the skill IDs from the Available Coding Skills section in your instructions.",
         {
-          skill_id: z
-            .string()
-            .describe("The skill ID from the available skills list"),
+          skill_id: z.string().describe("The skill ID from the available skills list"),
         },
         async ({ skill_id }) => {
           const skill = ctx.skills.find((s) => s.id === skill_id);
@@ -340,18 +311,14 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               },
             ],
           };
-        },
+        }
       ),
 
       tool(
         "create_skill",
         "Record a learning or best practice as a reusable skill file. Use this when you discover a project-specific pattern, convention, workaround, or important context that would help future agents working on the same codebase. The skill is saved as a markdown file and automatically loaded for future tasks. Prefer project scope for project-specific learnings.",
         {
-          name: z
-            .string()
-            .min(3)
-            .max(80)
-            .describe("Short descriptive name for this learning"),
+          name: z.string().min(3).max(80).describe("Short descriptive name for this learning"),
           description: z
             .string()
             .min(10)
@@ -361,11 +328,9 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
             .string()
             .min(20)
             .describe(
-              "Full markdown content explaining the learning, pattern, or best practice. Include code examples where helpful.",
+              "Full markdown content explaining the learning, pattern, or best practice. Include code examples where helpful."
             ),
-          category: SkillCategorySchema.optional().describe(
-            "Category (defaults to 'learned')",
-          ),
+          category: SkillCategorySchema.optional().describe("Category (defaults to 'learned')"),
           priority: z
             .number()
             .int()
@@ -374,24 +339,16 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
             .optional()
             .describe("Priority 0-100 (defaults to 30)"),
           applies_to: SkillPhaseSchema.optional().describe(
-            "When to apply: 'planning', 'implementation', or 'both' (defaults to 'both')",
+            "When to apply: 'planning', 'implementation', or 'both' (defaults to 'both')"
           ),
           scope: z
             .enum(["project", "global"])
             .optional()
             .describe(
-              "Where to save: 'project' for this repo only, 'global' for all repos (defaults to 'project')",
+              "Where to save: 'project' for this repo only, 'global' for all repos (defaults to 'project')"
             ),
         },
-        async ({
-          name,
-          description,
-          content,
-          category,
-          priority,
-          applies_to,
-          scope,
-        }) => {
+        async ({ name, description, content, category, priority, applies_to, scope }) => {
           const effectiveCategory = category ?? "learned";
           const effectivePriority = priority ?? 30;
           const effectiveAppliesTo = applies_to ?? "both";
@@ -412,13 +369,12 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
                 priority: effectivePriority,
                 appliesTo: effectiveAppliesTo,
               },
-              { baseDir, subdirectory: "learned" },
+              { baseDir, subdirectory: "learned" }
             );
 
             clearSkillCache();
 
-            const scopeLabel =
-              effectiveScope === "project" ? "project" : "global";
+            const scopeLabel = effectiveScope === "project" ? "project" : "global";
             return {
               content: [
                 {
@@ -437,7 +393,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               ],
             };
           }
-        },
+        }
       ),
     ],
   });

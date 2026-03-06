@@ -7,9 +7,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 /**
  * Creates a mock Anthropic client with the given create implementation
  */
-const createMockClient = (
-  createFn: Anthropic["messages"]["create"],
-): Anthropic =>
+const createMockClient = (createFn: Anthropic["messages"]["create"]): Anthropic =>
   ({
     messages: { create: createFn },
   }) as unknown as Anthropic;
@@ -63,14 +61,14 @@ describe("executeParallelReviews", () => {
             }),
           },
         ],
-      }),
+      })
     );
 
     const result = await executeParallelReviews(
       mockContext,
       [mockToolSelection],
       mockClient,
-      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20241022"
     );
 
     expect(result.success).toBe(true);
@@ -82,15 +80,13 @@ describe("executeParallelReviews", () => {
   });
 
   it("should return error if all reviews fail", async () => {
-    const mockClient = createMockClient(
-      vi.fn().mockRejectedValue(new Error("API error")),
-    );
+    const mockClient = createMockClient(vi.fn().mockRejectedValue(new Error("API error")));
 
     const result = await executeParallelReviews(
       mockContext,
       [mockToolSelection],
       mockClient,
-      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20241022"
     );
 
     expect(result.success).toBe(false);
@@ -121,14 +117,14 @@ describe("executeParallelReviews", () => {
             }),
           },
         ],
-      }),
+      })
     );
 
     const result = await executeParallelReviews(
       mockContext,
       [mockToolSelection, mockToolSelection], // Run same review twice
       mockClient,
-      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20241022"
     );
 
     expect(result.success).toBe(true);

@@ -385,7 +385,8 @@ export const createPlaneTools = (config: PlaneConfig) => ({
 
   listTaskComments: createTool({
     id: "list_task_comments",
-    description: "List all comments on a specific task, including status updates, human feedback, and agent notes. For retrieving the agent's implementation plan specifically, prefer get_task_plan instead.",
+    description:
+      "List all comments on a specific task, including status updates, human feedback, and agent notes. For retrieving the agent's implementation plan specifically, prefer get_task_plan instead.",
     inputSchema: z.object({
       task_id: z
         .string()
@@ -439,9 +440,7 @@ export const createPlaneTools = (config: PlaneConfig) => ({
     description:
       "Get the agent's implementation plan for a task. Returns the full plan posted during the planning phase. Present the complete plan content to the user without summarizing. Returns has_plan: false if no plan exists yet.",
     inputSchema: z.object({
-      task_id: z
-        .string()
-        .describe("The task identifier in format PROJECT-NUMBER (e.g. 'HQ-42')."),
+      task_id: z.string().describe("The task identifier in format PROJECT-NUMBER (e.g. 'HQ-42')."),
     }),
     outputSchema: z.object({
       plan_html: z.string().optional(),

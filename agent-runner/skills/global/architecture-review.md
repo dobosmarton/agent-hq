@@ -180,10 +180,8 @@ const normalizeUser = (user: User): User => ({
   ...user,
   email: user.email.toLowerCase(),
 });
-const saveUser = async (user: User): Promise<void> =>
-  db.users.create({ data: user });
-const notifyUser = async (user: User): Promise<void> =>
-  sendWelcomeEmail(user.email);
+const saveUser = async (user: User): Promise<void> => db.users.create({ data: user });
+const notifyUser = async (user: User): Promise<void> => sendWelcomeEmail(user.email);
 
 const processUser = async (data: unknown): Promise<void> => {
   const user = validateUser(data);

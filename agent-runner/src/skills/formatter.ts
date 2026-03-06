@@ -33,9 +33,7 @@ export const formatSkillsCatalog = (skills: Skill[]): string => {
     return "";
   }
 
-  const rows = skills
-    .map((s) => `| ${s.id} | ${s.name} | ${s.description} |`)
-    .join("\n");
+  const rows = skills.map((s) => `| ${s.id} | ${s.name} | ${s.description} |`).join("\n");
 
   return `## Mandatory Coding Standards
 You MUST load and follow the coding standards below before writing any code. Use the load_skill tool to load each relevant skill by ID.
@@ -66,7 +64,7 @@ export const formatSkillsList = (global: Skill[], project: Skill[]): string => {
     sections.push("==============");
     for (const skill of global) {
       sections.push(
-        `  • ${skill.name} (${skill.id}) [${skill.category}, priority: ${skill.priority}, applies to: ${skill.appliesTo}]`,
+        `  • ${skill.name} (${skill.id}) [${skill.category}, priority: ${skill.priority}, applies to: ${skill.appliesTo}]`
       );
       sections.push(`    ${skill.description}`);
       sections.push(`    File: ${skill.filePath}`);
@@ -82,7 +80,7 @@ export const formatSkillsList = (global: Skill[], project: Skill[]): string => {
     sections.push("===============");
     for (const skill of project) {
       sections.push(
-        `  • ${skill.name} (${skill.id}) [${skill.category}, priority: ${skill.priority}, applies to: ${skill.appliesTo}]`,
+        `  • ${skill.name} (${skill.id}) [${skill.category}, priority: ${skill.priority}, applies to: ${skill.appliesTo}]`
       );
       sections.push(`    ${skill.description}`);
       sections.push(`    File: ${skill.filePath}`);

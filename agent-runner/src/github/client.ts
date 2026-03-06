@@ -19,9 +19,7 @@ export const createGitHubClient = (config: GitHubConfig) => {
   /**
    * Get pull request details
    */
-  const getPullRequest = async (
-    prNumber: number,
-  ): Promise<GitHubClientResult<GitHubPRDetails>> => {
+  const getPullRequest = async (prNumber: number): Promise<GitHubClientResult<GitHubPRDetails>> => {
     try {
       const response = await octokit.pulls.get({
         owner,
@@ -50,7 +48,7 @@ export const createGitHubClient = (config: GitHubConfig) => {
    * List files changed in a pull request
    */
   const listPullRequestFiles = async (
-    prNumber: number,
+    prNumber: number
   ): Promise<GitHubClientResult<GitHubPRFile[]>> => {
     try {
       const response = await octokit.pulls.listFiles({
@@ -80,9 +78,7 @@ export const createGitHubClient = (config: GitHubConfig) => {
   /**
    * Get the diff for a pull request
    */
-  const getPullRequestDiff = async (
-    prNumber: number,
-  ): Promise<GitHubClientResult<string>> => {
+  const getPullRequestDiff = async (prNumber: number): Promise<GitHubClientResult<string>> => {
     try {
       const response = await octokit.pulls.get({
         owner,
@@ -112,7 +108,7 @@ export const createGitHubClient = (config: GitHubConfig) => {
     prNumber: number,
     event: GitHubReviewEvent,
     body: string,
-    comments?: GitHubReviewComment[],
+    comments?: GitHubReviewComment[]
   ): Promise<GitHubClientResult<void>> => {
     try {
       await octokit.pulls.createReview({
@@ -145,7 +141,7 @@ export const createGitHubClient = (config: GitHubConfig) => {
     commitId: string,
     path: string,
     line: number,
-    body: string,
+    body: string
   ): Promise<GitHubClientResult<void>> => {
     try {
       await octokit.pulls.createReviewComment({
@@ -170,10 +166,7 @@ export const createGitHubClient = (config: GitHubConfig) => {
   /**
    * Add a comment to a pull request
    */
-  const addComment = async (
-    prNumber: number,
-    body: string,
-  ): Promise<GitHubClientResult<void>> => {
+  const addComment = async (prNumber: number, body: string): Promise<GitHubClientResult<void>> => {
     try {
       await octokit.issues.createComment({
         owner,

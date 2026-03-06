@@ -41,9 +41,7 @@ describe("askAndWait (fake timers)", () => {
     await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
 
     const result = await promise;
-    expect(result).toBe(
-      "[No answer received within timeout. Proceeding with best judgment.]",
-    );
+    expect(result).toBe("[No answer received within timeout. Proceeding with best judgment.]");
     bridge.stop();
   });
 

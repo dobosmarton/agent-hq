@@ -226,9 +226,7 @@ describe("parseUser", () => {
   });
 
   it("should throw on invalid age", () => {
-    expect(() => parseUser({ name: "Test", age: -1 })).toThrow(
-      "Age must be positive",
-    );
+    expect(() => parseUser({ name: "Test", age: -1 })).toThrow("Age must be positive");
   });
 });
 ```

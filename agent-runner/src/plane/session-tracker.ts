@@ -15,18 +15,14 @@ const SESSION_MARKER_END = "-->";
 /**
  * Extract session metadata from a comment's HTML
  */
-const extractSessionMetadata = (
-  commentHtml: string,
-): SessionMetadata | null => {
+const extractSessionMetadata = (commentHtml: string): SessionMetadata | null => {
   const startIdx = commentHtml.indexOf(SESSION_MARKER_START);
   if (startIdx === -1) return null;
 
   const endIdx = commentHtml.indexOf(SESSION_MARKER_END, startIdx);
   if (endIdx === -1) return null;
 
-  const jsonStr = commentHtml
-    .slice(startIdx + SESSION_MARKER_START.length, endIdx)
-    .trim();
+  const jsonStr = commentHtml.slice(startIdx + SESSION_MARKER_START.length, endIdx).trim();
 
   try {
     return JSON.parse(jsonStr) as SessionMetadata;
@@ -38,13 +34,10 @@ const extractSessionMetadata = (
 /**
  * Find the latest session metadata from comments
  */
-export const findLatestSession = (
-  comments: PlaneComment[],
-): SessionMetadata | null => {
+export const findLatestSession = (comments: PlaneComment[]): SessionMetadata | null => {
   // Sort comments by created_at descending (newest first)
   const sorted = [...comments].sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
   for (const comment of sorted) {

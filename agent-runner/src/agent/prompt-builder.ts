@@ -5,13 +5,12 @@ import { buildResumeContext } from "./comment-formatter";
 import { PLAN_MARKER } from "./phase";
 import type { ResumeContext } from "./runner";
 
-const taskDisplayId = (task: AgentTask): string =>
-  `${task.projectIdentifier}-${task.sequenceId}`;
+const taskDisplayId = (task: AgentTask): string => `${task.projectIdentifier}-${task.sequenceId}`;
 
 export const buildPlanningPrompt = (
   task: AgentTask,
   skillsSection?: string,
-  resumeContext?: ResumeContext | null,
+  resumeContext?: ResumeContext | null
 ): string => {
   const taskId = taskDisplayId(task);
 
@@ -102,15 +101,12 @@ export const buildImplementationPrompt = (
   comments: PlaneComment[],
   ciContext: CiContext,
   skillsSection?: string,
-  resumeContext?: ResumeContext | null,
+  resumeContext?: ResumeContext | null
 ): string => {
   const taskId = taskDisplayId(task);
 
   const commentsSection = comments
-    .map(
-      (c) =>
-        `<div class="comment" data-date="${c.created_at}">${c.comment_html}</div>`,
-    )
+    .map((c) => `<div class="comment" data-date="${c.created_at}">${c.comment_html}</div>`)
     .join("\n");
 
   const ciSection = buildCiValidationSection(ciContext);

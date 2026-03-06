@@ -4,10 +4,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Config, Env, PlaneConfig } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
 import type { ReviewOrchestrator } from "../review-agent/orchestrator";
-import {
-  handlePullRequestEvent,
-  handlePullRequestReviewTrigger,
-} from "./handler";
+import { handlePullRequestEvent, handlePullRequestReviewTrigger } from "./handler";
 import { GitHubPullRequestEventSchema } from "./types";
 
 // --- Types ---
@@ -28,11 +25,7 @@ type WebhookEnv = {
 
 // --- Helpers ---
 
-const verifySignature = (
-  payload: string,
-  signature: string,
-  secret: string,
-): boolean => {
+const verifySignature = (payload: string, signature: string, secret: string): boolean => {
   if (!signature.startsWith("sha256=")) {
     return false;
   }
@@ -48,7 +41,7 @@ const verifySignature = (
 
   return timingSafeEqual(
     Buffer.from(actualSignature, "hex"),
-    Buffer.from(expectedSignature, "hex"),
+    Buffer.from(expectedSignature, "hex")
   );
 };
 
@@ -85,9 +78,7 @@ const healthRoute = createRoute({
 
 // --- App factory (deps injected via middleware) ---
 
-export const createWebhookApp = (
-  deps: WebhookDeps,
-): OpenAPIHono<WebhookEnv> => {
+export const createWebhookApp = (deps: WebhookDeps): OpenAPIHono<WebhookEnv> => {
   const app = new OpenAPIHono<WebhookEnv>();
 
   app.onError((err, c) => {
@@ -167,7 +158,7 @@ export const createWebhookApp = (
         }
       } else {
         console.warn(
-          "⚠️  Webhook: GITHUB_WEBHOOK_SECRET not configured, skipping signature validation",
+          "⚠️  Webhook: GITHUB_WEBHOOK_SECRET not configured, skipping signature validation"
         );
       }
 
@@ -189,31 +180,15 @@ export const createWebhookApp = (
 
       // Handle merged PRs (update task status)
       if (event.action === "closed" && event.pull_request.merged) {
-        void handlePullRequestEvent(
-          event,
-          planeConfig,
-          config,
-          taskPoller,
-        ).catch((err) => {
-          console.error(
-            `❌ Webhook: Error processing merged PR #${event.number}:`,
-            err,
-          );
+        void handlePullRequestEvent(event, planeConfig, config, taskPoller).catch((err) => {
+          console.error(`❌ Webhook: Error processing merged PR #${event.number}:`, err);
         });
       }
 
       // Handle opened/synchronize PRs (trigger review)
       if (event.action === "opened" || event.action === "synchronize") {
-        void handlePullRequestReviewTrigger(
-          event,
-          reviewAgent,
-          taskPoller,
-          config,
-        ).catch((err) => {
-          console.error(
-            `❌ Webhook: Error triggering review for PR #${event.number}:`,
-            err,
-          );
+        void handlePullRequestReviewTrigger(event, reviewAgent, taskPoller, config).catch((err) => {
+          console.error(`❌ Webhook: Error triggering review for PR #${event.number}:`, err);
         });
       }
 
@@ -246,10 +221,10 @@ export const startWebhookServer = (deps: WebhookDeps): Promise<void> => {
         },
         () => {
           console.log(
-            `🌐 Webhook server listening on http://localhost:${deps.config.webhook.port}${deps.config.webhook.path}`,
+            `🌐 Webhook server listening on http://localhost:${deps.config.webhook.port}${deps.config.webhook.path}`
           );
           resolve();
-        },
+        }
       );
 
       server.on("error", (err: Error) => {

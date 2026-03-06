@@ -22,16 +22,8 @@ export type ToolSelectionResult = {
 /**
  * Loads review-specific skills and converts them to tools
  */
-export const loadReviewTools = (
-  skills: readonly Skill[],
-): readonly ReviewTool[] => {
-  const reviewCategories = [
-    "security",
-    "architecture",
-    "performance",
-    "testing",
-    "completeness",
-  ];
+export const loadReviewTools = (skills: readonly Skill[]): readonly ReviewTool[] => {
+  const reviewCategories = ["security", "architecture", "performance", "testing", "completeness"];
 
   return skills
     .filter((skill) => reviewCategories.includes(skill.category || ""))
@@ -53,7 +45,7 @@ export const buildToolDescriptions = (tools: readonly ReviewTool[]): string => {
     .map(
       (tool) =>
         `- **${tool.name}** (priority: ${tool.priority}): ${tool.description}
-  Category: ${tool.category}`,
+  Category: ${tool.category}`
     )
     .join("\n");
 };
@@ -61,9 +53,6 @@ export const buildToolDescriptions = (tools: readonly ReviewTool[]): string => {
 /**
  * Finds a review tool by name
  */
-export const findTool = (
-  tools: readonly ReviewTool[],
-  name: string,
-): ReviewTool | undefined => {
+export const findTool = (tools: readonly ReviewTool[], name: string): ReviewTool | undefined => {
   return tools.find((tool) => tool.name === name);
 };

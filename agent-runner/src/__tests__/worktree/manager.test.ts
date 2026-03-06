@@ -32,9 +32,7 @@ beforeEach(() => {
 
 // Helper: mock git calls in sequence
 // For createWorktree happy path: fetch, pull, rev-parse (fail), worktree add
-const mockGitSequence = (
-  responses: Array<{ stdout?: string; error?: Error }>,
-) => {
+const mockGitSequence = (responses: Array<{ stdout?: string; error?: Error }>) => {
   let callIndex = 0;
   mockedExecFile.mockImplementation((_cmd, _args, callback: any) => {
     const response = responses[callIndex] ?? { stdout: "" };
@@ -150,7 +148,7 @@ describe("createWorktree", () => {
     ]);
 
     await expect(createWorktree("/repos/hq", "HQ-42", "main")).rejects.toThrow(
-      "Worktree already exists",
+      "Worktree already exists"
     );
   });
 
@@ -163,7 +161,7 @@ describe("createWorktree", () => {
     ]);
 
     await expect(createWorktree("/repos/hq", "HQ-42", "main")).rejects.toThrow(
-      "Branch agent/HQ-42 already exists",
+      "Branch agent/HQ-42 already exists"
     );
   });
 });
@@ -224,7 +222,7 @@ describe("ensureWorktreeGitignore", () => {
     ensureWorktreeGitignore("/repos/hq");
     expect(mockedAppendFileSync).toHaveBeenCalledWith(
       expect.stringContaining(".gitignore"),
-      "\n.worktrees/\n",
+      "\n.worktrees/\n"
     );
   });
 
@@ -234,7 +232,7 @@ describe("ensureWorktreeGitignore", () => {
     ensureWorktreeGitignore("/repos/hq");
     expect(mockedAppendFileSync).toHaveBeenCalledWith(
       expect.stringContaining(".gitignore"),
-      ".worktrees/\n",
+      ".worktrees/\n"
     );
   });
 });

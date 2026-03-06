@@ -29,9 +29,7 @@ export const readCiWorkflows = (repoPath: string): CiContext => {
     return { workflowFiles: {} };
   }
 
-  const yamlFiles = entries.filter(
-    (f) => f.endsWith(".yml") || f.endsWith(".yaml"),
-  );
+  const yamlFiles = entries.filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"));
 
   const workflowFiles: Record<string, string> = {};
   let totalBytes = 0;
@@ -45,7 +43,7 @@ export const readCiWorkflows = (repoPath: string): CiContext => {
 
       if (totalBytes + content.length > MAX_TOTAL_BYTES) {
         console.warn(
-          `CI workflow content exceeds ${MAX_TOTAL_BYTES} bytes, skipping remaining files`,
+          `CI workflow content exceeds ${MAX_TOTAL_BYTES} bytes, skipping remaining files`
         );
         break;
       }

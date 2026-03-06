@@ -73,7 +73,7 @@ describe("listProjects", () => {
   it("throws on non-OK response", async () => {
     mockError(500, "Internal Server Error");
     await expect(listProjects(config)).rejects.toThrow(
-      "Plane API error: 500 Internal Server Error",
+      "Plane API error: 500 Internal Server Error"
     );
   });
 });
@@ -143,23 +143,14 @@ describe("findStateByGroupAndName", () => {
     ];
     mockOk(paginate(states));
 
-    const result = await findStateByGroupAndName(
-      config,
-      "proj-1",
-      "started",
-      "in review",
-    );
+    const result = await findStateByGroupAndName(config, "proj-1", "started", "in review");
     expect(result?.id).toBe("s2");
   });
 
   it("returns null when no match", async () => {
     mockOk(paginate([makeState({ group: "unstarted" })]));
 
-    const result = await findStateByGroupAndName(
-      config,
-      "proj-1",
-      "nonexistent",
-    );
+    const result = await findStateByGroupAndName(config, "proj-1", "nonexistent");
     expect(result).toBeNull();
   });
 });
@@ -264,13 +255,7 @@ describe("addLink", () => {
   it("returns parsed link", async () => {
     mockOk({ id: "link-1", title: "PR", url: "https://github.com/pr/1" });
 
-    const result = await addLink(
-      config,
-      "proj-1",
-      "issue-1",
-      "PR",
-      "https://github.com/pr/1",
-    );
+    const result = await addLink(config, "proj-1", "issue-1", "PR", "https://github.com/pr/1");
     expect(result.id).toBe("link-1");
     expect(result.url).toBe("https://github.com/pr/1");
   });

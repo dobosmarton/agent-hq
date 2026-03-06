@@ -42,10 +42,7 @@ describe("createAgentProgressTracker", () => {
     tracker.update("Setting up", "in_progress");
 
     expect(notifier.agentProgress).toHaveBeenCalledOnce();
-    expect(notifier.agentProgress).toHaveBeenCalledWith(
-      42,
-      expect.stringContaining("Setting up"),
-    );
+    expect(notifier.agentProgress).toHaveBeenCalledWith(42, expect.stringContaining("Setting up"));
   });
 
   it("rate-limits rapid successive updates", () => {
@@ -79,7 +76,7 @@ describe("createAgentProgressTracker", () => {
     // Both calls should trigger (intervalMs=0), second message should have completed status
     expect(notifier.agentProgress).toHaveBeenCalledTimes(2);
     const lastMessage = String(
-      (notifier.agentProgress as ReturnType<typeof vi.fn>).mock.calls[1]?.[1],
+      (notifier.agentProgress as ReturnType<typeof vi.fn>).mock.calls[1]?.[1]
     );
     expect(lastMessage).toContain("Loading");
   });
@@ -98,9 +95,9 @@ describe("createAgentProgressTracker", () => {
     }
 
     // The last message should not contain Step 0 (it was shifted out)
-    const lastMessage = (
-      notifier.agentProgress as ReturnType<typeof vi.fn>
-    ).mock.calls.at(-1)![1] as string;
+    const lastMessage = (notifier.agentProgress as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1
+    )![1] as string;
     expect(lastMessage).not.toContain("Step 0");
     expect(lastMessage).toContain("Step 10");
   });
@@ -108,7 +105,7 @@ describe("createAgentProgressTracker", () => {
   it("catches notifier errors without unhandled rejection", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     (notifier.agentProgress as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-      new Error("Telegram down"),
+      new Error("Telegram down")
     );
 
     const tracker = createAgentProgressTracker({
@@ -123,9 +120,7 @@ describe("createAgentProgressTracker", () => {
     // Wait for the fire-and-forget promise to settle
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Progress update failed"),
-    );
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Progress update failed"));
     consoleSpy.mockRestore();
   });
 
@@ -139,9 +134,7 @@ describe("createAgentProgressTracker", () => {
 
     tracker.update("Working", "in_progress");
 
-    const message = String(
-      (notifier.agentProgress as ReturnType<typeof vi.fn>).mock.calls[0]?.[1],
-    );
+    const message = String((notifier.agentProgress as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]);
     expect(message).toContain("PROJ-99");
     expect(message).toContain("Important feature");
   });
