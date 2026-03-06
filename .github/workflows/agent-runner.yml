@@ -67,6 +67,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/agent-runner
+            [ -f config.local.json ] || echo '{}' > config.local.json
             docker compose up -d --build --force-recreate
             sleep 5
             docker compose ps

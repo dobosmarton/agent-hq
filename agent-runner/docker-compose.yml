@@ -13,6 +13,7 @@ services:
           cpus: "3"
     volumes:
       - ./config.json:/app/agent-runner/config.json:ro
+      - ./config.local.json:/app/agent-runner/config.local.json:ro
       - /home/deploy/repos:/repos
       - runner-state:/app/agent-runner/state
 

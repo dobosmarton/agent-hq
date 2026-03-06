@@ -4,13 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // and test loadConfig by mocking fs
 vi.mock("node:fs", () => ({
   readFileSync: vi.fn(),
+  existsSync: vi.fn().mockReturnValue(false),
 }));
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { buildPlaneConfig, loadConfig, loadEnv } from "../config";
 import { makeConfig, makeEnv } from "./fixtures/config";
 
 const mockedReadFileSync = vi.mocked(readFileSync);
+const mockedExistsSync = vi.mocked(existsSync);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -148,6 +150,61 @@ describe("loadConfig", () => {
     mockedReadFileSync.mockReturnValue(JSON.stringify(rawConfig));
 
     expect(() => loadConfig("/fake/config.json")).toThrow();
+  });
+
+  it("deep-merges config.local.json overrides when present", () => {
+    const rawConfig = {
+      plane: { baseUrl: "http://plane.local/api/v1", workspaceSlug: "ws" },
+      projects: {},
+      review: { enabled: false },
+    };
+    const localOverride = {
+      review: { enabled: true },
+    };
+
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync
+      .mockReturnValueOnce(JSON.stringify(rawConfig))
+      .mockReturnValueOnce(JSON.stringify(localOverride));
+
+    const config = loadConfig("/fake/config.json");
+    expect(config.review.enabled).toBe(true);
+    expect(mockedExistsSync).toHaveBeenCalledWith("/fake/config.local.json");
+  });
+
+  it("preserves non-overridden fields during local merge", () => {
+    const rawConfig = {
+      plane: { baseUrl: "http://plane.local/api/v1", workspaceSlug: "ws" },
+      projects: {},
+      agent: { maxConcurrent: 4, maxDailyBudget: 50 },
+    };
+    const localOverride = {
+      agent: { maxConcurrent: 8 },
+    };
+
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync
+      .mockReturnValueOnce(JSON.stringify(rawConfig))
+      .mockReturnValueOnce(JSON.stringify(localOverride));
+
+    const config = loadConfig("/fake/config.json");
+    expect(config.agent.maxConcurrent).toBe(8);
+    expect(config.agent.maxDailyBudget).toBe(50);
+  });
+
+  it("skips local override when config.local.json does not exist", () => {
+    const rawConfig = {
+      plane: { baseUrl: "http://plane.local/api/v1", workspaceSlug: "ws" },
+      projects: {},
+      review: { enabled: false },
+    };
+
+    mockedExistsSync.mockReturnValue(false);
+    mockedReadFileSync.mockReturnValue(JSON.stringify(rawConfig));
+
+    const config = loadConfig("/fake/config.json");
+    expect(config.review.enabled).toBe(false);
+    expect(mockedReadFileSync).toHaveBeenCalledTimes(1);
   });
 });
 

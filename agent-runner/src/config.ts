@@ -1,5 +1,5 @@
 import { SkillsConfigSchema } from "@agent-hq/skills";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
@@ -104,10 +104,38 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
+const deepMerge = (target: Record<string, unknown>, source: Record<string, unknown>): void => {
+  for (const key of Object.keys(source)) {
+    const sourceVal = source[key];
+    const targetVal = target[key];
+    if (
+      sourceVal !== null &&
+      typeof sourceVal === "object" &&
+      !Array.isArray(sourceVal) &&
+      targetVal !== null &&
+      typeof targetVal === "object" &&
+      !Array.isArray(targetVal)
+    ) {
+      deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
+    } else {
+      target[key] = sourceVal;
+    }
+  }
+};
+
 export const loadConfig = (configPath?: string): Config => {
   const path = configPath ?? process.env.CONFIG_PATH ?? resolve(process.cwd(), "config.json");
-  const raw = readFileSync(path, "utf-8");
-  return ConfigSchema.parse(JSON.parse(raw));
+  const raw = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+
+  // Deep-merge local overrides if present
+  const localPath = path.replace(/\.json$/, ".local.json");
+  if (existsSync(localPath)) {
+    const localRaw = JSON.parse(readFileSync(localPath, "utf-8")) as Record<string, unknown>;
+    deepMerge(raw, localRaw);
+    console.log(`Loaded config overrides from ${localPath}`);
+  }
+
+  return ConfigSchema.parse(raw);
 };
 
 export const loadEnv = (): Env => {
