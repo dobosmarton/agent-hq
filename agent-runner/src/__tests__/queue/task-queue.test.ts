@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTaskQueue } from "../../queue/task-queue";
-import type { AgentTask } from "../../types";
+import type { AgentTask } from "@agent-hq/shared-types";
 
 const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
   issueId: "issue-1",

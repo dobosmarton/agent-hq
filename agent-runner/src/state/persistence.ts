@@ -1,6 +1,6 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import type { RunnerState } from "@agent-hq/shared-types";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { RunnerState } from "../types.js";
 
 const DEFAULT_STATE: RunnerState = {
   activeAgents: {},

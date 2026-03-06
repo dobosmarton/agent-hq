@@ -9,7 +9,7 @@ vi.mock("node:fs", () => ({
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createStatePersistence } from "../../state/persistence.js";
-import type { RunnerState } from "../../types.js";
+import type { RunnerState } from "@agent-hq/shared-types";
 
 const mockedExistsSync = vi.mocked(existsSync);
 const mockedReadFileSync = vi.mocked(readFileSync);

@@ -1,4 +1,4 @@
-import type { PlaneComment } from "../plane/types";
+import type { PlaneComment } from "@agent-hq/plane-client";
 
 export const PLAN_MARKER = "<!-- AGENT_PLAN -->";
 

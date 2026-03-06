@@ -1,9 +1,7 @@
 #!/usr/bin/env node
+import { formatSkillDetail, formatSkillsList, listAllSkills } from "@agent-hq/skills";
 import { resolve } from "node:path";
 import { loadConfig } from "../config";
-import { listAllSkills } from "./loader";
-import { formatSkillsList, formatSkillDetail } from "./formatter";
-import type { Skill } from "./types";
 
 /**
  * CLI for managing skills

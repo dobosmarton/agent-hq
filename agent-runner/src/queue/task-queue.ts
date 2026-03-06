@@ -1,4 +1,4 @@
-import type { AgentTask } from "../types";
+import type { AgentTask } from "@agent-hq/shared-types";
 
 export type QueueEntry = {
   task: AgentTask;

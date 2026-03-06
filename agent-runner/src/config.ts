@@ -1,11 +1,11 @@
-import { z } from "zod";
+import { SkillsConfigSchema } from "@agent-hq/skills";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { SkillsConfigSchema } from "./skills/types";
+import { z } from "zod";
 
 const ProjectConfigSchema = z.object({
   repoPath: z.string().optional(),
-  repoUrl: z.string().url(),
+  repoUrl: z.url(),
   defaultBranch: z.string().default("main"),
   ciChecks: z.array(z.string()).optional(),
   planeProjectId: z.string().optional(),
@@ -115,10 +115,14 @@ export const loadEnv = (): Env => {
 };
 
 import type { PlaneConfig } from "@agent-hq/plane-client";
-export type { PlaneConfig } from "@agent-hq/plane-client";
+import { createPlaneClient } from "@agent-hq/plane-client";
+export type { PlaneClient, PlaneConfig } from "@agent-hq/plane-client";
 
 export const buildPlaneConfig = (config: Config, env: Env): PlaneConfig => ({
   apiKey: env.PLANE_API_KEY,
   baseUrl: env.PLANE_BASE_URL ?? config.plane.baseUrl,
   workspaceSlug: config.plane.workspaceSlug,
 });
+
+export const buildPlaneClient = (config: Config, env: Env) =>
+  createPlaneClient(buildPlaneConfig(config, env));
