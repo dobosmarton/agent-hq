@@ -1,6 +1,6 @@
 # Agent HQ
 
-A command center for managing multiple Claude Code agents across software projects. Combines a self-hosted task board (Plane), a real-time observability dashboard, and a Telegram bot with LLM-powered natural language for mobile task management.
+A command center for managing multiple autonomous agents across software projects. Combines a self-hosted task board (Plane), a real-time observability dashboard, and a Telegram bot with LLM-powered natural language for mobile task management.
 
 ## Architecture
 
@@ -38,10 +38,37 @@ A command center for managing multiple Claude Code agents across software projec
 | Component        | Tech                                                                                             | Purpose                                               |
 | ---------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
 | Task board       | [Plane](https://plane.so) (self-hosted)                                                          | Kanban boards, project management                     |
-| Agent runner     | Claude Agent SDK + Plane API                                                                     | Autonomous agents that pick up tasks and work on them |
+| Agent runner     | Agent SDK + Plane API                                                                            | Autonomous agents that pick up tasks and work on them |
 | Agent monitoring | [Observability Dashboard](https://github.com/disler/claude-code-hooks-multi-agent-observability) | Real-time web dashboard of all agent activity         |
 | Mobile access    | Telegram bot + Mastra AI agent                                                                   | Create/list/inspect tasks via natural language        |
 | Networking       | Tailscale                                                                                        | Private encrypted mesh between Mac and VPS            |
+
+## Monorepo Structure
+
+This is a **pnpm workspace** monorepo. Shared logic is extracted into reusable packages under `packages/`, consumed by the two applications (`agent-runner` and `telegram-bot`).
+
+```
+packages/
+├── plane-client/     @agent-hq/plane-client   — Typed Plane API client (projects, issues, states, labels, comments)
+├── shared-types/     @agent-hq/shared-types   — Shared type definitions (AgentTask, RunnerState, PLAN_MARKER)
+├── skills/           @agent-hq/skills         — Skill loading, formatting, and validation
+├── review-agent/     @agent-hq/review-agent   — PR review orchestrator with parallel review dimensions
+└── task-agent/       @agent-hq/task-agent     — Agent manager, runner, MCP tools, prompt builder
+
+agent-runner/         Thin orchestrator — polling, queue, state persistence, webhooks, worktree, Telegram bridge
+telegram-bot/         Telegram bot with Mastra AI agent for mobile task management
+```
+
+The `task-agent` package defines adapter interfaces (`Notifier`, `WorktreeAdapter`, `StatePersistence`, `TaskPollerAdapter`) that the `agent-runner` implements. This keeps the core agent logic framework-agnostic — it has no knowledge of Telegram, Docker, or filesystem details.
+
+### Root scripts
+
+```bash
+pnpm build          # Type-check all packages
+pnpm test           # Run all tests across the workspace
+pnpm format         # Format all packages with Prettier
+pnpm format:check   # Check formatting (CI)
+```
 
 ## Telegram Bot
 
@@ -49,7 +76,7 @@ The bot lives in [`telegram-bot/`](./telegram-bot/) and is the main piece of cod
 
 ### How it works
 
-You send a natural language message to `@my_agent_hq_bot` on Telegram. A [Mastra](https://mastra.ai) agent (backed by Claude) interprets your intent, calls the appropriate Plane API tools, and replies conversationally. It supports multi-turn conversations — the agent can ask clarifying questions before acting.
+You send a natural language message to `@my_agent_hq_bot` on Telegram. A [Mastra](https://mastra.ai) agent interprets your intent, calls the appropriate Plane API tools, and replies conversationally. It supports multi-turn conversations — the agent can ask clarifying questions before acting.
 
 **Examples:**
 
@@ -68,16 +95,17 @@ When creating tasks, the agent proactively enriches your brief description into 
 
 **Implementation-Start Convention:** When you say phrases like "start implementing TASK-ID", "begin work on TASK-ID", or "let's implement TASK-ID", the agent automatically adds the "agent" label and moves the task to "Todo" state. This standardizes the workflow for agent-driven task implementation.
 
-**Real-Time Progress Feedback:** When the bot processes your request, it shows a live progress message that updates every 2-3 seconds with the current step (e.g., "⏳ Parsing request", "🔄 Executing query", "✅ Task created"). This reduces perceived latency and gives you confidence that the system is working. Progress messages are edited in-place to avoid cluttering the chat. The agent runner also sends progress updates during long-running agent tasks (setup, loading skills, planning/implementing). You can disable progress feedback by setting `PROGRESS_FEEDBACK_ENABLED=false` in the environment.
+**Real-Time Progress Feedback:** When the bot processes your request, it shows a live progress message that updates every 2-3 seconds with the current step. Progress messages are edited in-place to avoid cluttering the chat. The agent runner also sends progress updates during long-running agent tasks (setup, loading skills, planning/implementing). You can disable progress feedback by setting `PROGRESS_FEEDBACK_ENABLED=false` in the environment.
 
 ### Tech stack
 
 - **[grammy](https://grammy.dev)** — Telegram bot framework (long polling, no webhooks needed)
 - **[Mastra](https://mastra.ai)** — AI agent framework with built-in tool calling and conversation memory
-- **[@ai-sdk/anthropic](https://sdk.vercel.ai)** — Claude model provider
+- **[@ai-sdk/anthropic](https://sdk.vercel.ai)** — Model provider
+- **[@agent-hq/plane-client](./packages/plane-client/)** — Shared Plane API client (workspace package)
 - **[LibSQL](https://turso.tech/libsql)** — SQLite-based persistent storage for conversation history
 - **[Octokit](https://github.com/octokit/rest.js)** — GitHub API client for repo search and project discovery
-- **[Zod](https://zod.dev)** — Runtime type validation at API boundaries
+- **[Zod](https://zod.dev)** — Runtime type validation at API boundaries (v4)
 - **[Vitest](https://vitest.dev)** — Unit testing
 - **TypeScript** — Strict mode, arrow functions, types over interfaces
 
@@ -87,8 +115,7 @@ When creating tasks, the agent proactively enriches your brief description into 
 telegram-bot/
 ├── src/
 │   ├── bot.ts              # Entry point — grammy bot setup, auth middleware, message handler
-│   ├── types.ts            # Zod schemas for env validation and Plane API responses
-│   ├── plane.ts            # Typed Plane API client (list projects, issues, states; create issues)
+│   ├── types.ts            # Zod schemas for env validation (Plane types from @agent-hq/plane-client)
 │   ├── github.ts           # GitHub API client (repo search, user/org repos, URL parsing)
 │   ├── github-types.ts     # Zod schemas for GitHub API responses
 │   ├── formatter.ts        # Telegram HTML message formatter with chunking and truncation
@@ -96,6 +123,9 @@ telegram-bot/
 │   ├── agent/
 │   │   ├── index.ts        # Mastra agent setup — system prompt, memory, model config
 │   │   └── tools.ts        # Plane + GitHub + agent runner tools
+│   ├── telegram/
+│   │   ├── progress-tracker.ts    # Live progress message updates
+│   │   └── progress-formatter.ts  # Progress step formatting
 │   ├── commands/
 │   │   └── help.ts         # /start and /help command handlers
 │   └── __tests__/          # Vitest unit tests
@@ -154,7 +184,7 @@ Copy `env.example` to `.env` and fill in the values:
 | `PLANE_API_KEY`                | Plane workspace API token                                                            |
 | `PLANE_BASE_URL`               | Plane API base URL (e.g. `http://localhost/api/v1`)                                  |
 | `PLANE_WORKSPACE_SLUG`         | Plane workspace slug                                                                 |
-| `ANTHROPIC_API_KEY`            | Anthropic API key for Claude                                                         |
+| `ANTHROPIC_API_KEY`            | Anthropic API key                                                                    |
 | `ANTHROPIC_MODEL`              | Model ID (default: `claude-haiku-4-5-20251001`)                                      |
 | `AGENT_RUNNER_URL`             | Agent runner HTTP URL for queue tools (optional, e.g. `http://127.0.0.1:3847`)       |
 | `GITHUB_PAT`                   | GitHub Personal Access Token for project discovery (optional — enables GitHub tools) |
@@ -165,10 +195,10 @@ Copy `env.example` to `.env` and fill in the values:
 
 ```bash
 cd telegram-bot
-npm install
+pnpm install
 cp env.example .env    # fill in values
-npm run build          # compile TypeScript
-npm start              # run the bot
+pnpm run build         # type-check TypeScript
+pnpm start             # run the bot
 ```
 
 ### Deployment
@@ -177,14 +207,14 @@ The bot runs as a Docker container on the VPS. CI/CD is handled by GitHub Action
 
 **Pipeline:**
 
-1. **Quality** — `npm ci`, formatting check, type check (`tsc --noEmit`), tests (`vitest run`), build (`tsc`)
+1. **Quality** — `pnpm install`, formatting check, type check (`tsc --noEmit`), tests (`vitest run`)
 2. **Deploy** — SCP files to VPS, rebuild Docker container
 
 **Manual deploy:**
 
 ```bash
 # From telegram-bot/ directory
-scp -i ~/.ssh/<ssh-key-name> -r src package.json package-lock.json tsconfig.json Dockerfile docker-compose.yml deploy@<vps-ip>:~/telegram-bot/
+scp -i ~/.ssh/<ssh-key-name> -r src package.json pnpm-lock.yaml tsconfig.json Dockerfile docker-compose.yml deploy@<vps-ip>:~/telegram-bot/
 ssh -i ~/.ssh/<ssh-key-name> deploy@<vps-ip> "cd ~/telegram-bot && docker compose up -d --build --force-recreate"
 ```
 
@@ -196,19 +226,21 @@ ssh -i ~/.ssh/<ssh-key-name> deploy@<vps-ip> "cd ~/telegram-bot && docker compos
 
 ### Scripts
 
-| Script                 | Command                           |
-| ---------------------- | --------------------------------- |
-| `npm run build`        | Compile TypeScript                |
-| `npm start`            | Run the compiled bot              |
-| `npm run dev`          | Watch mode (recompile on changes) |
-| `npm test`             | Run unit tests                    |
-| `npm run test:watch`   | Run tests in watch mode           |
-| `npm run format`       | Format code with Prettier         |
-| `npm run format:check` | Check formatting (CI)             |
+| Script                      | Command                           |
+| --------------------------- | --------------------------------- |
+| `pnpm run build`            | Type-check TypeScript             |
+| `pnpm start`                | Run the bot                       |
+| `pnpm run dev`              | Watch mode (recompile on changes) |
+| `pnpm test`                 | Run unit tests                    |
+| `pnpm run test:watch`       | Run tests in watch mode           |
+| `pnpm run format`           | Format code with Prettier         |
+| `pnpm run format:check`     | Check formatting (CI)             |
 
 ## Agent Runner
 
-The agent runner lives in [`agent-runner/`](./agent-runner/) and is an autonomous task execution system. It polls Plane for tasks labeled `agent`, queues them, spawns Claude Code agents to work on them in parallel, and reports progress back via Telegram.
+The agent runner lives in [`agent-runner/`](./agent-runner/) and is an autonomous task execution system. It polls Plane for tasks labeled `agent`, queues them, spawns agents to work on them in parallel, and reports progress back via Telegram.
+
+The core agent logic (manager, runner, MCP tools, prompt builder) lives in the [`@agent-hq/task-agent`](./packages/task-agent/) package. The agent-runner provides the concrete infrastructure: polling, queue management, state persistence, worktree handling, and Telegram notifications — all wired to task-agent via adapter interfaces.
 
 ### How it works
 
@@ -233,9 +265,15 @@ The runner uses an in-memory task queue persisted to disk (`state/runner-state.j
 
 ### Tech stack
 
-- **[Claude Agent SDK](https://docs.anthropic.com/en/docs/agents)** — Spawns Claude Code agents with tool use
+- **[pnpm workspaces](https://pnpm.io/workspaces)** — Monorepo package management
+- **[@agent-hq/task-agent](./packages/task-agent/)** — Agent manager, runner, MCP tools, prompt builder
+- **[@agent-hq/plane-client](./packages/plane-client/)** — Typed Plane API client
+- **[@agent-hq/skills](./packages/skills/)** — Skill loading and formatting
+- **[@agent-hq/review-agent](./packages/review-agent/)** — PR review orchestrator
+- **[@agent-hq/shared-types](./packages/shared-types/)** — Shared type definitions
+- **[Agent SDK](https://docs.anthropic.com/en/docs/agents)** — Spawns agents with tool use
 - **[Hono](https://hono.dev)** — Lightweight HTTP framework for the GitHub webhook server
-- **[Zod](https://zod.dev)** — Runtime config and API response validation
+- **[Zod](https://zod.dev)** — Runtime config and API response validation (v4)
 - **[Vitest](https://vitest.dev)** — Unit testing
 - **TypeScript** — Strict mode
 
@@ -272,19 +310,19 @@ Skills are markdown files with metadata in HTML comments:
 
 ```bash
 cd agent-runner
-npm run skills:list [project-path]      # List all available skills
-npm run skills:show <id> [project-path] # Show skill details
-npm run skills:validate [project-path]  # Validate skill files
+pnpm run skills:list [project-path]      # List all available skills
+pnpm run skills:show <id> [project-path] # Show skill details
+pnpm run skills:validate [project-path]  # Validate skill files
 ```
 
 ### PR Review Agent
 
-The PR review agent provides automated code review for pull requests created by agents. It uses specialized review skills and parallel execution for comprehensive, efficient reviews.
+The PR review agent provides automated code review for pull requests created by agents. It uses specialized review skills and parallel execution for comprehensive, efficient reviews. The review orchestrator lives in [`@agent-hq/review-agent`](./packages/review-agent/).
 
 **How it works:**
 
 1. **Webhook trigger** — GitHub webhook fires when PR is opened or updated
-2. **Tool selection** — Claude analyzes the PR and selects relevant review tools (e.g., security, performance, testing)
+2. **Tool selection** — The agent analyzes the PR and selects relevant review tools (e.g., security, performance, testing)
 3. **Parallel reviews** — Multiple specialized review agents run concurrently, each focusing on a specific dimension
 4. **Aggregation** — Results are combined, deduplicated, and posted to GitHub and Plane
 5. **Smart feedback** — Shows which tools found which issues, categorized by severity
@@ -325,26 +363,25 @@ The PR review agent provides automated code review for pull requests created by 
 - **Intelligent tool selection** — LLM chooses relevant review types based on PR content
 - **Parallel execution** — Multiple review dimensions run concurrently for speed
 - **Markdown-based skills** — Each review type is defined in a markdown skill file with examples and checklists
-- **Backward compatible** — Can fall back to single-pass review if `useParallelReview: false`
 - **Diff size limits** — Skips review for PRs exceeding `maxDiffSizeKb`
-- **Never auto-approves** — Phase 1 implementation only posts comments or requests changes
+- **Never auto-approves** — Only posts comments or requests changes
 
 **Example output:**
 
 ```
-## ❌ Code Review - Changes Requested
+## Code Review - Changes Requested
 
 Found 3 issues across 2 review dimensions.
 
 _Review tools used: security, testing, completeness_
 
-### ❌ Critical Issues
+### Critical Issues
 - **security**: Missing input validation on user email field
-  💡 Use Zod schema with .email() validator
+  Use Zod schema with .email() validator
 
-### ⚠️ Major Issues
+### Major Issues
 - **testing**: Missing unit tests for authentication logic
-  💡 Add tests covering success, invalid credentials, and edge cases
+  Add tests covering success, invalid credentials, and edge cases
 ```
 
 ### Project structure
@@ -352,30 +389,16 @@ _Review tools used: security, testing, completeness_
 ```
 agent-runner/
 ├── src/
-│   ├── index.ts              # Orchestrator — discovery/process loops, retry logic, state persistence, shutdown
+│   ├── index.ts              # Orchestrator — discovery/process loops, retry logic, shutdown
 │   ├── config.ts             # Zod schemas for config.json and environment variables
-│   ├── types.ts              # Shared type definitions (AgentTask, SpawnResult, RunnerState, etc.)
-│   ├── agent/
-│   │   ├── manager.ts        # Agent lifecycle — spawning, budget tracking, stale detection
-│   │   ├── runner.ts         # Claude Agent SDK integration — runs the agent process
-│   │   ├── phase.ts          # Detects planning vs implementation phase from comments
-│   │   ├── mcp-tools.ts      # MCP tools: update_task_status, add_task_comment, load_skill
-│   │   ├── ci-discovery.ts   # Reads CI workflow files for validation instructions
-│   │   └── prompt-builder.ts # Builds the system prompt for each agent
-│   ├── skills/
-│   │   ├── types.ts          # Skill schema, phase, and category definitions
-│   │   ├── loader.ts         # Loads, merges, and filters skills from global + project dirs
-│   │   ├── formatter.ts      # Formats skills as catalog (prompt) or detail (CLI)
-│   │   └── cli.ts            # CLI commands: list, show, validate
-│   ├── plane/
-│   │   ├── client.ts         # Typed Plane API client (projects, states, labels, issues, comments)
-│   │   └── types.ts          # Zod schemas for Plane API responses
 │   ├── poller/
 │   │   └── task-poller.ts    # Polls Plane for agent-labeled tasks, manages claim/release
 │   ├── queue/
 │   │   └── task-queue.ts     # In-memory task queue with dedup, backoff, and serialization
 │   ├── state/
 │   │   └── persistence.ts    # JSON file persistence for runner state across restarts
+│   ├── plane/
+│   │   └── session-tracker.ts # Tracks agent session costs and timing
 │   ├── telegram/
 │   │   ├── notifier.ts       # Telegram message sender (start/complete/error/blocked notifications)
 │   │   └── bridge.ts         # HTTP API for human-in-the-loop, queue status, and queue control
@@ -388,6 +411,8 @@ agent-runner/
 │   │   └── __tests__/        # Webhook unit tests
 │   ├── worktree/
 │   │   └── manager.ts        # Git worktree creation/cleanup for isolated agent workspaces
+│   ├── skills/
+│   │   └── cli.ts            # CLI commands for listing/showing/validating skills
 │   └── __tests__/            # Vitest unit tests
 ├── skills/
 │   └── global/               # Global skills (loaded for all projects)
@@ -431,7 +456,7 @@ Agent behavior is configured in `config.json`:
 | `review.triggerOnSynchronize`     | `true`                        | Trigger review when PR is updated             |
 | `review.severityThreshold`        | `major`                       | Minimum severity for issues (`critical`/`major`/`minor`/`suggestion`) |
 | `review.maxDiffSizeKb`            | `100`                         | Maximum diff size for automated review (KB)   |
-| `review.claudeModel`              | `claude-3-5-sonnet-20241022`  | Claude model to use for code analysis         |
+| `review.claudeModel`              | `claude-3-5-sonnet-20241022`  | Model to use for code analysis                |
 
 ### Environment variables
 
@@ -440,7 +465,7 @@ Copy `env.example` to `.env` and fill in the values:
 | Variable                | Description                                                                      |
 | ----------------------- | -------------------------------------------------------------------------------- |
 | `PLANE_API_KEY`         | Plane workspace API token                                                        |
-| `ANTHROPIC_API_KEY`     | Anthropic API key for Claude agents                                              |
+| `ANTHROPIC_API_KEY`     | Anthropic API key for agents                                                     |
 | `TELEGRAM_BOT_TOKEN`    | Bot token (same as telegram-bot, optional)                                       |
 | `TELEGRAM_CHAT_ID`      | Telegram chat ID for notifications (optional)                                    |
 | `GITHUB_PAT`            | GitHub PAT for git push in worktrees                                             |
@@ -449,18 +474,18 @@ Copy `env.example` to `.env` and fill in the values:
 
 ### Scripts
 
-| Script                     | Command                            |
-| -------------------------- | ---------------------------------- |
-| `npm run build`            | Compile TypeScript                 |
-| `npm start`                | Run the compiled runner            |
-| `npm run dev`              | Watch mode (recompile on changes)  |
-| `npm test`                 | Run unit tests                     |
-| `npm run test:watch`       | Run tests in watch mode            |
-| `npm run format`           | Format code with Prettier          |
-| `npm run format:check`     | Check formatting (CI)              |
-| `npm run skills:list`      | List all global and project skills |
-| `npm run skills:show <id>` | Show detailed skill content        |
-| `npm run skills:validate`  | Validate skill file syntax         |
+| Script                          | Command                            |
+| ------------------------------- | ---------------------------------- |
+| `pnpm run build`                | Type-check TypeScript              |
+| `pnpm start`                    | Run the runner                     |
+| `pnpm run dev`                  | Watch mode (recompile on changes)  |
+| `pnpm test`                     | Run unit tests                     |
+| `pnpm run test:watch`           | Run tests in watch mode            |
+| `pnpm run format`               | Format code with Prettier          |
+| `pnpm run format:check`         | Check formatting (CI)              |
+| `pnpm run skills:list`          | List all global and project skills |
+| `pnpm run skills:show <id>`     | Show detailed skill content        |
+| `pnpm run skills:validate`      | Validate skill file syntax         |
 
 ### GitHub webhooks
 
@@ -479,7 +504,7 @@ When a PR is merged on GitHub, the webhook server automatically moves the associ
 5. Looks up the task in Plane and moves it to the "Done" state
 6. Responds to GitHub immediately; processing happens asynchronously
 
-#### Automated PR review (Phase 1 MVP)
+#### Automated PR review
 
 When enabled (`review.enabled: true`), the PR review agent automatically reviews agent-created PRs when they are opened or updated. This creates a quality gate before human review.
 
@@ -489,27 +514,11 @@ When enabled (`review.enabled: true`), the PR review agent automatically reviews
 2. Review agent extracts task ID and fetches task details from Plane
 3. Fetches PR diff and files changed from GitHub API
 4. Loads project coding skills for context
-5. Uses Claude to analyze code changes against task requirements and best practices
+5. Uses the agent to analyze code changes against task requirements and best practices
 6. Posts detailed review comments to GitHub PR
 7. Posts review summary to Plane task
-8. Reviews cover: correctness, completeness, code quality, best practices, security, testing, documentation, performance
 
-**Review dimensions:**
-
-- **Correctness**: Does the code work? Are there bugs?
-- **Completeness**: Does it meet all acceptance criteria?
-- **Code Quality**: Is it clean, readable, maintainable?
-- **Best Practices**: Does it follow project conventions?
-- **Security**: Are there security vulnerabilities?
-- **Testing**: Are there tests? Do they cover changes?
-- **Documentation**: Is the code documented?
-- **Performance**: Are there inefficiencies?
-
-**Configuration:**
-
-Set `review.enabled: true` in `config.json` to enable automated reviews. The review agent respects the `maxDiffSizeKb` limit to avoid reviewing excessively large PRs.
-
-**Note**: Phase 1 never auto-approves PRs. It only posts comments or requests changes. Human approval is still required before merging.
+**Note**: The review agent never auto-approves PRs. It only posts comments or requests changes. Human approval is still required before merging.
 
 **GitHub webhook setup** (per repo): Settings > Webhooks > Add webhook
 
@@ -526,7 +535,7 @@ The runner runs as a Docker container on the VPS. CI/CD is handled by GitHub Act
 
 **Pipeline:**
 
-1. **Quality** — `npm ci`, formatting check, type check (`tsc --noEmit`), tests (`vitest run`), build (`tsc`)
+1. **Quality** — `pnpm install`, formatting check, type check (`tsc --noEmit`), tests (`vitest run`)
 2. **Deploy** — SCP files to VPS, rebuild Docker container
 
 ## VPS Services
