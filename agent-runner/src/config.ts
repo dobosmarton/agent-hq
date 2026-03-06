@@ -22,7 +22,7 @@ const WebhookConfigSchema = z.object({
 });
 
 const ReviewConfigSchema = z.object({
-  enabled: z.boolean().default(false),
+  enabled: z.boolean().default(true),
   triggerOnOpened: z.boolean().default(true),
   triggerOnSynchronize: z.boolean().default(true),
   severityThreshold: z
@@ -80,7 +80,7 @@ const ConfigSchema = z.object({
     taskIdPattern: "([A-Z]+-\\d+)",
   }),
   review: ReviewConfigSchema.optional().default({
-    enabled: false,
+    enabled: true,
     triggerOnOpened: true,
     triggerOnSynchronize: true,
     severityThreshold: "major",
