@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createAgentProgressTracker } from "../../telegram/progress-tracker";
-import type { Notifier } from "../../telegram/notifier";
+import { createAgentProgressTracker } from "../progress-tracker";
+import type { Notifier } from "../adapters";
 
 const createMockNotifier = (): Notifier => ({
   agentStarted: vi.fn().mockResolvedValue(0),

@@ -1,23 +1,19 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { Config, PlaneConfig } from "../config";
-import { addComment } from "../plane/client";
-import type { PlaneComment } from "../plane/types";
-import type { TaskPoller } from "../poller/task-poller";
-import type { Notifier } from "../telegram/notifier";
-import type { Skill } from "../skills/types";
-import type { AgentErrorType, AgentTask } from "../types";
+import type { PlaneClient, PlaneComment } from "@agent-hq/plane-client";
+import type { AgentErrorType, AgentPhase, AgentTask } from "@agent-hq/shared-types";
+import type { Skill } from "@agent-hq/skills";
+import type { Notifier, TaskAgentConfig, TaskPollerAdapter } from "./adapters";
 import type { CiContext } from "./ci-discovery";
+import type { CommentAnalysis } from "./comment-analyzer";
 import { createAgentMcpServer } from "./mcp-tools";
-import type { AgentPhase } from "./phase";
+import { createAgentProgressTracker } from "./progress-tracker";
 import { buildImplementationPrompt, buildPlanningPrompt } from "./prompt-builder";
-import type { CommentAnalysis } from "../plane/comment-analyzer";
-import { createAgentProgressTracker } from "../telegram/progress-tracker";
 
 type RunnerDeps = {
-  planeConfig: PlaneConfig;
-  config: Config;
+  plane: PlaneClient;
+  config: TaskAgentConfig;
   notifier: Notifier;
-  taskPoller: TaskPoller;
+  taskPoller: TaskPollerAdapter;
   retryContext: {
     retryCount: number;
     maxRetries: number;
@@ -125,8 +121,7 @@ export const runAgent = async (
 
   progressTracker.update("Setting up environment", "in_progress");
 
-  await addComment(
-    deps.planeConfig,
+  await deps.plane.addComment(
     task.projectId,
     task.issueId,
     `<p><strong>Agent started ${phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`
@@ -136,7 +131,7 @@ export const runAgent = async (
 
   // Create task-scoped MCP server (synchronous — mark completed directly)
   const mcpServer = createAgentMcpServer({
-    planeConfig: deps.planeConfig,
+    plane: deps.plane,
     projectId: task.projectId,
     issueId: task.issueId,
     taskDisplayId,
@@ -207,8 +202,7 @@ export const runAgent = async (
             `Agent ${taskDisplayId} (${phase}) completed successfully${retryNote} (cost: $${totalCostUsd.toFixed(2)})`
           );
           await deps.notifier.agentCompleted(taskDisplayId, task.title);
-          await addComment(
-            deps.planeConfig,
+          await deps.plane.addComment(
             task.projectId,
             task.issueId,
             `<p><strong>Agent completed ${phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`
@@ -238,8 +232,7 @@ export const runAgent = async (
           const isRetryableError = errorType === "rate_limited" || errorType === "unknown";
           if (!(isRetryableError && hasRetriesRemaining)) {
             await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
-            await addComment(
-              deps.planeConfig,
+            await deps.plane.addComment(
               task.projectId,
               task.issueId,
               `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`
@@ -262,8 +255,7 @@ export const runAgent = async (
     console.error(`Agent ${taskDisplayId} (${phase}) crashed: ${errorMsg}`);
     if (!hasRetriesRemaining) {
       await deps.notifier.agentErrored(taskDisplayId, task.title, errorMsg);
-      await addComment(
-        deps.planeConfig,
+      await deps.plane.addComment(
         task.projectId,
         task.issueId,
         `<p><strong>Agent crashed during ${phaseLabel}:</strong></p><pre>${errorMsg.slice(0, 1000)}</pre>`

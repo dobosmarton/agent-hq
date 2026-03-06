@@ -1,16 +1,15 @@
+import type { ReviewOrchestrator } from "@agent-hq/review-agent";
+import { createReviewOrchestrator } from "@agent-hq/review-agent";
+import { createAgentManager } from "@agent-hq/task-agent";
 import { resolve } from "node:path";
-import { createAgentManager } from "./agent/manager";
-import { buildPlaneConfig, loadConfig, loadEnv } from "./config";
-import { updateIssue } from "./plane/client";
+import { buildPlaneClient, loadConfig, loadEnv } from "./config";
 import { createTaskPoller } from "./poller/task-poller";
 import { createTaskQueue } from "./queue/task-queue";
-import { createReviewOrchestrator } from "./review-agent/orchestrator";
-import type { ReviewOrchestrator } from "./review-agent/orchestrator";
 import { createStatePersistence } from "./state/persistence";
 import { createTelegramBridge } from "./telegram/bridge";
 import { createNoopNotifier, createNotifier } from "./telegram/notifier";
 import { startWebhookServer } from "./webhooks/server";
-import { ensureWorktreeGitignore } from "./worktree/manager";
+import { ensureWorktreeGitignore, getOrCreateWorktree, removeWorktree } from "./worktree/manager";
 
 const RETRYABLE_ERRORS = new Set(["rate_limited", "unknown"]);
 
@@ -20,7 +19,7 @@ const main = async (): Promise<void> => {
   // Load configuration
   const config = loadConfig();
   const env = loadEnv();
-  const planeConfig = buildPlaneConfig(config, env);
+  const plane = buildPlaneClient(config, env);
 
   // Initialize Telegram (optional — no-op when tokens missing)
   const notifier =
@@ -43,7 +42,7 @@ const main = async (): Promise<void> => {
   }
 
   // Initialize task poller (fetches projects, labels, states from Plane)
-  const taskPoller = createTaskPoller(planeConfig, config);
+  const taskPoller = createTaskPoller(plane, config);
   await taskPoller.initialize();
 
   // Initialize review agent if enabled
@@ -52,8 +51,7 @@ const main = async (): Promise<void> => {
     console.log("✅ Review agent enabled");
     reviewAgent = createReviewOrchestrator(
       config.review,
-      planeConfig,
-      taskPoller,
+      plane,
       env.ANTHROPIC_API_KEY,
       env.GITHUB_PAT
     );
@@ -67,7 +65,7 @@ const main = async (): Promise<void> => {
       await startWebhookServer({
         config,
         env,
-        planeConfig,
+        plane,
         taskPoller,
         reviewAgent,
       });
@@ -104,7 +102,7 @@ const main = async (): Promise<void> => {
     const cache = taskPoller.getProjectCache(agent.task.projectIdentifier);
     if (cache) {
       try {
-        await updateIssue(planeConfig, agent.task.projectId, agent.task.issueId, {
+        await plane.updateIssue(agent.task.projectId, agent.task.issueId, {
           state: cache.todoStateId,
         });
       } catch (err) {
@@ -127,11 +125,12 @@ const main = async (): Promise<void> => {
 
   // Initialize agent manager with completion callback
   const agentManager = createAgentManager({
-    planeConfig,
+    plane,
     config,
     notifier,
     taskPoller,
     statePersistence,
+    worktree: { getOrCreateWorktree, removeWorktree },
     onAgentDone: (task, result, retryCount) => {
       const taskSlug = `${task.projectIdentifier}-${task.sequenceId}`;
 
@@ -157,9 +156,11 @@ const main = async (): Promise<void> => {
         // Move task back to Todo for re-pickup
         const cache = taskPoller.getProjectCache(task.projectIdentifier);
         if (cache) {
-          updateIssue(planeConfig, task.projectId, task.issueId, {
-            state: cache.todoStateId,
-          }).catch((err) => console.error(`Failed to reset state for ${taskSlug}:`, err));
+          plane
+            .updateIssue(task.projectId, task.issueId, {
+              state: cache.todoStateId,
+            })
+            .catch((err) => console.error(`Failed to reset state for ${taskSlug}:`, err));
         }
 
         queue.requeue(task, nextRetry);
@@ -242,9 +243,11 @@ const main = async (): Promise<void> => {
         const cache = taskPoller.getProjectCache(entry.task.projectIdentifier);
         const fallbackState = cache?.planReviewStateId ?? cache?.backlogStateId;
         if (cache && fallbackState) {
-          await updateIssue(planeConfig, entry.task.projectId, entry.task.issueId, {
-            state: fallbackState,
-          }).catch((err) => console.error(`Failed to reset state for ${taskId}:`, err));
+          await plane
+            .updateIssue(entry.task.projectId, entry.task.issueId, {
+              state: fallbackState,
+            })
+            .catch((err) => console.error(`Failed to reset state for ${taskId}:`, err));
         }
         const targetStatus = cache?.planReviewStateId ? "Plan Review" : "Backlog";
         await notifier.sendMessage(
@@ -255,9 +258,11 @@ const main = async (): Promise<void> => {
         taskPoller.releaseTask(entry.task.issueId);
         const cache = taskPoller.getProjectCache(entry.task.projectIdentifier);
         if (cache) {
-          await updateIssue(planeConfig, entry.task.projectId, entry.task.issueId, {
-            state: cache.todoStateId,
-          }).catch(() => {});
+          await plane
+            .updateIssue(entry.task.projectId, entry.task.issueId, {
+              state: cache.todoStateId,
+            })
+            .catch(() => {});
         }
       }
 

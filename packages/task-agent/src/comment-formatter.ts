@@ -1,6 +1,6 @@
-import type { PlaneComment } from "../plane/types";
-import type { CommentAnalysis } from "../plane/comment-analyzer";
-import { extractPlanFromComments, summarizeNewFeedback } from "../plane/comment-analyzer";
+import type { PlaneComment } from "@agent-hq/plane-client";
+import type { CommentAnalysis } from "./comment-analyzer";
+import { extractPlanFromComments, summarizeNewFeedback } from "./comment-analyzer";
 
 /**
  * Create a "resuming work" comment for the task

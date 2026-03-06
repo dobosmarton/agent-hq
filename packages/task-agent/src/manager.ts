@@ -1,28 +1,30 @@
-import type { Config, PlaneConfig } from "../config";
-import { addComment, listComments } from "../plane/client";
-import type { TaskPoller } from "../poller/task-poller";
-import type { StatePersistence } from "../state/persistence";
-import type { Notifier } from "../telegram/notifier";
-import type { ActiveAgent, AgentDoneResult, AgentTask, SpawnResult } from "../types";
+import type { PlaneClient } from "@agent-hq/plane-client";
+import type { ActiveAgent, AgentDoneResult, AgentTask, SpawnResult } from "@agent-hq/shared-types";
+import { detectPhase } from "@agent-hq/shared-types";
+import { loadSkills, formatSkillsCatalog } from "@agent-hq/skills";
 import { resolve } from "node:path";
-import { getOrCreateWorktree, removeWorktree } from "../worktree/manager";
+import type {
+  Notifier,
+  StatePersistence,
+  TaskAgentConfig,
+  TaskPollerAdapter,
+  WorktreeAdapter,
+} from "./adapters";
 import { readCiWorkflows } from "./ci-discovery";
-import { detectPhase } from "./phase";
-import { runAgent } from "./runner";
-import { loadSkills } from "../skills/loader";
-import { formatSkillsCatalog } from "../skills/formatter";
-import { analyzeComments } from "../plane/comment-analyzer";
-import { getCommitLog, getDiff } from "../git/operations";
+import { analyzeComments } from "./comment-analyzer";
 import { createResumeComment } from "./comment-formatter";
+import { getCommitLog, getDiff } from "./git/operations";
+import { runAgent } from "./runner";
 
 export type OnAgentDone = (task: AgentTask, result: AgentDoneResult, retryCount: number) => void;
 
 type ManagerDeps = {
-  planeConfig: PlaneConfig;
-  config: Config;
+  plane: PlaneClient;
+  config: TaskAgentConfig;
   notifier: Notifier;
-  taskPoller: TaskPoller;
+  taskPoller: TaskPollerAdapter;
   statePersistence: StatePersistence;
+  worktree: WorktreeAdapter;
   onAgentDone: OnAgentDone;
 };
 
@@ -61,7 +63,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
 
   const cleanup = async (issueId: string, taskSlug: string, repoPath: string): Promise<void> => {
     try {
-      await removeWorktree(repoPath, taskSlug);
+      await deps.worktree.removeWorktree(repoPath, taskSlug);
       console.log(`Cleaned up worktree for ${taskSlug}`);
     } catch (err) {
       console.error(`Failed to cleanup worktree for ${taskSlug}:`, err);
@@ -96,7 +98,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
     const taskSlug = `${task.projectIdentifier}-${task.sequenceId}`;
 
     // Fetch comments to determine phase
-    const comments = await listComments(deps.planeConfig, task.projectId, task.issueId);
+    const comments = await deps.plane.listComments(task.projectId, task.issueId);
     const phase = detectPhase(comments);
 
     console.log(`Task ${taskSlug} detected as ${phase} phase`);
@@ -112,7 +114,11 @@ export const createAgentManager = (deps: ManagerDeps) => {
     } | null = null;
 
     try {
-      const result = await getOrCreateWorktree(repoPath, taskSlug, projectConfig.defaultBranch);
+      const result = await deps.worktree.getOrCreateWorktree(
+        repoPath,
+        taskSlug,
+        projectConfig.defaultBranch
+      );
       workingDir = result.worktreePath;
       branchName = result.branchName;
       isResuming = result.isExisting;
@@ -141,7 +147,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
         // Post a resume comment to the task
         const resumeComment = createResumeComment(analysis, branchName, gitLog, commitCount);
 
-        await addComment(deps.planeConfig, task.projectId, task.issueId, resumeComment);
+        await deps.plane.addComment(task.projectId, task.issueId, resumeComment);
 
         console.log(`Posted resume comment for ${taskSlug}`);
       }
@@ -191,7 +197,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
       skillsSection,
       skills,
       {
-        planeConfig: deps.planeConfig,
+        plane: deps.plane,
         config: deps.config,
         notifier: deps.notifier,
         taskPoller: deps.taskPoller,

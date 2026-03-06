@@ -1,4 +1,4 @@
-import type { Notifier } from "./notifier";
+import type { Notifier } from "./adapters";
 import { formatAgentProgress, type ProgressStep } from "./progress-formatter";
 
 type AgentProgressTrackerConfig = {

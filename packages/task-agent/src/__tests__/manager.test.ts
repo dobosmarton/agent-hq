@@ -1,18 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PLAN_MARKER } from "../../agent/phase";
-import type { OnAgentDone } from "../../agent/manager";
-import type { TaskPoller } from "../../poller/task-poller";
-import type { StatePersistence } from "../../state/persistence";
-import type { Notifier } from "../../telegram/notifier";
-import type { AgentTask, RunnerState } from "../../types";
-import { makeConfig, makePlaneConfig } from "../fixtures/config";
+import { PLAN_MARKER } from "@agent-hq/shared-types";
+import type { OnAgentDone } from "../manager";
+import type { Notifier, StatePersistence, TaskPollerAdapter, WorktreeAdapter } from "../adapters";
+import type { AgentTask, RunnerState } from "@agent-hq/shared-types";
+import type { PlaneClient } from "@agent-hq/plane-client";
 
-vi.mock("../../worktree/manager", () => ({
-  getOrCreateWorktree: vi.fn(),
-  removeWorktree: vi.fn(),
-}));
-
-vi.mock("../../plane/comment-analyzer", () => ({
+vi.mock("../comment-analyzer", () => ({
   analyzeComments: vi.fn().mockReturnValue({
     allComments: [],
     agentComments: [],
@@ -24,51 +17,58 @@ vi.mock("../../plane/comment-analyzer", () => ({
   }),
 }));
 
-vi.mock("../../git/operations", () => ({
+vi.mock("../git/operations", () => ({
   getCommitLog: vi.fn().mockResolvedValue(""),
   getDiff: vi.fn().mockResolvedValue(""),
 }));
 
-vi.mock("../../agent/comment-formatter", () => ({
+vi.mock("../comment-formatter", () => ({
   createResumeComment: vi.fn().mockReturnValue("<p>Resuming</p>"),
 }));
 
-vi.mock("../../skills/loader", () => ({
+vi.mock("@agent-hq/skills", () => ({
   loadSkills: vi.fn().mockReturnValue([]),
-}));
-
-vi.mock("../../skills/formatter", () => ({
   formatSkillsCatalog: vi.fn().mockReturnValue(""),
 }));
 
-vi.mock("../../agent/runner", () => ({
+vi.mock("../runner", () => ({
   runAgent: vi.fn(),
 }));
 
-vi.mock("../../agent/ci-discovery", () => ({
+vi.mock("../ci-discovery", () => ({
   readCiWorkflows: vi.fn().mockReturnValue({ workflowFiles: {} }),
 }));
 
-vi.mock("../../plane/client", () => ({
-  listComments: vi.fn(),
-  addComment: vi.fn(),
-  updateIssue: vi.fn(),
-}));
+import { readCiWorkflows } from "../ci-discovery";
+import { createAgentManager } from "../manager";
+import { runAgent } from "../runner";
+import { loadSkills } from "@agent-hq/skills";
 
-import { readCiWorkflows } from "../../agent/ci-discovery";
-import { createAgentManager } from "../../agent/manager";
-import { runAgent } from "../../agent/runner";
-import { addComment, listComments } from "../../plane/client";
-import { getOrCreateWorktree, removeWorktree } from "../../worktree/manager";
-import { loadSkills } from "../../skills/loader";
-
-const mockedGetOrCreateWorktree = vi.mocked(getOrCreateWorktree);
-const mockedRemoveWorktree = vi.mocked(removeWorktree);
 const mockedRunAgent = vi.mocked(runAgent);
-const mockedListComments = vi.mocked(listComments);
-const mockedAddComment = vi.mocked(addComment);
 const mockedReadCiWorkflows = vi.mocked(readCiWorkflows);
 const mockedLoadSkills = vi.mocked(loadSkills);
+
+const makeMockPlane = (): PlaneClient => ({
+  listProjects: vi.fn(),
+  findProjectByIdentifier: vi.fn(),
+  createProject: vi.fn(),
+  listStates: vi.fn(),
+  buildStateMap: vi.fn(),
+  findStateByGroupAndName: vi.fn(),
+  listLabels: vi.fn(),
+  findLabelByName: vi.fn(),
+  createLabel: vi.fn(),
+  listIssues: vi.fn(),
+  getIssue: vi.fn(),
+  createIssue: vi.fn(),
+  updateIssue: vi.fn(),
+  findIssueBySequenceId: vi.fn(),
+  addComment: vi.fn(),
+  listComments: vi.fn().mockResolvedValue([]),
+  addLink: vi.fn(),
+  parseIssueIdentifier: vi.fn() as any,
+  cloneProjectConfiguration: vi.fn(),
+});
 
 const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
   issueId: "issue-1",
@@ -91,12 +91,19 @@ const makeNotifier = (): Notifier => ({
   agentProgress: vi.fn().mockResolvedValue(false),
 });
 
-const makeTaskPoller = (): TaskPoller => ({
-  initialize: vi.fn().mockResolvedValue(undefined),
-  pollForTasks: vi.fn().mockResolvedValue([]),
-  claimTask: vi.fn().mockResolvedValue(true),
+const makeTaskPoller = (): TaskPollerAdapter => ({
   releaseTask: vi.fn(),
   getProjectCache: vi.fn(),
+});
+
+const makeWorktree = (): WorktreeAdapter => ({
+  getOrCreateWorktree: vi.fn().mockResolvedValue({
+    worktreePath: "/wt",
+    branchName: "agent/HQ-42",
+    isExisting: false,
+    lastCommitMessage: null,
+  }),
+  removeWorktree: vi.fn().mockResolvedValue(undefined),
 });
 
 const makePersistence = (state?: Partial<RunnerState>): StatePersistence => ({
@@ -109,34 +116,48 @@ const makePersistence = (state?: Partial<RunnerState>): StatePersistence => ({
   save: vi.fn(),
 });
 
+const makeConfig = () => ({
+  projects: {
+    HQ: {
+      repoPath: "/repos/hq",
+      defaultBranch: "main",
+    },
+  },
+  agent: {
+    maxBudgetPerTask: 5,
+    maxDailyBudget: 20,
+    maxTurns: 200,
+    maxRetries: 2,
+    progressFeedbackEnabled: true,
+    progressUpdateIntervalMs: 2500,
+    skills: {
+      enabled: true,
+      maxSkillsPerPrompt: 10,
+      globalSkillsPath: "skills/global",
+    },
+  },
+});
+
 const makeDeps = (overrides?: {
   notifier?: Notifier;
   persistence?: StatePersistence;
   onAgentDone?: OnAgentDone;
+  plane?: PlaneClient;
+  worktree?: WorktreeAdapter;
 }) => ({
-  planeConfig: makePlaneConfig(),
+  plane: overrides?.plane ?? makeMockPlane(),
   config: makeConfig(),
   notifier: overrides?.notifier ?? makeNotifier(),
   taskPoller: makeTaskPoller(),
   statePersistence: overrides?.persistence ?? makePersistence(),
+  worktree: overrides?.worktree ?? makeWorktree(),
   onAgentDone: overrides?.onAgentDone ?? vi.fn(),
 });
 
 beforeEach(() => {
   vi.resetAllMocks();
-  // Default: no comments (planning phase)
-  mockedListComments.mockResolvedValue([]);
   mockedReadCiWorkflows.mockReturnValue({ workflowFiles: {} });
-  // Default: skills loading returns empty
   mockedLoadSkills.mockReturnValue([]);
-  mockedAddComment.mockResolvedValue(undefined as any);
-  // Default: worktree creation succeeds (both phases use worktrees)
-  mockedGetOrCreateWorktree.mockResolvedValue({
-    worktreePath: "/wt",
-    branchName: "agent/HQ-42",
-    isExisting: false,
-    lastCommitMessage: null,
-  });
 });
 
 describe("budget checking", () => {
@@ -187,13 +208,12 @@ describe("budget checking", () => {
 describe("phase detection", () => {
   it("runs planning phase when no plan comment exists", async () => {
     const deps = makeDeps();
-    mockedListComments.mockResolvedValue([]);
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    expect(mockedGetOrCreateWorktree).toHaveBeenCalled();
+    expect(deps.worktree.getOrCreateWorktree).toHaveBeenCalled();
     expect(mockedRunAgent).toHaveBeenCalledWith(
       expect.anything(),
       "planning",
@@ -212,7 +232,7 @@ describe("phase detection", () => {
 
   it("runs implementation phase when plan comment exists", async () => {
     const deps = makeDeps();
-    mockedListComments.mockResolvedValue([
+    vi.mocked(deps.plane.listComments).mockResolvedValue([
       {
         id: "c1",
         comment_html: `${PLAN_MARKER}<h2>Plan</h2>`,
@@ -224,7 +244,7 @@ describe("phase detection", () => {
     const manager = createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
-    expect(mockedGetOrCreateWorktree).toHaveBeenCalled();
+    expect(deps.worktree.getOrCreateWorktree).toHaveBeenCalled();
     expect(mockedRunAgent).toHaveBeenCalledWith(
       expect.anything(),
       "implementation",
@@ -263,14 +283,14 @@ describe("spawnAgent", () => {
   it("returns error on worktree creation failure", async () => {
     const notifier = makeNotifier();
     const deps = makeDeps({ notifier });
-    mockedListComments.mockResolvedValue([
+    vi.mocked(deps.plane.listComments).mockResolvedValue([
       {
         id: "c1",
         comment_html: `${PLAN_MARKER}<h2>Plan</h2>`,
         created_at: "2026-02-19T10:00:00Z",
       },
     ]);
-    mockedGetOrCreateWorktree.mockRejectedValue(new Error("git error"));
+    vi.mocked(deps.worktree.getOrCreateWorktree).mockRejectedValue(new Error("git error"));
 
     const manager = createAgentManager(deps);
     const result = await manager.spawnAgent(makeTask());
@@ -332,19 +352,13 @@ describe("spawnAgent", () => {
       rejectAgent = rej;
     });
 
-    mockedListComments.mockResolvedValue([
+    vi.mocked(deps.plane.listComments).mockResolvedValue([
       {
         id: "c1",
         comment_html: `${PLAN_MARKER}<h2>Plan</h2>`,
         created_at: "2026-02-19T10:00:00Z",
       },
     ]);
-    mockedGetOrCreateWorktree.mockResolvedValue({
-      worktreePath: "/wt",
-      branchName: "agent/HQ-42",
-      isExisting: false,
-      lastCommitMessage: null,
-    });
     mockedRunAgent.mockReturnValue(agentPromise);
 
     const manager = createAgentManager(deps);
@@ -358,7 +372,7 @@ describe("spawnAgent", () => {
       expect.objectContaining({ crashed: true, error: "agent crashed" }),
       0
     );
-    expect(mockedRemoveWorktree).not.toHaveBeenCalled();
+    expect(deps.worktree.removeWorktree).not.toHaveBeenCalled();
     expect(deps.taskPoller.releaseTask).toHaveBeenCalledWith("issue-1");
   });
 

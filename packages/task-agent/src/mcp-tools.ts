@@ -1,23 +1,18 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { join } from "node:path";
 import { z } from "zod";
-import type { PlaneConfig } from "../config";
+import type { PlaneClient } from "@agent-hq/plane-client";
 import {
-  addComment,
-  addLink,
-  getIssue,
-  listComments,
-  listLabels,
-  updateIssue,
-} from "../plane/client";
-import { createSkillFile } from "../skills/creator";
-import { stripSkillMetadata } from "../skills/formatter";
-import { clearSkillCache } from "../skills/loader";
-import type { Skill } from "../skills/types";
-import { SkillCategorySchema, SkillPhaseSchema } from "../skills/types";
+  createSkillFile,
+  stripSkillMetadata,
+  clearSkillCache,
+  SkillCategorySchema,
+  SkillPhaseSchema,
+} from "@agent-hq/skills";
+import type { Skill } from "@agent-hq/skills";
 
 type McpToolsContext = {
-  planeConfig: PlaneConfig;
+  plane: PlaneClient;
   projectId: string;
   issueId: string;
   taskDisplayId: string;
@@ -56,7 +51,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
             };
           }
 
-          await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, {
+          await ctx.plane.updateIssue(ctx.projectId, ctx.issueId, {
             state: stateId,
           });
           return {
@@ -75,7 +70,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         "Add a progress comment to the current Plane task. Use HTML formatting: <p>, <ul>, <li>, <code>, <strong>. Call this at key milestones to keep the human informed of progress.",
         { comment_html: z.string().describe("HTML-formatted comment content") },
         async ({ comment_html }) => {
-          await addComment(ctx.planeConfig, ctx.projectId, ctx.issueId, comment_html);
+          await ctx.plane.addComment(ctx.projectId, ctx.issueId, comment_html);
           return {
             content: [
               {
@@ -92,7 +87,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         "Retrieve all comments on the current task with timestamps and content. Use this to review feedback and understand the task's history.",
         {},
         async () => {
-          const comments = await listComments(ctx.planeConfig, ctx.projectId, ctx.issueId);
+          const comments = await ctx.plane.listComments(ctx.projectId, ctx.issueId);
 
           if (comments.length === 0) {
             return {
@@ -124,7 +119,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
           url: z.string().url().describe("The URL to link"),
         },
         async ({ title, url }) => {
-          await addLink(ctx.planeConfig, ctx.projectId, ctx.issueId, title, url);
+          await ctx.plane.addLink(ctx.projectId, ctx.issueId, title, url);
           return {
             content: [
               {
@@ -141,7 +136,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         "List all available labels in the current project. Returns label names, colors, and descriptions.",
         {},
         async () => {
-          const labels = await listLabels(ctx.planeConfig, ctx.projectId);
+          const labels = await ctx.plane.listLabels(ctx.projectId);
 
           if (labels.length === 0) {
             return {
@@ -187,8 +182,8 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         async ({ label_names }) => {
           // Fetch current issue and available labels
           const [issue, availableLabels] = await Promise.all([
-            getIssue(ctx.planeConfig, ctx.projectId, ctx.issueId),
-            listLabels(ctx.planeConfig, ctx.projectId),
+            ctx.plane.getIssue(ctx.projectId, ctx.issueId),
+            ctx.plane.listLabels(ctx.projectId),
           ]);
 
           // Build lookup map (case-insensitive)
@@ -225,7 +220,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
           const mergedLabels = Array.from(new Set([...currentLabels, ...labelIdsToAdd]));
 
           // Update issue
-          await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, {
+          await ctx.plane.updateIssue(ctx.projectId, ctx.issueId, {
             labels: mergedLabels,
           });
 
@@ -249,8 +244,8 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
         async ({ label_names }) => {
           // Fetch current issue and available labels
           const [issue, availableLabels] = await Promise.all([
-            getIssue(ctx.planeConfig, ctx.projectId, ctx.issueId),
-            listLabels(ctx.planeConfig, ctx.projectId),
+            ctx.plane.getIssue(ctx.projectId, ctx.issueId),
+            ctx.plane.listLabels(ctx.projectId),
           ]);
 
           // Build lookup map (case-insensitive)
@@ -268,7 +263,7 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
           const updatedLabels = currentLabels.filter((id) => !labelIdsToRemove.has(id));
 
           // Update issue
-          await updateIssue(ctx.planeConfig, ctx.projectId, ctx.issueId, {
+          await ctx.plane.updateIssue(ctx.projectId, ctx.issueId, {
             labels: updatedLabels,
           });
 

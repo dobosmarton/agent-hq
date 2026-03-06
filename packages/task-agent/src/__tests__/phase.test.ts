@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { detectPhase, PLAN_MARKER } from "../../agent/phase";
-import type { PlaneComment } from "../../plane/types";
+import { detectPhase, PLAN_MARKER } from "@agent-hq/shared-types";
+import type { PlaneComment } from "@agent-hq/plane-client";
 
 const makeComment = (html: string): PlaneComment => ({
   id: "comment-1",

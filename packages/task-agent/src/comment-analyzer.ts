@@ -1,5 +1,5 @@
-import type { PlaneComment } from "./types";
-import { PLAN_MARKER } from "../agent/phase";
+import type { PlaneComment } from "@agent-hq/plane-client";
+import { PLAN_MARKER } from "@agent-hq/shared-types";
 
 /**
  * Markers used to identify agent comments

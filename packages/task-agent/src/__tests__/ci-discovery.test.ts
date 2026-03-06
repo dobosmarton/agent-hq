@@ -7,7 +7,7 @@ vi.mock("node:fs", () => ({
 }));
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { readCiWorkflows } from "../../agent/ci-discovery";
+import { readCiWorkflows } from "../ci-discovery";
 
 const mockedExistsSync = vi.mocked(existsSync);
 const mockedReaddirSync = vi.mocked(readdirSync);

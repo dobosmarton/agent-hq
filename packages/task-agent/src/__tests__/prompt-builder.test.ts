@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { CiContext } from "../../agent/ci-discovery";
-import { PLAN_MARKER } from "../../agent/phase";
-import { buildImplementationPrompt, buildPlanningPrompt } from "../../agent/prompt-builder";
-import type { PlaneComment } from "../../plane/types";
-import type { AgentTask } from "../../types";
+import type { CiContext } from "../ci-discovery";
+import { PLAN_MARKER } from "@agent-hq/shared-types";
+import { buildImplementationPrompt, buildPlanningPrompt } from "../prompt-builder";
+import type { PlaneComment } from "@agent-hq/plane-client";
+import type { AgentTask } from "@agent-hq/shared-types";
 
 const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
   issueId: "issue-1",

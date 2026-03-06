@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import type { AgentManager } from "../agent/manager";
+import type { AgentManager } from "@agent-hq/task-agent";
 import type { TaskQueue } from "../queue/task-queue";
 import type { Notifier } from "./notifier";
 

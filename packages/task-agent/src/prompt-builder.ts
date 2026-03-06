@@ -1,8 +1,8 @@
-import type { PlaneComment } from "../plane/types";
-import type { AgentTask } from "../types";
+import type { PlaneComment } from "@agent-hq/plane-client";
+import type { AgentTask } from "@agent-hq/shared-types";
+import { PLAN_MARKER } from "@agent-hq/shared-types";
 import type { CiContext } from "./ci-discovery";
 import { buildResumeContext } from "./comment-formatter";
-import { PLAN_MARKER } from "./phase";
 import type { ResumeContext } from "./runner";
 
 const taskDisplayId = (task: AgentTask): string => `${task.projectIdentifier}-${task.sequenceId}`;
