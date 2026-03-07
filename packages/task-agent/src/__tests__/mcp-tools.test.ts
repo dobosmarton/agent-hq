@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeComment, makeIssue, makeLabel, paginate } from "./fixtures/plane";
 import type { PlaneClient } from "@agent-hq/plane-client";
 
-// Mock the exec used by validate_quality_gate
-// vi.hoisted ensures the variable is created before vi.mock hoisting
-const { mockExecImpl } = vi.hoisted(() => ({ mockExecImpl: vi.fn() }));
-vi.mock("node:child_process", () => ({ exec: mockExecImpl }));
-vi.mock("node:util", () => ({ promisify: (fn: unknown) => fn }));
+// Mock the exec used by validate_quality_gate.
+// vi.hoisted ensures the variable is created before vi.mock hoisting.
+// We mock node:util so that promisify(exec) returns our mockExecAsync directly,
+// rather than using the fragile identity-function pattern.
+const { mockExecAsync } = vi.hoisted(() => ({ mockExecAsync: vi.fn() }));
+vi.mock("node:child_process", () => ({ exec: vi.fn() }));
+vi.mock("node:util", () => ({ promisify: () => mockExecAsync }));
 
 // Mock the SDK so we can capture the tool handlers
 const toolHandlers = new Map<string, (...args: any[]) => any>();
@@ -558,6 +560,10 @@ This is the content.`,
 });
 
 describe("validate_quality_gate", () => {
+  beforeEach(() => {
+    mockExecAsync.mockReset();
+  });
+
   it("returns message when no CI commands configured", async () => {
     const ctx = makeContext({ ciCommands: [] });
     createAgentMcpServer(ctx);
@@ -566,10 +572,11 @@ describe("validate_quality_gate", () => {
     const result = await handler({});
 
     expect(result.content[0].text).toContain("No CI commands configured");
+    expect(mockExecAsync).not.toHaveBeenCalled();
   });
 
   it("reports PASSED when all commands succeed", async () => {
-    mockExecImpl.mockResolvedValue({ stdout: "All good", stderr: "" });
+    mockExecAsync.mockResolvedValue({ stdout: "All good", stderr: "" });
 
     const ctx = makeContext({ ciCommands: ["pnpm test", "pnpm build"] });
     createAgentMcpServer(ctx);
@@ -581,12 +588,18 @@ describe("validate_quality_gate", () => {
     expect(result.content[0].text).toContain("2/2 checks passed");
     expect(result.content[0].text).toContain("✓ pnpm test");
     expect(result.content[0].text).toContain("✓ pnpm build");
+    expect(mockExecAsync).toHaveBeenCalledWith(
+      "pnpm test",
+      expect.objectContaining({ cwd: "/tmp/test-repo", timeout: 120_000 })
+    );
   });
 
   it("reports FAILED when a command fails", async () => {
-    mockExecImpl
+    mockExecAsync
       .mockResolvedValueOnce({ stdout: "OK", stderr: "" })
-      .mockRejectedValueOnce({ stdout: "", stderr: "Type error", message: "Command failed" });
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Command failed"), { stdout: "", stderr: "Type error", code: 1 })
+      );
 
     const ctx = makeContext({ ciCommands: ["pnpm build", "pnpm test"] });
     createAgentMcpServer(ctx);
@@ -598,5 +611,26 @@ describe("validate_quality_gate", () => {
     expect(result.content[0].text).toContain("1/2 checks passed");
     expect(result.content[0].text).toContain("✓ pnpm build");
     expect(result.content[0].text).toContain("✗ pnpm test");
+    expect(mockExecAsync).toHaveBeenCalledWith(
+      "pnpm build",
+      expect.objectContaining({ cwd: "/tmp/test-repo" })
+    );
+  });
+
+  it("truncates long command output to 500 characters", async () => {
+    const longOutput = "x".repeat(600);
+    mockExecAsync.mockResolvedValue({ stdout: longOutput, stderr: "" });
+
+    const ctx = makeContext({ ciCommands: ["pnpm test"] });
+    createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("validate_quality_gate")!;
+    const result = await handler({});
+
+    // The output embedded in the report should be truncated to 500 chars
+    const report = result.content[0].text as string;
+    const commandOutputSection = report.split("✓ pnpm test\n")[1] ?? "";
+    expect(commandOutputSection.length).toBeLessThanOrEqual(500);
+    expect(report).not.toContain("x".repeat(501));
   });
 });
