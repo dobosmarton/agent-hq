@@ -611,8 +611,16 @@ describe("validate_quality_gate", () => {
     expect(result.content[0].text).toContain("1/2 checks passed");
     expect(result.content[0].text).toContain("✓ pnpm build");
     expect(result.content[0].text).toContain("✗ pnpm test");
-    expect(mockExecAsync).toHaveBeenCalledWith(
+    // Verify stderr error output is surfaced in the report
+    expect(result.content[0].text).toContain("Type error");
+    expect(mockExecAsync).toHaveBeenNthCalledWith(
+      1,
       "pnpm build",
+      expect.objectContaining({ cwd: "/tmp/test-repo" })
+    );
+    expect(mockExecAsync).toHaveBeenNthCalledWith(
+      2,
+      "pnpm test",
       expect.objectContaining({ cwd: "/tmp/test-repo" })
     );
   });
@@ -627,10 +635,25 @@ describe("validate_quality_gate", () => {
     const handler = toolHandlers.get("validate_quality_gate")!;
     const result = await handler({});
 
-    // The output embedded in the report should be truncated to 500 chars
+    // Verify truncation: report contains exactly 500 'x' chars, not 501
     const report = result.content[0].text as string;
-    const commandOutputSection = report.split("✓ pnpm test\n")[1] ?? "";
-    expect(commandOutputSection.length).toBeLessThanOrEqual(500);
+    expect(report).toContain("x".repeat(500));
     expect(report).not.toContain("x".repeat(501));
+  });
+
+  it("handles timeout errors gracefully", async () => {
+    mockExecAsync.mockRejectedValueOnce(
+      Object.assign(new Error("Command timed out"), { code: "ETIMEDOUT", stdout: "", stderr: "" })
+    );
+
+    const ctx = makeContext({ ciCommands: ["pnpm test"] });
+    createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("validate_quality_gate")!;
+    const result = await handler({});
+
+    expect(result.content[0].text).toContain("FAILED");
+    expect(result.content[0].text).toContain("0/1 checks passed");
+    expect(result.content[0].text).toContain("✗ pnpm test");
   });
 });
