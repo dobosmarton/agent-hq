@@ -31,7 +31,7 @@ export const selectReviewTools = async (
   context: ReviewContext,
   availableTools: readonly ReviewTool[],
   client: Anthropic,
-  model: string = "claude-3-5-sonnet-20241022"
+  model: string = "claude-sonnet-4-6"
 ): Promise<ReviewResult<readonly ToolSelectionResult[]>> => {
   try {
     const toolDescriptions = buildToolDescriptions(availableTools);

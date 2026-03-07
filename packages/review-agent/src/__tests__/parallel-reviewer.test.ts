@@ -68,7 +68,7 @@ describe("executeParallelReviews", () => {
       mockContext,
       [mockToolSelection],
       mockClient,
-      "claude-3-5-sonnet-20241022"
+      "claude-sonnet-4-6"
     );
 
     expect(result.success).toBe(true);
@@ -86,7 +86,7 @@ describe("executeParallelReviews", () => {
       mockContext,
       [mockToolSelection],
       mockClient,
-      "claude-3-5-sonnet-20241022"
+      "claude-sonnet-4-6"
     );
 
     expect(result.success).toBe(false);
@@ -124,7 +124,7 @@ describe("executeParallelReviews", () => {
       mockContext,
       [mockToolSelection, mockToolSelection], // Run same review twice
       mockClient,
-      "claude-3-5-sonnet-20241022"
+      "claude-sonnet-4-6"
     );
 
     expect(result.success).toBe(true);

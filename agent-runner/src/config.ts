@@ -28,7 +28,7 @@ const ReviewConfigSchema = z.object({
   severityThreshold: z.enum(["critical", "major", "minor", "suggestion"]).default("major"),
   skipIfLabelPresent: z.string().optional(),
   maxDiffSizeKb: z.number().int().positive().default(100),
-  claudeModel: z.string().default("claude-3-5-sonnet-20241022"),
+  claudeModel: z.string().default("claude-sonnet-4-6"),
   useParallelReview: z.boolean().default(true),
 });
 
@@ -83,7 +83,7 @@ const ConfigSchema = z.object({
     triggerOnSynchronize: true,
     severityThreshold: "major",
     maxDiffSizeKb: 100,
-    claudeModel: "claude-3-5-sonnet-20241022",
+    claudeModel: "claude-sonnet-4-6",
     useParallelReview: true,
   }),
 });

@@ -347,7 +347,7 @@ The PR review agent provides automated code review for pull requests created by 
     "triggerOnSynchronize": true,
     "severityThreshold": "major",
     "maxDiffSizeKb": 100,
-    "claudeModel": "claude-3-5-sonnet-20241022",
+    "claudeModel": "claude-sonnet-4-6",
     "useParallelReview": true
   }
 }
@@ -456,7 +456,7 @@ Agent behavior is configured in `config.json`:
 | `review.triggerOnSynchronize`     | `true`                        | Trigger review when PR is updated             |
 | `review.severityThreshold`        | `major`                       | Minimum severity for issues (`critical`/`major`/`minor`/`suggestion`) |
 | `review.maxDiffSizeKb`            | `100`                         | Maximum diff size for automated review (KB)   |
-| `review.claudeModel`              | `claude-3-5-sonnet-20241022`  | Model to use for code analysis                |
+| `review.claudeModel`              | `claude-sonnet-4-6`  | Model to use for code analysis                |
 
 ### Environment variables
 
