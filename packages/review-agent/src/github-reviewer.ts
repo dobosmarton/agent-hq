@@ -1,5 +1,5 @@
 import type { GitHubClient } from "./github/client";
-import type { GitHubReviewEvent } from "./github/types";
+import type { GitHubReviewComment, GitHubReviewEvent } from "./github/types";
 import type { CodeAnalysisResult, IssueSeverity, ReviewResult } from "./types";
 import type { AggregatedReview } from "./parallel-reviewer";
 
@@ -122,9 +122,25 @@ export const postReviewToGitHub = async (
     const event = mapAssessmentToEvent(analysis.overallAssessment);
     const body = buildReviewBody(analysis);
 
-    console.log(`📝 Review: Posting ${event} review to PR #${prNumber}...`);
+    // Extract inline comments for issues with file + line info
+    const inlineComments: GitHubReviewComment[] = analysis.issues
+      .filter((issue) => issue.file != null && issue.line != null)
+      .map((issue) => ({
+        path: issue.file!,
+        line: issue.line!,
+        body: `**${issue.severity} — ${issue.category}**: ${issue.description}${issue.suggestion ? `\n\n💡 ${issue.suggestion}` : ""}`,
+      }));
 
-    const result = await client.createReview(prNumber, event, body);
+    console.log(
+      `📝 Review: Posting ${event} review to PR #${prNumber} (${inlineComments.length} inline comments)...`
+    );
+
+    const result = await client.createReview(
+      prNumber,
+      event,
+      body,
+      inlineComments.length > 0 ? inlineComments : undefined
+    );
 
     if (!result.success) {
       return { success: false, error: result.error };

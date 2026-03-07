@@ -340,7 +340,8 @@ describe("handlePullRequestReviewTrigger", () => {
       "test-repo",
       123,
       "AGENTHQ-123",
-      "project-123"
+      "project-123",
+      { todoStateId: "state-1" }
     );
   });
 });

@@ -164,6 +164,34 @@ export const createGitHubClient = (config: GitHubConfig) => {
   };
 
   /**
+   * List reviews on a pull request
+   */
+  const listReviews = async (
+    prNumber: number
+  ): Promise<GitHubClientResult<{ user: string; body: string }[]>> => {
+    try {
+      const response = await octokit.pulls.listReviews({
+        owner,
+        repo,
+        pull_number: prNumber,
+      });
+
+      return {
+        success: true,
+        data: response.data.map((r) => ({
+          user: r.user?.login ?? "",
+          body: r.body ?? "",
+        })),
+      };
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        return { success: false, error: error.message };
+      }
+      return { success: false, error: "Unknown error listing reviews" };
+    }
+  };
+
+  /**
    * Add a comment to a pull request
    */
   const addComment = async (prNumber: number, body: string): Promise<GitHubClientResult<void>> => {
@@ -190,6 +218,7 @@ export const createGitHubClient = (config: GitHubConfig) => {
     getPullRequestDiff,
     createReview,
     createReviewComment,
+    listReviews,
     addComment,
   };
 };

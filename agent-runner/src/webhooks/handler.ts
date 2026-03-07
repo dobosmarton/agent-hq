@@ -173,7 +173,9 @@ export const handlePullRequestReviewTrigger = async (
 
   // Trigger review asynchronously with completion notifications
   void reviewAgent
-    .reviewPullRequest(owner, repo, pr.number, taskId, projectCache.project.id)
+    .reviewPullRequest(owner, repo, pr.number, taskId, projectCache.project.id, {
+      todoStateId: projectCache.todoStateId,
+    })
     .then((result) => {
       if (result.success) {
         void notifier.sendMessage(

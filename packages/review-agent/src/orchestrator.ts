@@ -108,7 +108,8 @@ export const createReviewOrchestrator = (
     repo: string,
     prNumber: number,
     taskId: string,
-    projectId: string
+    projectId: string,
+    options?: { todoStateId?: string }
   ): Promise<ReviewResult<void>> => {
     try {
       console.log(`\n🔍 Review: Starting review for PR #${prNumber} (${taskId})...`);
@@ -278,6 +279,29 @@ export const createReviewOrchestrator = (
       void plane.addComment(projectId, issueId, planeSummary).catch((err: unknown) => {
         console.error(`❌ Review: Failed to post summary to Plane:`, err);
       });
+
+      // Move task to Todo on first review with requested changes
+      if (options?.todoStateId && analysis.overallAssessment === "request_changes") {
+        const botReviewMarker = "Automated review by PR Review Agent";
+        const reviewsResult = await githubClient.listReviews(prNumber);
+        const botReviewCount = reviewsResult.success
+          ? reviewsResult.data.filter((r) => r.body.includes(botReviewMarker)).length
+          : 0;
+
+        // Count includes the review we just posted — first review means count of 1
+        if (botReviewCount <= 1) {
+          try {
+            await plane.updateIssue(projectId, issueId, { state: options.todoStateId });
+            console.log(`📋 Review: Moved ${taskId} back to Todo for rework (first review)`);
+          } catch (err) {
+            console.error(`❌ Review: Failed to move ${taskId} to Todo:`, err);
+          }
+        } else {
+          console.log(
+            `ℹ️  Review: Skipping Todo move for ${taskId} (${botReviewCount} prior reviews)`
+          );
+        }
+      }
 
       console.log(`✅ Review: Review complete for PR #${prNumber}`);
       return { success: true, data: undefined };
