@@ -107,7 +107,7 @@ describe("buildImplementationPrompt", () => {
 
   it("includes PR creation instruction", () => {
     const prompt = buildImplementationPrompt(makeTask(), "agent/HQ-42", [], emptyCiContext);
-    expect(prompt).toContain("gh pr create");
+    expect(prompt).toContain("create_pull_request MCP tool");
   });
 
   it("instructs not to ask questions", () => {

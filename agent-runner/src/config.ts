@@ -3,6 +3,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
+const ExternalMcpServerSchema = z.object({
+  command: z.string(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+});
+
 const ProjectConfigSchema = z.object({
   repoPath: z.string().optional(),
   repoUrl: z.url(),
@@ -10,6 +16,7 @@ const ProjectConfigSchema = z.object({
   ciChecks: z.array(z.string()).optional(),
   planeProjectId: z.string().optional(),
   planeIdentifier: z.string().optional(),
+  mcpServers: z.record(z.string(), ExternalMcpServerSchema).optional(),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
@@ -45,6 +52,7 @@ const AgentConfigSchema = z.object({
   progressFeedbackEnabled: z.boolean().default(true),
   progressUpdateIntervalMs: z.number().int().positive().default(2500),
   skills: SkillsConfigSchema,
+  mcpServers: z.record(z.string(), ExternalMcpServerSchema).optional(),
 });
 
 const ConfigSchema = z.object({

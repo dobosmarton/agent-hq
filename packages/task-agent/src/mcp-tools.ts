@@ -364,10 +364,9 @@ export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) 
               const execError = err as { stdout?: string; stderr?: string; message?: string };
               // Use || (not ??) for stderr so that an empty string falls through to err.message,
               // ensuring timeout and other error messages are surfaced to the user.
-              const output = ((execError.stdout ?? "") + (execError.stderr || execError.message || "")).slice(
-                0,
-                500
-              );
+              const output = (
+                (execError.stdout ?? "") + (execError.stderr || execError.message || "")
+              ).slice(0, 500);
               results.push({ command: cmd, passed: false, output });
             }
           }

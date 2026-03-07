@@ -226,7 +226,8 @@ describe("phase detection", () => {
       expect.anything(),
       expect.any(String),
       expect.any(String),
-      null
+      null,
+      undefined
     );
   });
 
@@ -261,7 +262,8 @@ describe("phase detection", () => {
       expect.anything(),
       expect.any(String),
       expect.any(String),
-      null
+      null,
+      undefined
     );
   });
 });
@@ -397,7 +399,8 @@ describe("spawnAgent", () => {
       }),
       expect.any(String),
       expect.any(String),
-      null
+      null,
+      undefined
     );
   });
 

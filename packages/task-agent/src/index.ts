@@ -3,6 +3,7 @@ export type { AgentManager, OnAgentDone } from "./manager";
 export { runAgent } from "./runner";
 export type { AgentResult, ResumeContext } from "./runner";
 export type {
+  ExternalMcpServer,
   Notifier,
   TaskPollerAdapter,
   StatePersistence,
@@ -13,3 +14,4 @@ export type {
   TaskAgentConfig,
   ProjectConfig,
 } from "./adapters";
+export { buildMcpServersRecord } from "./mcp-servers";

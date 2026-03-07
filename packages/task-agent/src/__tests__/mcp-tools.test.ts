@@ -4,7 +4,13 @@ import type { PlaneClient } from "@agent-hq/plane-client";
 
 // mockExecAsync is injected into createAgentMcpServer via the deps parameter.
 // This avoids fragile module-level mocking of node:util/node:child_process.
-const mockExecAsync = vi.fn<[string, { cwd?: string; timeout?: number }], Promise<{ stdout: string; stderr: string }>>();
+const mockExecAsync =
+  vi.fn<
+    (
+      cmd: string,
+      opts: { cwd?: string; timeout?: number }
+    ) => Promise<{ stdout: string; stderr: string }>
+  >();
 
 // Mock the SDK so we can capture the tool handlers
 const toolHandlers = new Map<string, (...args: any[]) => any>();
@@ -697,9 +703,6 @@ describe("validate_quality_gate", () => {
     // Should still attempt to run the command (passing empty cwd to exec)
     // and return a result (pass or fail) rather than throwing
     expect(result.content[0].text).toBeDefined();
-    expect(mockExecAsync).toHaveBeenCalledWith(
-      "pnpm test",
-      expect.objectContaining({ cwd: "" })
-    );
+    expect(mockExecAsync).toHaveBeenCalledWith("pnpm test", expect.objectContaining({ cwd: "" }));
   });
 });

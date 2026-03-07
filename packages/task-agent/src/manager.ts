@@ -208,7 +208,8 @@ export const createAgentManager = (deps: ManagerDeps) => {
       },
       repoPath,
       resolve(process.cwd()),
-      resumeContext
+      resumeContext,
+      projectConfig.mcpServers
     )
       .then(async (result) => {
         agent.costUsd = result.costUsd;

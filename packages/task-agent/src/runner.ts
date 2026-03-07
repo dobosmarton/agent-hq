@@ -2,10 +2,11 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PlaneClient, PlaneComment } from "@agent-hq/plane-client";
 import type { AgentErrorType, AgentPhase, AgentTask } from "@agent-hq/shared-types";
 import type { Skill } from "@agent-hq/skills";
-import type { Notifier, TaskAgentConfig, TaskPollerAdapter } from "./adapters";
+import type { ExternalMcpServer, Notifier, TaskAgentConfig, TaskPollerAdapter } from "./adapters";
 import type { CiContext } from "./ci-discovery";
 import type { CommentAnalysis } from "./comment-analyzer";
 import { createAgentMcpServer } from "./mcp-tools";
+import { buildMcpServersRecord } from "./mcp-servers";
 import { createAgentProgressTracker } from "./progress-tracker";
 import { buildImplementationPrompt, buildPlanningPrompt } from "./prompt-builder";
 
@@ -37,6 +38,15 @@ const PLANNING_TOOLS = [
   "mcp__agent-plane-tools__create_skill",
 ];
 
+const GITHUB_MCP_TOOLS = [
+  "mcp__github__create_pull_request",
+  "mcp__github__get_pull_request",
+  "mcp__github__list_pull_requests",
+  "mcp__github__create_issue",
+  "mcp__github__search_repositories",
+  "mcp__github__get_file_contents",
+];
+
 const IMPLEMENTATION_TOOLS = [
   "Read",
   "Write",
@@ -54,6 +64,7 @@ const IMPLEMENTATION_TOOLS = [
   "mcp__agent-plane-tools__load_skill",
   "mcp__agent-plane-tools__create_skill",
   "mcp__agent-plane-tools__validate_quality_gate",
+  ...GITHUB_MCP_TOOLS,
 ];
 
 // Blocklist for destructive commands — takes precedence over allowedTools
@@ -87,7 +98,8 @@ export const runAgent = async (
   deps: RunnerDeps,
   projectRepoPath: string,
   agentRunnerRoot: string,
-  resumeContext: ResumeContext | null = null
+  resumeContext: ResumeContext | null = null,
+  externalMcpServers?: Record<string, ExternalMcpServer>
 ): Promise<AgentResult> => {
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
   const hasRetriesRemaining = deps.retryContext.retryCount < deps.retryContext.maxRetries;
@@ -183,9 +195,11 @@ export const runAgent = async (
         maxBudgetUsd,
         allowedTools,
         disallowedTools: phase === "implementation" ? DISALLOWED_TOOLS : [],
-        mcpServers: {
-          "agent-plane-tools": mcpServer,
-        },
+        mcpServers: buildMcpServersRecord({
+          sdkServer: mcpServer,
+          globalServers: deps.config.agent.mcpServers,
+          projectServers: externalMcpServers,
+        }),
         persistSession: false,
         settingSources: ["project"],
       },

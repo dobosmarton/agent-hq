@@ -52,6 +52,13 @@ export type WorktreeAdapter = {
   removeWorktree: (repoPath: string, taskSlug: string) => Promise<void>;
 };
 
+/** External MCP server configuration (stdio-based) */
+export type ExternalMcpServer = {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+};
+
 /**
  * Project-level configuration needed by the agent
  */
@@ -59,6 +66,7 @@ export type ProjectConfig = {
   repoPath?: string;
   defaultBranch: string;
   ciChecks?: string[];
+  mcpServers?: Record<string, ExternalMcpServer>;
 };
 
 /**
@@ -72,6 +80,7 @@ export type AgentConfig = {
   progressFeedbackEnabled: boolean;
   progressUpdateIntervalMs: number;
   skills: SkillsConfig;
+  mcpServers?: Record<string, ExternalMcpServer>;
 };
 
 /**

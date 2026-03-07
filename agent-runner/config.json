@@ -38,7 +38,13 @@
     "spawnDelayMs": 15000,
     "maxRetries": 2,
     "retryBaseDelayMs": 60000,
-    "labelName": "agent"
+    "labelName": "agent",
+    "mcpServers": {
+      "github": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"]
+      }
+    }
   },
   "review": {
     "enabled": false,

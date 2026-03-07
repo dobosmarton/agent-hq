@@ -12,7 +12,28 @@ import { createNoopNotifier, createNotifier } from "./telegram/notifier";
 import { startWebhookServer } from "./webhooks/server";
 import { ensureWorktreeGitignore, getOrCreateWorktree, removeWorktree } from "./worktree/manager";
 
+import type { Config } from "./config";
+
 const RETRYABLE_ERRORS = new Set(["rate_limited", "unknown"]);
+
+/**
+ * Inject runtime env vars (e.g. GITHUB_PAT) into MCP server configs.
+ * Mutates the config in place for simplicity.
+ */
+const injectMcpTokens = (config: Config, githubPat: string): void => {
+  const inject = (servers: Record<string, { env?: Record<string, string> }> | undefined): void => {
+    if (!servers?.github) return;
+    servers.github.env = {
+      ...servers.github.env,
+      GITHUB_PERSONAL_ACCESS_TOKEN: githubPat,
+    };
+  };
+
+  inject(config.agent.mcpServers);
+  for (const project of Object.values(config.projects)) {
+    inject(project.mcpServers);
+  }
+};
 
 const main = async (): Promise<void> => {
   console.log("Agent Runner starting...");
@@ -20,6 +41,7 @@ const main = async (): Promise<void> => {
   // Load configuration
   const config = loadConfig();
   const env = loadEnv();
+  injectMcpTokens(config, env.GITHUB_PAT);
   const plane = buildPlaneClient(config, env);
 
   // Initialize Telegram (optional — no-op when tokens missing)
