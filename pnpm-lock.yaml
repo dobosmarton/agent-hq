@@ -72,9 +72,9 @@ importers:
 
   packages/review-agent:
     dependencies:
-      '@agent-hq/plane-client':
+      '@agent-hq/shared-types':
         specifier: workspace:*
-        version: link:../plane-client
+        version: link:../shared-types
       '@agent-hq/skills':
         specifier: workspace:*
         version: link:../skills

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import type { GitHubClient } from "../github/client";
+import type { GitHubPRAdapter } from "@agent-hq/shared-types";
 import type { CodeAnalysisResult } from "../types";
 import { postReviewToGitHub } from "../github-reviewer";
 
 describe("postReviewToGitHub", () => {
   it("should post review with REQUEST_CHANGES for critical issues", async () => {
-    const mockClient: Pick<GitHubClient, "createReview"> = {
+    const mockClient: Pick<GitHubPRAdapter, "createReview"> = {
       createReview: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     };
 
@@ -22,18 +22,19 @@ describe("postReviewToGitHub", () => {
       ],
     };
 
-    const result = await postReviewToGitHub(mockClient as GitHubClient, 123, analysis);
+    const result = await postReviewToGitHub(mockClient as GitHubPRAdapter, 123, analysis);
 
     expect(result.success).toBe(true);
     expect(mockClient.createReview).toHaveBeenCalledWith(
       123,
       "REQUEST_CHANGES",
-      expect.stringContaining("Critical Issues")
+      expect.stringContaining("Critical Issues"),
+      undefined
     );
   });
 
   it("should post review with COMMENT for approval", async () => {
-    const mockClient: Pick<GitHubClient, "createReview"> = {
+    const mockClient: Pick<GitHubPRAdapter, "createReview"> = {
       createReview: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     };
 
@@ -43,18 +44,19 @@ describe("postReviewToGitHub", () => {
       issues: [],
     };
 
-    const result = await postReviewToGitHub(mockClient as GitHubClient, 123, analysis);
+    const result = await postReviewToGitHub(mockClient as GitHubPRAdapter, 123, analysis);
 
     expect(result.success).toBe(true);
     expect(mockClient.createReview).toHaveBeenCalledWith(
       123,
       "COMMENT",
-      expect.stringContaining("No Issues Found")
+      expect.stringContaining("No Issues Found"),
+      undefined
     );
   });
 
   it("should handle GitHub API errors", async () => {
-    const mockClient: Pick<GitHubClient, "createReview"> = {
+    const mockClient: Pick<GitHubPRAdapter, "createReview"> = {
       createReview: vi.fn().mockResolvedValue({ success: false, error: "API error" }),
     };
 
@@ -64,7 +66,7 @@ describe("postReviewToGitHub", () => {
       issues: [],
     };
 
-    const result = await postReviewToGitHub(mockClient as GitHubClient, 123, analysis);
+    const result = await postReviewToGitHub(mockClient as GitHubPRAdapter, 123, analysis);
 
     expect(result.success).toBe(false);
     if (!result.success) {

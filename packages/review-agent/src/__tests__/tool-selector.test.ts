@@ -85,12 +85,7 @@ describe("selectReviewTools", () => {
       })
     );
 
-    const result = await selectReviewTools(
-      mockContext,
-      mockTools,
-      mockClient,
-      "claude-sonnet-4-6"
-    );
+    const result = await selectReviewTools(mockContext, mockTools, mockClient, "claude-sonnet-4-6");
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -103,12 +98,7 @@ describe("selectReviewTools", () => {
   it("should handle API errors gracefully", async () => {
     const mockClient = createMockClient(vi.fn().mockRejectedValue(new Error("API error")));
 
-    const result = await selectReviewTools(
-      mockContext,
-      mockTools,
-      mockClient,
-      "claude-sonnet-4-6"
-    );
+    const result = await selectReviewTools(mockContext, mockTools, mockClient, "claude-sonnet-4-6");
 
     expect(result.success).toBe(false);
   });
@@ -125,12 +115,7 @@ describe("selectReviewTools", () => {
       })
     );
 
-    const result = await selectReviewTools(
-      mockContext,
-      mockTools,
-      mockClient,
-      "claude-sonnet-4-6"
-    );
+    const result = await selectReviewTools(mockContext, mockTools, mockClient, "claude-sonnet-4-6");
 
     expect(result.success).toBe(false);
   });

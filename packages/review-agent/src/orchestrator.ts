@@ -1,13 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { PlaneClient } from "@agent-hq/plane-client";
-import { createGitHubClient } from "./github/client";
+import type { GitHubPRAdapter, PlaneTaskAdapter } from "@agent-hq/shared-types";
 import { loadSkills } from "@agent-hq/skills";
 import type { ReviewContext, ReviewResult, CodeAnalysisResult } from "./types";
-import { analyzeCode } from "./analyzer";
+import { analyzeReview } from "./agent";
 import { postReviewToGitHub } from "./github-reviewer";
-import { loadReviewTools } from "./review-tools";
-import { selectReviewTools } from "./tool-selector";
-import { executeParallelReviews } from "./parallel-reviewer";
 import type { AggregatedReview } from "./parallel-reviewer";
 
 /**
@@ -25,17 +21,26 @@ export type ReviewAgentConfig = {
 };
 
 /**
+ * Dependencies injected into the review orchestrator
+ */
+export type ReviewOrchestratorDeps = {
+  createGitHub: (owner: string, repo: string) => GitHubPRAdapter;
+  plane: PlaneTaskAdapter;
+  config: ReviewAgentConfig;
+  anthropicApiKey: string;
+};
+
+/**
  * Handles analysis errors by posting to Plane
  */
 const handleAnalysisError = (
-  plane: PlaneClient,
+  plane: PlaneTaskAdapter,
   error: string,
   projectId: string,
   issueId: string
 ): ReviewResult<void> => {
   console.error(`❌ Review: Analysis failed: ${error}`);
 
-  // Post error comment to Plane
   void plane
     .addComment(
       projectId,
@@ -68,7 +73,6 @@ const buildPlaneSummary = (
 
   const summary = `<p>${analysis.summary}</p>`;
 
-  // Show which tools were used if it's an aggregated review
   const toolsUsed =
     "toolsUsed" in analysis
       ? `<p><em>Review tools used: ${analysis.toolsUsed.join(", ")}</em></p>`
@@ -83,26 +87,12 @@ const buildPlaneSummary = (
 };
 
 /**
- * Creates a review agent orchestrator that coordinates the review process
+ * Creates a review orchestrator that coordinates the review process.
+ * Delegates analysis to the review agent and side effects to injected adapters.
  */
-export const createReviewOrchestrator = (
-  reviewConfig: ReviewAgentConfig,
-  plane: PlaneClient,
-  anthropicApiKey: string,
-  githubToken: string
-) => {
-  const anthropicClient = new Anthropic({ apiKey: anthropicApiKey });
+export const createReviewOrchestrator = (deps: ReviewOrchestratorDeps) => {
+  const anthropicClient = new Anthropic({ apiKey: deps.anthropicApiKey });
 
-  /**
-   * Reviews a pull request
-   *
-   * @param owner - GitHub repository owner
-   * @param repo - GitHub repository name
-   * @param prNumber - Pull request number
-   * @param taskId - Plane task ID
-   * @param projectId - Plane project ID
-   * @returns Review result
-   */
   const reviewPullRequest = async (
     owner: string,
     repo: string,
@@ -115,13 +105,13 @@ export const createReviewOrchestrator = (
       console.log(`\n🔍 Review: Starting review for PR #${prNumber} (${taskId})...`);
 
       // Resolve task identifier (e.g. "AGENTHQ-32") to Plane issue UUID
-      const parsed = plane.parseIssueIdentifier(taskId);
+      const parsed = deps.plane.parseIssueIdentifier(taskId);
       if (!parsed) {
         return { success: false, error: `Invalid task identifier: ${taskId}` };
       }
 
       console.log(`📥 Review: Resolving ${taskId} to Plane issue...`);
-      const task = await plane.findIssueBySequenceId(projectId, parsed.sequenceId);
+      const task = await deps.plane.findIssueBySequenceId(projectId, parsed.sequenceId);
       if (!task) {
         return {
           success: false,
@@ -130,16 +120,12 @@ export const createReviewOrchestrator = (
       }
       const issueId = task.id;
 
-      // Create GitHub client
-      const githubClient = createGitHubClient({
-        token: githubToken,
-        owner,
-        repo,
-      });
+      // Create GitHub client for this request
+      const github = deps.createGitHub(owner, repo);
 
       // Fetch PR details
       console.log(`📥 Review: Fetching PR details...`);
-      const prResult = await githubClient.getPullRequest(prNumber);
+      const prResult = await github.getPullRequest(prNumber);
       if (!prResult.success) {
         return {
           success: false,
@@ -150,7 +136,7 @@ export const createReviewOrchestrator = (
 
       // Fetch PR diff
       console.log(`📥 Review: Fetching PR diff...`);
-      const diffResult = await githubClient.getPullRequestDiff(prNumber);
+      const diffResult = await github.getPullRequestDiff(prNumber);
       if (!diffResult.success) {
         return {
           success: false,
@@ -161,11 +147,11 @@ export const createReviewOrchestrator = (
 
       // Check diff size
       const diffSizeKb = Buffer.byteLength(diff, "utf-8") / 1024;
-      if (diffSizeKb > reviewConfig.maxDiffSizeKb) {
-        const message = `⚠️ Review: Diff too large (${diffSizeKb.toFixed(1)}KB > ${reviewConfig.maxDiffSizeKb}KB), skipping automated review`;
+      if (diffSizeKb > deps.config.maxDiffSizeKb) {
+        const message = `⚠️ Review: Diff too large (${diffSizeKb.toFixed(1)}KB > ${deps.config.maxDiffSizeKb}KB), skipping automated review`;
         console.log(message);
 
-        void githubClient
+        void github
           .addComment(
             prNumber,
             `🤖 **Automated Review Skipped**\n\n${message}\n\nPlease review this PR manually.`
@@ -193,81 +179,30 @@ export const createReviewOrchestrator = (
       // Build review context
       const context: ReviewContext = {
         taskDescription: task.description_html || task.name,
-        acceptanceCriteria: undefined, // TODO: Extract from task description
+        acceptanceCriteria: undefined,
         prDescription: pr.body,
         prTitle: pr.title,
         diff,
         codingSkills,
       };
 
-      // Choose review strategy based on configuration
-      let analysis: CodeAnalysisResult | AggregatedReview;
+      // Run analysis via the review agent
+      const analysisResult = await analyzeReview(
+        context,
+        anthropicClient,
+        deps.config.claudeModel,
+        skills,
+        deps.config.useParallelReview
+      );
 
-      if (reviewConfig.useParallelReview) {
-        // Use parallel review with specialized tools
-        const reviewTools = loadReviewTools(skills);
-
-        if (reviewTools.length === 0) {
-          console.warn("⚠️  Review: No review tools available, falling back to single review");
-          const analysisResult = await analyzeCode(
-            context,
-            anthropicClient,
-            reviewConfig.claudeModel
-          );
-
-          if (!analysisResult.success) {
-            return handleAnalysisError(plane, analysisResult.error, projectId, issueId);
-          }
-
-          analysis = analysisResult.data;
-        } else {
-          // Select which tools to use
-          const toolSelectionResult = await selectReviewTools(
-            context,
-            reviewTools,
-            anthropicClient,
-            reviewConfig.claudeModel
-          );
-
-          if (!toolSelectionResult.success) {
-            console.error(`❌ Review: Tool selection failed: ${toolSelectionResult.error}`);
-            return handleAnalysisError(plane, toolSelectionResult.error, projectId, issueId);
-          }
-
-          const selectedTools = toolSelectionResult.data;
-
-          // Execute parallel reviews
-          const parallelResult = await executeParallelReviews(
-            context,
-            selectedTools,
-            anthropicClient,
-            reviewConfig.claudeModel
-          );
-
-          if (!parallelResult.success) {
-            console.error(`❌ Review: Parallel review failed: ${parallelResult.error}`);
-            return handleAnalysisError(plane, parallelResult.error, projectId, issueId);
-          }
-
-          analysis = parallelResult.data;
-        }
-      } else {
-        // Use single-pass review
-        const analysisResult = await analyzeCode(
-          context,
-          anthropicClient,
-          reviewConfig.claudeModel
-        );
-
-        if (!analysisResult.success) {
-          return handleAnalysisError(plane, analysisResult.error, projectId, issueId);
-        }
-
-        analysis = analysisResult.data;
+      if (!analysisResult.success) {
+        return handleAnalysisError(deps.plane, analysisResult.error, projectId, issueId);
       }
 
+      const analysis = analysisResult.data;
+
       // Post review to GitHub
-      const githubResult = await postReviewToGitHub(githubClient, prNumber, analysis);
+      const githubResult = await postReviewToGitHub(github, prNumber, analysis);
       if (!githubResult.success) {
         console.error(`❌ Review: Failed to post to GitHub: ${githubResult.error}`);
       }
@@ -276,14 +211,14 @@ export const createReviewOrchestrator = (
       console.log(`📝 Review: Posting summary to Plane task...`);
       const planeSummary = buildPlaneSummary(analysis, prNumber, pr.html_url);
 
-      void plane.addComment(projectId, issueId, planeSummary).catch((err: unknown) => {
+      void deps.plane.addComment(projectId, issueId, planeSummary).catch((err: unknown) => {
         console.error(`❌ Review: Failed to post summary to Plane:`, err);
       });
 
       // Move task to Todo on first review with requested changes
       if (options?.todoStateId && analysis.overallAssessment === "request_changes") {
         const botReviewMarker = "Automated review by PR Review Agent";
-        const reviewsResult = await githubClient.listReviews(prNumber);
+        const reviewsResult = await github.listReviews(prNumber);
         const botReviewCount = reviewsResult.success
           ? reviewsResult.data.filter((r) => r.body.includes(botReviewMarker)).length
           : 0;
@@ -291,7 +226,7 @@ export const createReviewOrchestrator = (
         // Count includes the review we just posted — first review means count of 1
         if (botReviewCount <= 1) {
           try {
-            await plane.updateIssue(projectId, issueId, { state: options.todoStateId });
+            await deps.plane.updateIssue(projectId, issueId, { state: options.todoStateId });
             console.log(`📋 Review: Moved ${taskId} back to Todo for rework (first review)`);
           } catch (err) {
             console.error(`❌ Review: Failed to move ${taskId} to Todo:`, err);

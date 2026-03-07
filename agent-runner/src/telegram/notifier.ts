@@ -1,3 +1,4 @@
+import type { Notifier } from "@agent-hq/shared-types";
 import { z } from "zod";
 
 const TELEGRAM_API = "https://api.telegram.org";
@@ -18,7 +19,7 @@ type NotifierConfig = {
   chatId: string;
 };
 
-export const createNotifier = (config: NotifierConfig) => {
+export const createNotifier = (config: NotifierConfig): Notifier => {
   const sendMessage = async (text: string, replyToMessageId?: number): Promise<number> => {
     const res = await fetch(`${TELEGRAM_API}/bot${config.botToken}/sendMessage`, {
       method: "POST",
@@ -91,7 +92,7 @@ export const createNotifier = (config: NotifierConfig) => {
   };
 };
 
-export type Notifier = ReturnType<typeof createNotifier>;
+export type { Notifier } from "@agent-hq/shared-types";
 
 export const createNoopNotifier = (): Notifier => ({
   agentStarted: async () => 0,

@@ -1,17 +1,7 @@
 import type { RunnerState } from "@agent-hq/shared-types";
 import type { SkillsConfig } from "@agent-hq/skills";
 
-/**
- * Notification interface — implemented by agent-runner's Telegram notifier
- */
-export type Notifier = {
-  agentStarted: (taskId: string, title: string) => Promise<number>;
-  agentCompleted: (taskId: string, title: string) => Promise<void>;
-  agentErrored: (taskId: string, title: string, error: string) => Promise<void>;
-  agentBlocked: (taskId: string, question: string) => Promise<number>;
-  agentProgress: (messageId: number, text: string) => Promise<boolean>;
-  sendMessage: (text: string) => Promise<number>;
-};
+export type { Notifier } from "@agent-hq/shared-types";
 
 /**
  * Cached project info for state transitions

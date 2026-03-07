@@ -12,7 +12,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@agent-hq/plane-client": "workspace:*",
+    "@agent-hq/shared-types": "workspace:*",
     "@agent-hq/skills": "workspace:*",
     "@anthropic-ai/sdk": "^0.78.0",
     "@octokit/rest": "^22.0.1",

@@ -1,5 +1,5 @@
 import type { ReviewOrchestrator } from "@agent-hq/review-agent";
-import { createReviewOrchestrator } from "@agent-hq/review-agent";
+import { createReviewOrchestrator, createGitHubClient } from "@agent-hq/review-agent";
 import { createAgentManager } from "@agent-hq/task-agent";
 import { resolve } from "node:path";
 import { buildPlaneClient, loadConfig, loadEnv } from "./config";
@@ -49,12 +49,12 @@ const main = async (): Promise<void> => {
   let reviewAgent: ReviewOrchestrator | undefined;
   if (config.review.enabled) {
     console.log("✅ Review agent enabled");
-    reviewAgent = createReviewOrchestrator(
-      config.review,
+    reviewAgent = createReviewOrchestrator({
+      createGitHub: (owner, repo) => createGitHubClient({ token: env.GITHUB_PAT, owner, repo }),
       plane,
-      env.ANTHROPIC_API_KEY,
-      env.GITHUB_PAT
-    );
+      config: config.review,
+      anthropicApiKey: env.ANTHROPIC_API_KEY,
+    });
   } else {
     console.log("ℹ️  Review agent disabled in config");
   }

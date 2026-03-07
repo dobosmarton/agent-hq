@@ -1,5 +1,5 @@
-import type { GitHubClient } from "./github/client";
-import type { GitHubReviewComment, GitHubReviewEvent } from "./github/types";
+import type { GitHubPRAdapter, ReviewEvent } from "@agent-hq/shared-types";
+import type { GitHubReviewComment } from "./github/types";
 import type { CodeAnalysisResult, IssueSeverity, ReviewResult } from "./types";
 import type { AggregatedReview } from "./parallel-reviewer";
 
@@ -66,9 +66,7 @@ const formatIssuesBySeverity = (issues: CodeAnalysisResult["issues"]): string =>
 /**
  * Maps analysis assessment to GitHub review event
  */
-const mapAssessmentToEvent = (
-  assessment: CodeAnalysisResult["overallAssessment"]
-): GitHubReviewEvent => {
+const mapAssessmentToEvent = (assessment: CodeAnalysisResult["overallAssessment"]): ReviewEvent => {
   switch (assessment) {
     case "approve":
       return "COMMENT"; // Phase 1: Never auto-approve, only comment
@@ -114,7 +112,7 @@ const buildReviewBody = (analysis: CodeAnalysisResult | AggregatedReview): strin
  * @returns Success or error result
  */
 export const postReviewToGitHub = async (
-  client: GitHubClient,
+  client: GitHubPRAdapter,
   prNumber: number,
   analysis: CodeAnalysisResult | AggregatedReview
 ): Promise<ReviewResult<void>> => {
