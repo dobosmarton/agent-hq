@@ -290,19 +290,27 @@ export const createTelegramBridge = (deps: BridgeDeps) => {
   const pending = new Map<string, PendingQuestion>();
   let serverInstance: ReturnType<typeof serve> | null = null;
 
-  const startAnswerServer = (): void => {
+  /**
+   * Start the HTTP answer server on the given port.
+   * Pass port=0 to let the OS assign a free port (useful in tests).
+   * Returns a Promise that resolves with the actual bound port number.
+   */
+  const startAnswerServer = (port = ANSWER_PORT): Promise<number> => {
     const app = createBridgeApp(deps, pending);
 
-    serverInstance = serve(
-      {
-        fetch: app.fetch,
-        port: ANSWER_PORT,
-        hostname: "127.0.0.1",
-      },
-      () => {
-        console.log(`Answer server listening on http://127.0.0.1:${ANSWER_PORT}`);
-      }
-    );
+    return new Promise<number>((resolve) => {
+      serverInstance = serve(
+        {
+          fetch: app.fetch,
+          port,
+          hostname: "127.0.0.1",
+        },
+        (info) => {
+          console.log(`Answer server listening on http://127.0.0.1:${info.port}`);
+          resolve(info.port);
+        }
+      );
+    });
   };
 
   const askAndWait = async (taskId: string, question: string): Promise<string> => {

@@ -2,13 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeComment, makeIssue, makeLabel, paginate } from "./fixtures/plane";
 import type { PlaneClient } from "@agent-hq/plane-client";
 
-// Mock the exec used by validate_quality_gate.
-// vi.hoisted ensures the variable is created before vi.mock hoisting.
-// We mock node:util so that promisify(exec) returns our mockExecAsync directly,
-// rather than using the fragile identity-function pattern.
-const { mockExecAsync } = vi.hoisted(() => ({ mockExecAsync: vi.fn() }));
-vi.mock("node:child_process", () => ({ exec: vi.fn() }));
-vi.mock("node:util", () => ({ promisify: () => mockExecAsync }));
+// mockExecAsync is injected into createAgentMcpServer via the deps parameter.
+// This avoids fragile module-level mocking of node:util/node:child_process.
+const mockExecAsync = vi.fn<[string, { cwd?: string; timeout?: number }], Promise<{ stdout: string; stderr: string }>>();
 
 // Mock the SDK so we can capture the tool handlers
 const toolHandlers = new Map<string, (...args: any[]) => any>();
@@ -23,6 +19,8 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 
 import { createAgentMcpServer } from "../mcp-tools";
 
+// Use vi.resetAllMocks() globally: clears both call history and implementations,
+// preventing any mock state from leaking between tests.
 beforeEach(() => {
   vi.resetAllMocks();
   toolHandlers.clear();
@@ -74,8 +72,9 @@ describe("update_task_status", () => {
     createAgentMcpServer(ctx);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("update_task_status")!;
-    const result = await handler({ state: "plan_review" });
+    const handler = toolHandlers.get("update_task_status");
+    expect(handler).toBeDefined();
+    const result = await handler!({ state: "plan_review" });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       state: "plan-review-state",
@@ -88,8 +87,9 @@ describe("update_task_status", () => {
     createAgentMcpServer(ctx);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("update_task_status")!;
-    const result = await handler({ state: "in_review" });
+    const handler = toolHandlers.get("update_task_status");
+    expect(handler).toBeDefined();
+    const result = await handler!({ state: "in_review" });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       state: "review-state",
@@ -102,8 +102,9 @@ describe("update_task_status", () => {
     createAgentMcpServer(ctx);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("update_task_status")!;
-    await handler({ state: "done" });
+    const handler = toolHandlers.get("update_task_status");
+    expect(handler).toBeDefined();
+    await handler!({ state: "done" });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       state: "done-state",
@@ -114,8 +115,9 @@ describe("update_task_status", () => {
     const ctx = makeContext({ planReviewStateId: null });
     createAgentMcpServer(ctx);
 
-    const handler = toolHandlers.get("update_task_status")!;
-    const result = await handler({ state: "plan_review" });
+    const handler = toolHandlers.get("update_task_status");
+    expect(handler).toBeDefined();
+    const result = await handler!({ state: "plan_review" });
 
     expect(result.content[0].text).toContain("not available");
     expect(ctx.plane.updateIssue).not.toHaveBeenCalled();
@@ -128,8 +130,9 @@ describe("add_task_comment", () => {
     createAgentMcpServer(ctx);
     vi.mocked(ctx.plane.addComment).mockResolvedValue(makeComment());
 
-    const handler = toolHandlers.get("add_task_comment")!;
-    const result = await handler({ comment_html: "<p>Progress</p>" });
+    const handler = toolHandlers.get("add_task_comment");
+    expect(handler).toBeDefined();
+    const result = await handler!({ comment_html: "<p>Progress</p>" });
 
     expect(ctx.plane.addComment).toHaveBeenCalledWith("proj-1", "issue-1", "<p>Progress</p>");
     expect(result.content[0].text).toContain("Comment added");
@@ -146,8 +149,9 @@ describe("add_task_link", () => {
       url: "https://github.com/test/repo/pull/1",
     });
 
-    const handler = toolHandlers.get("add_task_link")!;
-    const result = await handler({
+    const handler = toolHandlers.get("add_task_link");
+    expect(handler).toBeDefined();
+    const result = await handler!({
       title: "Pull Request",
       url: "https://github.com/test/repo/pull/1",
     });
@@ -193,8 +197,9 @@ describe("list_labels", () => {
       }),
     ]);
 
-    const handler = toolHandlers.get("list_labels")!;
-    const result = await handler({});
+    const handler = toolHandlers.get("list_labels");
+    expect(handler).toBeDefined();
+    const result = await handler!({});
 
     expect(ctx.plane.listLabels).toHaveBeenCalledWith("proj-1");
     expect(result.content[0].text).toContain("Available labels");
@@ -207,8 +212,9 @@ describe("list_labels", () => {
     createAgentMcpServer(ctx);
     vi.mocked(ctx.plane.listLabels).mockResolvedValue([]);
 
-    const handler = toolHandlers.get("list_labels")!;
-    const result = await handler({});
+    const handler = toolHandlers.get("list_labels");
+    expect(handler).toBeDefined();
+    const result = await handler!({});
 
     expect(result.content[0].text).toContain("No labels found");
   });
@@ -224,8 +230,9 @@ describe("list_labels", () => {
       }),
     ]);
 
-    const handler = toolHandlers.get("list_labels")!;
-    const result = await handler({});
+    const handler = toolHandlers.get("list_labels");
+    expect(handler).toBeDefined();
+    const result = await handler!({});
 
     expect(result.content[0].text).toContain("#00FF00");
     expect(result.content[0].text).toContain("New features");
@@ -242,8 +249,9 @@ describe("add_labels_to_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("add_labels_to_task")!;
-    const result = await handler({ label_names: ["agent"] });
+    const handler = toolHandlers.get("add_labels_to_task");
+    expect(handler).toBeDefined();
+    const result = await handler!({ label_names: ["agent"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1"],
@@ -261,8 +269,9 @@ describe("add_labels_to_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("add_labels_to_task")!;
-    await handler({ label_names: ["agent", "bug"] });
+    const handler = toolHandlers.get("add_labels_to_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["agent", "bug"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1", "label-2"],
@@ -278,8 +287,9 @@ describe("add_labels_to_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("add_labels_to_task")!;
-    await handler({ label_names: ["Agent"] });
+    const handler = toolHandlers.get("add_labels_to_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["Agent"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1"],
@@ -296,8 +306,9 @@ describe("add_labels_to_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("add_labels_to_task")!;
-    await handler({ label_names: ["bug"] });
+    const handler = toolHandlers.get("add_labels_to_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["bug"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1", "label-2"],
@@ -313,8 +324,9 @@ describe("add_labels_to_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("add_labels_to_task")!;
-    await handler({ label_names: ["agent"] });
+    const handler = toolHandlers.get("add_labels_to_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["agent"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1"],
@@ -329,8 +341,9 @@ describe("add_labels_to_task", () => {
       makeLabel({ id: "label-1", name: "agent" }),
     ]);
 
-    const handler = toolHandlers.get("add_labels_to_task")!;
-    const result = await handler({ label_names: ["nonexistent"] });
+    const handler = toolHandlers.get("add_labels_to_task");
+    expect(handler).toBeDefined();
+    const result = await handler!({ label_names: ["nonexistent"] });
 
     expect(result.content[0].text).toContain("Label(s) not found");
     expect(result.content[0].text).toContain("nonexistent");
@@ -347,8 +360,9 @@ describe("add_labels_to_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("add_labels_to_task")!;
-    await handler({ label_names: [] });
+    const handler = toolHandlers.get("add_labels_to_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: [] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1"],
@@ -364,8 +378,9 @@ describe("add_labels_to_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("add_labels_to_task")!;
-    await handler({ label_names: ["agent"] });
+    const handler = toolHandlers.get("add_labels_to_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["agent"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1"],
@@ -384,8 +399,9 @@ describe("remove_labels_from_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("remove_labels_from_task")!;
-    const result = await handler({ label_names: ["agent"] });
+    const handler = toolHandlers.get("remove_labels_from_task");
+    expect(handler).toBeDefined();
+    const result = await handler!({ label_names: ["agent"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-2"],
@@ -406,8 +422,9 @@ describe("remove_labels_from_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("remove_labels_from_task")!;
-    await handler({ label_names: ["agent", "bug"] });
+    const handler = toolHandlers.get("remove_labels_from_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["agent", "bug"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-3"],
@@ -423,8 +440,9 @@ describe("remove_labels_from_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("remove_labels_from_task")!;
-    await handler({ label_names: ["Agent"] });
+    const handler = toolHandlers.get("remove_labels_from_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["Agent"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: [],
@@ -440,8 +458,9 @@ describe("remove_labels_from_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("remove_labels_from_task")!;
-    const result = await handler({ label_names: ["nonexistent"] });
+    const handler = toolHandlers.get("remove_labels_from_task");
+    expect(handler).toBeDefined();
+    const result = await handler!({ label_names: ["nonexistent"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1"],
@@ -458,8 +477,9 @@ describe("remove_labels_from_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("remove_labels_from_task")!;
-    await handler({ label_names: [] });
+    const handler = toolHandlers.get("remove_labels_from_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: [] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: ["label-1"],
@@ -475,8 +495,9 @@ describe("remove_labels_from_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("remove_labels_from_task")!;
-    await handler({ label_names: ["agent"] });
+    const handler = toolHandlers.get("remove_labels_from_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["agent"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: [],
@@ -493,8 +514,9 @@ describe("remove_labels_from_task", () => {
     ]);
     vi.mocked(ctx.plane.updateIssue).mockResolvedValue(makeIssue());
 
-    const handler = toolHandlers.get("remove_labels_from_task")!;
-    await handler({ label_names: ["agent", "bug"] });
+    const handler = toolHandlers.get("remove_labels_from_task");
+    expect(handler).toBeDefined();
+    await handler!({ label_names: ["agent", "bug"] });
 
     expect(ctx.plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", {
       labels: [],
@@ -529,8 +551,9 @@ This is the content.`,
     const ctx = makeContext({ skills: [skill] });
     createAgentMcpServer(ctx);
 
-    const handler = toolHandlers.get("load_skill")!;
-    const result = await handler({ skill_id: "test-skill" });
+    const handler = toolHandlers.get("load_skill");
+    expect(handler).toBeDefined();
+    const result = await handler!({ skill_id: "test-skill" });
 
     expect(result.content[0].text).toContain("# Test Skill");
     expect(result.content[0].text).toContain("This is the content.");
@@ -541,8 +564,9 @@ This is the content.`,
     const ctx = makeContext({ skills: [makeSkill()] });
     createAgentMcpServer(ctx);
 
-    const handler = toolHandlers.get("load_skill")!;
-    const result = await handler({ skill_id: "unknown" });
+    const handler = toolHandlers.get("load_skill");
+    expect(handler).toBeDefined();
+    const result = await handler!({ skill_id: "unknown" });
 
     expect(result.content[0].text).toContain('Skill "unknown" not found');
     expect(result.content[0].text).toContain("test-skill");
@@ -552,44 +576,51 @@ This is the content.`,
     const ctx = makeContext({ skills: [] });
     createAgentMcpServer(ctx);
 
-    const handler = toolHandlers.get("load_skill")!;
-    const result = await handler({ skill_id: "test-skill" });
+    const handler = toolHandlers.get("load_skill");
+    expect(handler).toBeDefined();
+    const result = await handler!({ skill_id: "test-skill" });
 
     expect(result.content[0].text).toContain("not found");
   });
 });
 
 describe("validate_quality_gate", () => {
-  beforeEach(() => {
-    mockExecAsync.mockReset();
-  });
+  // Helper that creates the server with mockExecAsync injected via deps
+  const makeQualityGateServer = (ctxOverrides?: Record<string, unknown>) => {
+    const ctx = makeContext(ctxOverrides);
+    createAgentMcpServer(ctx, { execAsync: mockExecAsync });
+    const handler = toolHandlers.get("validate_quality_gate");
+    expect(handler).toBeDefined();
+    return { ctx, handler: handler! };
+  };
 
   it("returns message when no CI commands configured", async () => {
-    const ctx = makeContext({ ciCommands: [] });
-    createAgentMcpServer(ctx);
-
-    const handler = toolHandlers.get("validate_quality_gate")!;
+    const { handler } = makeQualityGateServer({ ciCommands: [] });
     const result = await handler({});
 
     expect(result.content[0].text).toContain("No CI commands configured");
+    // mockExecAsync should never be called when there are no commands
     expect(mockExecAsync).not.toHaveBeenCalled();
   });
 
   it("reports PASSED when all commands succeed", async () => {
     mockExecAsync.mockResolvedValue({ stdout: "All good", stderr: "" });
 
-    const ctx = makeContext({ ciCommands: ["pnpm test", "pnpm build"] });
-    createAgentMcpServer(ctx);
-
-    const handler = toolHandlers.get("validate_quality_gate")!;
+    const { handler } = makeQualityGateServer({ ciCommands: ["pnpm test", "pnpm build"] });
     const result = await handler({});
 
     expect(result.content[0].text).toContain("PASSED");
     expect(result.content[0].text).toContain("2/2 checks passed");
     expect(result.content[0].text).toContain("✓ pnpm test");
     expect(result.content[0].text).toContain("✓ pnpm build");
+    // Verify mockExecAsync was actually called (sanity check for dependency injection)
+    expect(mockExecAsync).toHaveBeenCalled();
     expect(mockExecAsync).toHaveBeenCalledWith(
       "pnpm test",
+      expect.objectContaining({ cwd: "/tmp/test-repo", timeout: 120_000 })
+    );
+    expect(mockExecAsync).toHaveBeenCalledWith(
+      "pnpm build",
       expect.objectContaining({ cwd: "/tmp/test-repo", timeout: 120_000 })
     );
   });
@@ -601,10 +632,7 @@ describe("validate_quality_gate", () => {
         Object.assign(new Error("Command failed"), { stdout: "", stderr: "Type error", code: 1 })
       );
 
-    const ctx = makeContext({ ciCommands: ["pnpm build", "pnpm test"] });
-    createAgentMcpServer(ctx);
-
-    const handler = toolHandlers.get("validate_quality_gate")!;
+    const { handler } = makeQualityGateServer({ ciCommands: ["pnpm build", "pnpm test"] });
     const result = await handler({});
 
     expect(result.content[0].text).toContain("FAILED");
@@ -629,14 +657,15 @@ describe("validate_quality_gate", () => {
     const longOutput = "x".repeat(600);
     mockExecAsync.mockResolvedValue({ stdout: longOutput, stderr: "" });
 
-    const ctx = makeContext({ ciCommands: ["pnpm test"] });
-    createAgentMcpServer(ctx);
-
-    const handler = toolHandlers.get("validate_quality_gate")!;
+    const { handler } = makeQualityGateServer({ ciCommands: ["pnpm test"] });
     const result = await handler({});
 
-    // Verify truncation: report contains exactly 500 'x' chars, not 501
     const report = result.content[0].text as string;
+    // Extract the output portion (everything after the command marker line)
+    const afterMarker = report.split("✓ pnpm test\n")[1] ?? "";
+    // The output section should be exactly 500 chars (the truncated x's)
+    expect(afterMarker.trim().length).toBe(500);
+    // Cross-check: 500 x's are present but not 501 consecutive x's
     expect(report).toContain("x".repeat(500));
     expect(report).not.toContain("x".repeat(501));
   });
@@ -646,14 +675,31 @@ describe("validate_quality_gate", () => {
       Object.assign(new Error("Command timed out"), { code: "ETIMEDOUT", stdout: "", stderr: "" })
     );
 
-    const ctx = makeContext({ ciCommands: ["pnpm test"] });
-    createAgentMcpServer(ctx);
-
-    const handler = toolHandlers.get("validate_quality_gate")!;
+    const { handler } = makeQualityGateServer({ ciCommands: ["pnpm test"] });
     const result = await handler({});
 
     expect(result.content[0].text).toContain("FAILED");
     expect(result.content[0].text).toContain("0/1 checks passed");
     expect(result.content[0].text).toContain("✗ pnpm test");
+    // Verify the timeout error message is surfaced to the user
+    expect(result.content[0].text).toContain("Command timed out");
+  });
+
+  it("handles missing projectRepoPath gracefully", async () => {
+    mockExecAsync.mockResolvedValue({ stdout: "ok", stderr: "" });
+
+    const { handler } = makeQualityGateServer({
+      ciCommands: ["pnpm test"],
+      projectRepoPath: "",
+    });
+    const result = await handler({});
+
+    // Should still attempt to run the command (passing empty cwd to exec)
+    // and return a result (pass or fail) rather than throwing
+    expect(result.content[0].text).toBeDefined();
+    expect(mockExecAsync).toHaveBeenCalledWith(
+      "pnpm test",
+      expect.objectContaining({ cwd: "" })
+    );
   });
 });

@@ -64,18 +64,15 @@ describe("askAndWait (fake timers)", () => {
 });
 
 describe("HTTP answer server", () => {
+  // Use port 0 so the OS assigns a free port — avoids conflicts with running services.
   it("resolves pending question when POST /answers/{taskId} received", async () => {
     const notifier = createMockNotifier();
     const bridge = createTelegramBridge({ notifier });
-    bridge.startAnswerServer();
-
-    // Small delay to let server start
-    await new Promise((r) => setTimeout(r, 50));
+    const port = await bridge.startAnswerServer(0);
 
     const promise = bridge.askAndWait("HQ-42", "What DB?");
 
-    // POST the answer
-    const res = await fetch("http://127.0.0.1:3847/answers/HQ-42", {
+    const res = await fetch(`http://127.0.0.1:${port}/answers/HQ-42`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ answer: "PostgreSQL" }),
@@ -91,10 +88,9 @@ describe("HTTP answer server", () => {
   it("returns 404 for unknown taskId", async () => {
     const notifier = createMockNotifier();
     const bridge = createTelegramBridge({ notifier });
-    bridge.startAnswerServer();
-    await new Promise((r) => setTimeout(r, 50));
+    const port = await bridge.startAnswerServer(0);
 
-    const res = await fetch("http://127.0.0.1:3847/answers/UNKNOWN", {
+    const res = await fetch(`http://127.0.0.1:${port}/answers/UNKNOWN`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ answer: "test" }),
@@ -107,10 +103,9 @@ describe("HTTP answer server", () => {
   it("GET /health returns status", async () => {
     const notifier = createMockNotifier();
     const bridge = createTelegramBridge({ notifier });
-    bridge.startAnswerServer();
-    await new Promise((r) => setTimeout(r, 50));
+    const port = await bridge.startAnswerServer(0);
 
-    const res = await fetch("http://127.0.0.1:3847/health");
+    const res = await fetch(`http://127.0.0.1:${port}/health`);
     const data = (await res.json()) as { ok: boolean; pending: number };
 
     expect(data.ok).toBe(true);

@@ -5,7 +5,8 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import type { PlaneClient } from "@agent-hq/plane-client";
 
-const execAsync = promisify(exec);
+// Default exec implementation — can be overridden via McpToolsDeps for testing
+const defaultExecAsync = promisify(exec);
 import {
   createSkillFile,
   stripSkillMetadata,
@@ -29,7 +30,18 @@ type McpToolsContext = {
   ciCommands: string[];
 };
 
-export const createAgentMcpServer = (ctx: McpToolsContext) => {
+type ExecAsyncFn = (
+  cmd: string,
+  opts: { cwd?: string; timeout?: number }
+) => Promise<{ stdout: string; stderr: string }>;
+
+type McpToolsDeps = {
+  /** Override the exec implementation — primarily for testing. */
+  execAsync?: ExecAsyncFn;
+};
+
+export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) => {
+  const execAsync = deps?.execAsync ?? (defaultExecAsync as ExecAsyncFn);
   return createSdkMcpServer({
     name: "agent-plane-tools",
     tools: [
@@ -350,7 +362,9 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               });
             } catch (err) {
               const execError = err as { stdout?: string; stderr?: string; message?: string };
-              const output = ((execError.stdout ?? "") + (execError.stderr ?? execError.message ?? "")).slice(
+              // Use || (not ??) for stderr so that an empty string falls through to err.message,
+              // ensuring timeout and other error messages are surfaced to the user.
+              const output = ((execError.stdout ?? "") + (execError.stderr || execError.message || "")).slice(
                 0,
                 500
               );
