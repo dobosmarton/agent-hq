@@ -2,6 +2,9 @@ import { z } from "zod";
 
 const TELEGRAM_API = "https://api.telegram.org";
 
+export const escapeHtml = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 const TelegramResponseSchema = z.object({
   result: z
     .object({
@@ -61,22 +64,22 @@ export const createNotifier = (config: NotifierConfig) => {
 
   return {
     agentStarted: async (taskId: string, title: string): Promise<number> => {
-      return sendMessage(`<b>Agent started</b>\n<code>${taskId}</code>: ${title}`);
+      return sendMessage(`<b>Agent started</b>\n<code>${taskId}</code>: ${escapeHtml(title)}`);
     },
 
     agentCompleted: async (taskId: string, title: string): Promise<void> => {
-      await sendMessage(`<b>Agent completed</b>\n<code>${taskId}</code>: ${title}`);
+      await sendMessage(`<b>Agent completed</b>\n<code>${taskId}</code>: ${escapeHtml(title)}`);
     },
 
     agentErrored: async (taskId: string, title: string, error: string): Promise<void> => {
       await sendMessage(
-        `<b>Agent error</b>\n<code>${taskId}</code>: ${title}\n\n<pre>${error.slice(0, 500)}</pre>`
+        `<b>Agent error</b>\n<code>${taskId}</code>: ${escapeHtml(title)}\n\n<pre>${escapeHtml(error.slice(0, 500))}</pre>`
       );
     },
 
     agentBlocked: async (taskId: string, question: string): Promise<number> => {
       return sendMessage(
-        `<b>Agent needs help</b>\n<code>${taskId}</code>\n\n${question}\n\n<i>Reply to this message to answer.</i>`
+        `<b>Agent needs help</b>\n<code>${taskId}</code>\n\n${escapeHtml(question)}\n\n<i>Reply to this message to answer.</i>`
       );
     },
 

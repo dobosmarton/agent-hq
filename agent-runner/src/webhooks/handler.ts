@@ -1,6 +1,6 @@
 import type { Config, PlaneClient } from "../config";
 import type { TaskPoller } from "../poller/task-poller";
-import type { Notifier } from "../telegram/notifier";
+import { escapeHtml, type Notifier } from "../telegram/notifier";
 import type { ReviewOrchestrator } from "@agent-hq/review-agent";
 import { extractTaskIds } from "./task-matcher";
 import type { GitHubPullRequestEvent, WebhookProcessResult } from "./types";
@@ -165,8 +165,10 @@ export const handlePullRequestReviewTrigger = async (
   const prUrl = pr.html_url;
 
   // Notify review started
+  const safeTitle = escapeHtml(pr.title);
+
   void notifier.sendMessage(
-    `<b>Review started</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${pr.title}\nTask: <code>${taskId}</code>`
+    `<b>Review started</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${safeTitle}\nTask: <code>${taskId}</code>`
   );
 
   // Trigger review asynchronously with completion notifications
@@ -175,11 +177,11 @@ export const handlePullRequestReviewTrigger = async (
     .then((result) => {
       if (result.success) {
         void notifier.sendMessage(
-          `<b>Review completed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${pr.title}`
+          `<b>Review completed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${safeTitle}`
         );
       } else {
         void notifier.sendMessage(
-          `<b>Review failed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${pr.title}\n<pre>${result.error?.slice(0, 300) ?? "Unknown error"}</pre>`
+          `<b>Review failed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${safeTitle}\n<pre>${escapeHtml(result.error?.slice(0, 300) ?? "Unknown error")}</pre>`
         );
       }
     })
@@ -187,7 +189,7 @@ export const handlePullRequestReviewTrigger = async (
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`❌ Webhook: Review failed for PR #${pr.number}:`, err);
       void notifier.sendMessage(
-        `<b>Review crashed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${pr.title}\n<pre>${msg.slice(0, 300)}</pre>`
+        `<b>Review crashed</b>\nPR <a href="${prUrl}">#${pr.number}</a>: ${safeTitle}\n<pre>${escapeHtml(msg.slice(0, 300))}</pre>`
       );
     });
 
