@@ -123,6 +123,20 @@ export const createReviewOrchestrator = (deps: ReviewOrchestratorDeps) => {
       // Create GitHub client for this request
       const github = deps.createGitHub(owner, repo);
 
+      // Skip review if bot has already reviewed this PR (prevents infinite cycles)
+      const botReviewMarker = "Automated review by PR Review Agent";
+      const existingReviewsResult = await github.listReviews(prNumber);
+      const existingBotReviews = existingReviewsResult.success
+        ? existingReviewsResult.data.filter((r) => r.body.includes(botReviewMarker)).length
+        : 0;
+
+      if (existingBotReviews > 0) {
+        console.log(
+          `ℹ️  Review: Skipping PR #${prNumber} — already reviewed (${existingBotReviews} prior review(s))`
+        );
+        return { success: true, data: undefined };
+      }
+
       // Fetch PR details
       console.log(`📥 Review: Fetching PR details...`);
       const prResult = await github.getPullRequest(prNumber);
@@ -205,6 +219,18 @@ export const createReviewOrchestrator = (deps: ReviewOrchestratorDeps) => {
       const githubResult = await postReviewToGitHub(github, prNumber, analysis);
       if (!githubResult.success) {
         console.error(`❌ Review: Failed to post to GitHub: ${githubResult.error}`);
+        // Don't attempt state transitions if the review wasn't posted
+      } else {
+        // Move task to Todo on first review with requested changes
+        // The early-exit guard above ensures this only runs on the first review
+        if (options?.todoStateId && analysis.overallAssessment === "request_changes") {
+          try {
+            await deps.plane.updateIssue(projectId, issueId, { state: options.todoStateId });
+            console.log(`📋 Review: Moved ${taskId} back to Todo for rework`);
+          } catch (err) {
+            console.error(`❌ Review: Failed to move ${taskId} to Todo:`, err);
+          }
+        }
       }
 
       // Post summary to Plane task
@@ -214,29 +240,6 @@ export const createReviewOrchestrator = (deps: ReviewOrchestratorDeps) => {
       void deps.plane.addComment(projectId, issueId, planeSummary).catch((err: unknown) => {
         console.error(`❌ Review: Failed to post summary to Plane:`, err);
       });
-
-      // Move task to Todo on first review with requested changes
-      if (options?.todoStateId && analysis.overallAssessment === "request_changes") {
-        const botReviewMarker = "Automated review by PR Review Agent";
-        const reviewsResult = await github.listReviews(prNumber);
-        const botReviewCount = reviewsResult.success
-          ? reviewsResult.data.filter((r) => r.body.includes(botReviewMarker)).length
-          : 0;
-
-        // Count includes the review we just posted — first review means count of 1
-        if (botReviewCount <= 1) {
-          try {
-            await deps.plane.updateIssue(projectId, issueId, { state: options.todoStateId });
-            console.log(`📋 Review: Moved ${taskId} back to Todo for rework (first review)`);
-          } catch (err) {
-            console.error(`❌ Review: Failed to move ${taskId} to Todo:`, err);
-          }
-        } else {
-          console.log(
-            `ℹ️  Review: Skipping Todo move for ${taskId} (${botReviewCount} prior reviews)`
-          );
-        }
-      }
 
       console.log(`✅ Review: Review complete for PR #${prNumber}`);
       return { success: true, data: undefined };
