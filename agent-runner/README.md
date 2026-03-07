@@ -269,17 +269,18 @@ To test the webhook integration:
 
 Agents get access to a custom MCP server (`agent-plane-tools`) with these tools:
 
-| Tool                      | Description                                  |
-| ------------------------- | -------------------------------------------- |
-| `update_task_status`      | Move task to plan_review, in_review, or done |
-| `add_task_comment`        | Post HTML progress comment                   |
-| `add_task_link`           | Attach link (e.g., PR URL) to task           |
-| `list_task_comments`      | Retrieve all comments on current task        |
-| `list_labels`             | List project labels                          |
-| `add_labels_to_task`      | Add labels (case-insensitive)                |
-| `remove_labels_from_task` | Remove labels                                |
-| `load_skill`              | Load full content of a skill by ID           |
-| `create_skill`            | Create a new skill file for future agents    |
+| Tool                      | Description                                     |
+| ------------------------- | ----------------------------------------------- |
+| `update_task_status`      | Move task to plan_review, in_review, or done    |
+| `add_task_comment`        | Post HTML progress comment                      |
+| `add_task_link`           | Attach link (e.g., PR URL) to task              |
+| `list_task_comments`      | Retrieve all comments on current task           |
+| `list_labels`             | List project labels                             |
+| `add_labels_to_task`      | Add labels (case-insensitive)                   |
+| `remove_labels_from_task` | Remove labels                                   |
+| `load_skill`              | Load full content of a skill by ID              |
+| `create_skill`            | Create a new skill file for future agents       |
+| `validate_quality_gate`   | Run all CI commands and return pass/fail report |
 
 ## Skills System
 

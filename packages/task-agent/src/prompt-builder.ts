@@ -164,6 +164,22 @@ ${resumeContext ? "- This branch already has commits — review them before addi
 - Commit messages should start with "${taskId}:"
 - NEVER commit code that fails CI validation checks
 
+## Quality Gate — MANDATORY Before Creating PR
+
+Before creating the PR, you MUST complete this checklist in order:
+
+1. **Run all CI checks** — run every quality check from the CI Validation section above. All must pass
+2. **Acceptance criteria validation** — go through EVERY acceptance criterion from the task description:
+   - For each criterion: confirm it is implemented and working
+   - If any criterion is not met: implement it now, do not skip
+3. **Test quality** — zero tolerance policy:
+   - All tests must pass (run the full test suite, not just changed files)
+   - No flaky tests — a flaky test is a broken test, fix it
+   - No skipped/commented-out tests unless explicitly approved
+4. **Documentation** — README.md must reflect any user-facing changes
+
+Only create the PR after ALL items above are confirmed. Do not create a PR with known issues.
+
 ## Important
 - Do not modify files unrelated to the task
 - Exception: README.md updates ARE always related to the task — keep them in sync with your changes

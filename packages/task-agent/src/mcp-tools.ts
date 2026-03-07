@@ -1,7 +1,12 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
+import { exec } from "node:child_process";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { z } from "zod";
 import type { PlaneClient } from "@agent-hq/plane-client";
+
+// Default exec implementation — can be overridden via McpToolsDeps for testing
+const defaultExecAsync = promisify(exec);
 import {
   createSkillFile,
   stripSkillMetadata,
@@ -22,9 +27,21 @@ type McpToolsContext = {
   skills: Skill[];
   projectRepoPath: string;
   agentRunnerRoot: string;
+  ciCommands: string[];
 };
 
-export const createAgentMcpServer = (ctx: McpToolsContext) => {
+type ExecAsyncFn = (
+  cmd: string,
+  opts: { cwd?: string; timeout?: number }
+) => Promise<{ stdout: string; stderr: string }>;
+
+type McpToolsDeps = {
+  /** Override the exec implementation — primarily for testing. */
+  execAsync?: ExecAsyncFn;
+};
+
+export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) => {
+  const execAsync = deps?.execAsync ?? (defaultExecAsync as ExecAsyncFn);
   return createSdkMcpServer({
     name: "agent-plane-tools",
     tools: [
@@ -303,6 +320,68 @@ export const createAgentMcpServer = (ctx: McpToolsContext) => {
               {
                 type: "text" as const,
                 text: stripSkillMetadata(skill.content),
+              },
+            ],
+          };
+        }
+      ),
+
+      tool(
+        "validate_quality_gate",
+        "Run all CI quality checks (formatting, type checking, tests) in the project directory and return a structured pass/fail report. Call this before creating a PR to verify all checks pass. Returns per-command results so you can fix failures before pushing.",
+        {},
+        async () => {
+          if (ctx.ciCommands.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No CI commands configured. Run quality checks manually using Bash.",
+                },
+              ],
+            };
+          }
+
+          type CommandResult = {
+            command: string;
+            passed: boolean;
+            output: string;
+          };
+          const results: CommandResult[] = [];
+
+          for (const cmd of ctx.ciCommands) {
+            try {
+              const { stdout, stderr } = await execAsync(cmd, {
+                cwd: ctx.projectRepoPath,
+                timeout: 120_000,
+              });
+              results.push({
+                command: cmd,
+                passed: true,
+                output: (stdout + stderr).slice(0, 500),
+              });
+            } catch (err) {
+              const execError = err as { stdout?: string; stderr?: string; message?: string };
+              // Use || (not ??) for stderr so that an empty string falls through to err.message,
+              // ensuring timeout and other error messages are surfaced to the user.
+              const output = ((execError.stdout ?? "") + (execError.stderr || execError.message || "")).slice(
+                0,
+                500
+              );
+              results.push({ command: cmd, passed: false, output });
+            }
+          }
+
+          const allPassed = results.every((r) => r.passed);
+          const summary = results
+            .map((r) => `${r.passed ? "✓" : "✗"} ${r.command}\n${r.output}`)
+            .join("\n\n");
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Quality gate ${allPassed ? "PASSED" : "FAILED"} (${results.filter((r) => r.passed).length}/${results.length} checks passed)\n\n${summary}`,
               },
             ],
           };
