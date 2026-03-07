@@ -31,7 +31,7 @@ const handleAnalysisError = (
   plane: PlaneClient,
   error: string,
   projectId: string,
-  taskId: string
+  issueId: string
 ): ReviewResult<void> => {
   console.error(`❌ Review: Analysis failed: ${error}`);
 
@@ -39,7 +39,7 @@ const handleAnalysisError = (
   void plane
     .addComment(
       projectId,
-      taskId,
+      issueId,
       `<p><strong>⚠️ Automated PR Review Failed</strong></p><p>Error: ${error}</p><p>Please review the PR manually.</p>`
     )
     .catch((err: unknown) => {
@@ -113,6 +113,22 @@ export const createReviewOrchestrator = (
     try {
       console.log(`\n🔍 Review: Starting review for PR #${prNumber} (${taskId})...`);
 
+      // Resolve task identifier (e.g. "AGENTHQ-32") to Plane issue UUID
+      const parsed = plane.parseIssueIdentifier(taskId);
+      if (!parsed) {
+        return { success: false, error: `Invalid task identifier: ${taskId}` };
+      }
+
+      console.log(`📥 Review: Resolving ${taskId} to Plane issue...`);
+      const task = await plane.findIssueBySequenceId(projectId, parsed.sequenceId);
+      if (!task) {
+        return {
+          success: false,
+          error: `Task ${taskId} not found in project ${projectId}`,
+        };
+      }
+      const issueId = task.id;
+
       // Create GitHub client
       const githubClient = createGitHubClient({
         token: githubToken,
@@ -160,16 +176,6 @@ export const createReviewOrchestrator = (
         return { success: true, data: undefined };
       }
 
-      // Fetch task details
-      console.log(`📥 Review: Fetching task details from Plane...`);
-      const task = await plane.getIssue(projectId, taskId);
-      if (!task) {
-        return {
-          success: false,
-          error: `Task ${taskId} not found in project ${projectId}`,
-        };
-      }
-
       // Load coding skills
       console.log(`📚 Review: Loading coding skills...`);
       const skills = loadSkills("implementation", "", {
@@ -209,7 +215,7 @@ export const createReviewOrchestrator = (
           );
 
           if (!analysisResult.success) {
-            return handleAnalysisError(plane, analysisResult.error, projectId, taskId);
+            return handleAnalysisError(plane, analysisResult.error, projectId, issueId);
           }
 
           analysis = analysisResult.data;
@@ -224,7 +230,7 @@ export const createReviewOrchestrator = (
 
           if (!toolSelectionResult.success) {
             console.error(`❌ Review: Tool selection failed: ${toolSelectionResult.error}`);
-            return handleAnalysisError(plane, toolSelectionResult.error, projectId, taskId);
+            return handleAnalysisError(plane, toolSelectionResult.error, projectId, issueId);
           }
 
           const selectedTools = toolSelectionResult.data;
@@ -239,7 +245,7 @@ export const createReviewOrchestrator = (
 
           if (!parallelResult.success) {
             console.error(`❌ Review: Parallel review failed: ${parallelResult.error}`);
-            return handleAnalysisError(plane, parallelResult.error, projectId, taskId);
+            return handleAnalysisError(plane, parallelResult.error, projectId, issueId);
           }
 
           analysis = parallelResult.data;
@@ -253,7 +259,7 @@ export const createReviewOrchestrator = (
         );
 
         if (!analysisResult.success) {
-          return handleAnalysisError(plane, analysisResult.error, projectId, taskId);
+          return handleAnalysisError(plane, analysisResult.error, projectId, issueId);
         }
 
         analysis = analysisResult.data;
@@ -269,7 +275,7 @@ export const createReviewOrchestrator = (
       console.log(`📝 Review: Posting summary to Plane task...`);
       const planeSummary = buildPlaneSummary(analysis, prNumber, pr.html_url);
 
-      void plane.addComment(projectId, taskId, planeSummary).catch((err: unknown) => {
+      void plane.addComment(projectId, issueId, planeSummary).catch((err: unknown) => {
         console.error(`❌ Review: Failed to post summary to Plane:`, err);
       });
 
