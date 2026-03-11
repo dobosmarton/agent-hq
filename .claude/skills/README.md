@@ -19,18 +19,22 @@ Project skills override global skills with the same `id`, allowing you to custom
 2. Add metadata comments at the top:
 
 ```markdown
-<!-- skill:name = Your Skill Name -->
-<!-- skill:description = Brief description of what this skill covers -->
-<!-- skill:category = best-practices -->
-<!-- skill:priority = 70 -->
-<!-- skill:appliesTo = both -->
+---
+name: Your Skill Name
+description: Brief description of what this skill covers
+category: best-practices
+priority: 70
+applies_to: both
+---
 
 # Your Skill Name
 
 ## Section 1
+
 Content here...
 
 ## Section 2
+
 More content...
 ```
 
@@ -49,6 +53,7 @@ More content...
 ## Skill Examples
 
 See existing skills in:
+
 - Global: `agent-runner/skills/global/`
 - Project: `.claude/skills/` (this directory)
 
@@ -76,8 +81,10 @@ When an agent starts working on a task:
 To temporarily disable a skill without deleting it:
 
 ```markdown
-<!-- skill:name = My Skill -->
-<!-- skill:enabled = false -->
+---
+name: My Skill
+enabled: false
+---
 ```
 
 ## Viewing Active Skills

@@ -166,13 +166,13 @@ These tools are defined in the [`@agent-hq/plane-tools`](./packages/plane-tools/
 
 **Project discovery tools** (enabled when `GITHUB_PAT` is set):
 
-| Tool                        | Description                                                       |
-| --------------------------- | ----------------------------------------------------------------- |
-| `search_github_projects`    | Searches GitHub repos by name or URL (user, org, and global)      |
-| `search_plane_projects`     | Searches existing Plane projects by keyword                       |
-| `create_plane_project`      | Creates a new Plane project; optionally auto-links a GitHub repo  |
-| `find_github_plane_match`   | Finds matching Plane project for a GitHub repo                    |
-| `get_project_mapping`       | Gets the full mapping between GitHub repos and Plane projects     |
+| Tool                        | Description                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| `search_github_projects`    | Searches GitHub repos by name or URL (user, org, and global)                             |
+| `search_plane_projects`     | Searches existing Plane projects by keyword                                              |
+| `create_plane_project`      | Creates a new Plane project; optionally auto-links a GitHub repo                         |
+| `find_github_plane_match`   | Finds matching Plane project for a GitHub repo                                           |
+| `get_project_mapping`       | Gets the full mapping between GitHub repos and Plane projects                            |
 | `link_github_plane_project` | Automatically links a GitHub repo to a Plane project by writing agent-runner config.json |
 
 **Agent runner tools:**
@@ -197,6 +197,7 @@ packages/plane-tools/
 ```
 
 **Usage in telegram-bot** (`telegram-bot/src/agent/tools.ts`):
+
 ```typescript
 import { createPlaneTools } from "@agent-hq/plane-tools";
 // Returns all 12 Mastra tools ready for the agent
@@ -204,6 +205,7 @@ const planeTools = createPlaneTools(plane, planeBaseUrl);
 ```
 
 **Usage in task-agent** (`packages/task-agent/src/mcp-tools.ts`):
+
 ```typescript
 import { addLabelsToTaskExecutor, removeLabelsFromTaskExecutor } from "@agent-hq/plane-tools";
 // Pure executor functions called inside MCP tool handlers
@@ -213,20 +215,20 @@ import { addLabelsToTaskExecutor, removeLabelsFromTaskExecutor } from "@agent-hq
 
 Copy `env.example` to `.env` and fill in the values:
 
-| Variable                       | Description                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------ |
-| `TELEGRAM_BOT_TOKEN`           | Bot token from @BotFather                                                            |
-| `ALLOWED_USER_ID`              | Your Telegram user ID (auth gate)                                                    |
-| `PLANE_API_KEY`                | Plane workspace API token                                                            |
-| `PLANE_BASE_URL`               | Plane API base URL (e.g. `http://localhost/api/v1`)                                  |
-| `PLANE_WORKSPACE_SLUG`         | Plane workspace slug                                                                 |
-| `ANTHROPIC_API_KEY`            | Anthropic API key                                                                    |
-| `ANTHROPIC_MODEL`              | Model ID (default: `claude-haiku-4-5-20251001`)                                      |
-| `AGENT_RUNNER_URL`             | Agent runner HTTP URL for queue tools (optional, e.g. `http://127.0.0.1:3847`)       |
-| `GITHUB_PAT`                   | GitHub Personal Access Token for project discovery (optional — enables GitHub tools) |
-| `PROGRESS_FEEDBACK_ENABLED`    | Enable real-time progress updates (default: `true`)                                  |
-| `PROGRESS_UPDATE_INTERVAL_MS`  | Minimum time between progress updates in milliseconds (default: `2500`)              |
-| `AGENT_RUNNER_CONFIG_PATH`     | Path to agent-runner config.json for automatic project linking (default: `../agent-runner/config.json`) |
+| Variable                      | Description                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `TELEGRAM_BOT_TOKEN`          | Bot token from @BotFather                                                                               |
+| `ALLOWED_USER_ID`             | Your Telegram user ID (auth gate)                                                                       |
+| `PLANE_API_KEY`               | Plane workspace API token                                                                               |
+| `PLANE_BASE_URL`              | Plane API base URL (e.g. `http://localhost/api/v1`)                                                     |
+| `PLANE_WORKSPACE_SLUG`        | Plane workspace slug                                                                                    |
+| `ANTHROPIC_API_KEY`           | Anthropic API key                                                                                       |
+| `ANTHROPIC_MODEL`             | Model ID (default: `claude-haiku-4-5-20251001`)                                                         |
+| `AGENT_RUNNER_URL`            | Agent runner HTTP URL for queue tools (optional, e.g. `http://127.0.0.1:3847`)                          |
+| `GITHUB_PAT`                  | GitHub Personal Access Token for project discovery (optional — enables GitHub tools)                    |
+| `PROGRESS_FEEDBACK_ENABLED`   | Enable real-time progress updates (default: `true`)                                                     |
+| `PROGRESS_UPDATE_INTERVAL_MS` | Minimum time between progress updates in milliseconds (default: `2500`)                                 |
+| `AGENT_RUNNER_CONFIG_PATH`    | Path to agent-runner config.json for automatic project linking (default: `../agent-runner/config.json`) |
 
 ### Local development
 
@@ -263,15 +265,15 @@ ssh -i ~/.ssh/<ssh-key-name> deploy@<vps-ip> "cd ~/telegram-bot && docker compos
 
 ### Scripts
 
-| Script                      | Command                           |
-| --------------------------- | --------------------------------- |
-| `pnpm run build`            | Type-check TypeScript             |
-| `pnpm start`                | Run the bot                       |
-| `pnpm run dev`              | Watch mode (recompile on changes) |
-| `pnpm test`                 | Run unit tests                    |
-| `pnpm run test:watch`       | Run tests in watch mode           |
-| `pnpm run format`           | Format code with Prettier         |
-| `pnpm run format:check`     | Check formatting (CI)             |
+| Script                  | Command                           |
+| ----------------------- | --------------------------------- |
+| `pnpm run build`        | Type-check TypeScript             |
+| `pnpm start`            | Run the bot                       |
+| `pnpm run dev`          | Watch mode (recompile on changes) |
+| `pnpm test`             | Run unit tests                    |
+| `pnpm run test:watch`   | Run tests in watch mode           |
+| `pnpm run format`       | Format code with Prettier         |
+| `pnpm run format:check` | Check formatting (CI)             |
 
 ## Agent Runner
 
@@ -332,14 +334,16 @@ Skills are reusable coding standards and best practices that agents can load on-
 
 **Project skills** are loaded from `.claude/skills/` within each project repo. They override global skills with the same ID.
 
-Skills are markdown files with metadata in HTML comments:
+Skills are markdown files with YAML frontmatter:
 
 ```markdown
-<!-- skill:name = TypeScript Node.js Best Practices -->
-<!-- skill:description = TypeScript and Node.js project setup and type-safe coding patterns -->
-<!-- skill:category = best-practices -->
-<!-- skill:priority = 80 -->
-<!-- skill:appliesTo = both -->
+---
+name: TypeScript Node.js Best Practices
+description: TypeScript and Node.js project setup and type-safe coding patterns
+category: best-practices
+priority: 80
+applies_to: both
+---
 
 # Content here...
 ```
@@ -367,13 +371,13 @@ The PR review agent provides automated code review for pull requests created by 
 
 **Review skills** (loaded from `skills/global/`):
 
-| Skill                   | Focus                                                     |
-| ----------------------- | --------------------------------------------------------- |
-| `security-review`       | Security vulnerabilities, injection attacks, secrets      |
-| `architecture-review`   | Design patterns, modularity, separation of concerns       |
-| `performance-review`    | N+1 queries, algorithm complexity, caching opportunities  |
-| `testing-review`        | Test coverage, edge cases, test quality                   |
-| `completeness-review`   | Acceptance criteria verification, missing functionality   |
+| Skill                 | Focus                                                    |
+| --------------------- | -------------------------------------------------------- |
+| `security-review`     | Security vulnerabilities, injection attacks, secrets     |
+| `architecture-review` | Design patterns, modularity, separation of concerns      |
+| `performance-review`  | N+1 queries, algorithm complexity, caching opportunities |
+| `testing-review`      | Test coverage, edge cases, test quality                  |
+| `completeness-review` | Acceptance criteria verification, missing functionality  |
 
 **Configuration** (`config.json`):
 
@@ -471,30 +475,30 @@ agent-runner/
 
 Agent behavior is configured in `config.json`:
 
-| Setting                           | Default               | Description                              |
-| --------------------------------- | --------------------- | ---------------------------------------- |
-| `agent.maxConcurrent`             | 2                     | Max agents running in parallel           |
-| `agent.maxBudgetPerTask`          | $5.00                 | Budget ceiling per individual task       |
-| `agent.maxDailyBudget`            | $20.00                | Total daily spend limit                  |
-| `agent.maxTurns`                  | 200                   | Max agent turns per task                 |
-| `agent.pollIntervalMs`            | 30000                 | Discovery cycle interval                 |
-| `agent.spawnDelayMs`              | 15000                 | Processing cycle interval                |
-| `agent.maxRetries`                | 2                     | Retry count for transient failures       |
-| `agent.retryBaseDelayMs`          | 60000                 | Base delay for exponential backoff       |
-| `agent.labelName`                 | `agent`               | Plane label that triggers agent pickup   |
-| `agent.skills.enabled`            | `true`                | Enable/disable the skills system         |
-| `agent.skills.maxSkillsPerPrompt` | 10                    | Max skills available per agent session   |
-| `agent.skills.globalSkillsPath`   | `skills/global`       | Path to global skills directory          |
-| `webhook.enabled`                 | `true`                | Enable/disable the GitHub webhook server |
-| `webhook.port`                    | 3000                  | Port for the webhook server              |
-| `webhook.path`                    | `/webhooks/github/pr`         | URL path for GitHub webhook events            |
-| `webhook.taskIdPattern`           | `([A-Z]+-\\d+)`               | Regex to extract task IDs from PRs            |
-| `review.enabled`                  | `false`                       | Enable/disable automated PR review agent      |
-| `review.triggerOnOpened`          | `true`                        | Trigger review when PR is opened              |
-| `review.triggerOnSynchronize`     | `true`                        | Trigger review when PR is updated             |
-| `review.severityThreshold`        | `major`                       | Minimum severity for issues (`critical`/`major`/`minor`/`suggestion`) |
-| `review.maxDiffSizeKb`            | `100`                         | Maximum diff size for automated review (KB)   |
-| `review.claudeModel`              | `claude-sonnet-4-6`  | Model to use for code analysis                |
+| Setting                           | Default               | Description                                                           |
+| --------------------------------- | --------------------- | --------------------------------------------------------------------- |
+| `agent.maxConcurrent`             | 2                     | Max agents running in parallel                                        |
+| `agent.maxBudgetPerTask`          | $5.00                 | Budget ceiling per individual task                                    |
+| `agent.maxDailyBudget`            | $20.00                | Total daily spend limit                                               |
+| `agent.maxTurns`                  | 200                   | Max agent turns per task                                              |
+| `agent.pollIntervalMs`            | 30000                 | Discovery cycle interval                                              |
+| `agent.spawnDelayMs`              | 15000                 | Processing cycle interval                                             |
+| `agent.maxRetries`                | 2                     | Retry count for transient failures                                    |
+| `agent.retryBaseDelayMs`          | 60000                 | Base delay for exponential backoff                                    |
+| `agent.labelName`                 | `agent`               | Plane label that triggers agent pickup                                |
+| `agent.skills.enabled`            | `true`                | Enable/disable the skills system                                      |
+| `agent.skills.maxSkillsPerPrompt` | 10                    | Max skills available per agent session                                |
+| `agent.skills.globalSkillsPath`   | `skills/global`       | Path to global skills directory                                       |
+| `webhook.enabled`                 | `true`                | Enable/disable the GitHub webhook server                              |
+| `webhook.port`                    | 3000                  | Port for the webhook server                                           |
+| `webhook.path`                    | `/webhooks/github/pr` | URL path for GitHub webhook events                                    |
+| `webhook.taskIdPattern`           | `([A-Z]+-\\d+)`       | Regex to extract task IDs from PRs                                    |
+| `review.enabled`                  | `false`               | Enable/disable automated PR review agent                              |
+| `review.triggerOnOpened`          | `true`                | Trigger review when PR is opened                                      |
+| `review.triggerOnSynchronize`     | `true`                | Trigger review when PR is updated                                     |
+| `review.severityThreshold`        | `major`               | Minimum severity for issues (`critical`/`major`/`minor`/`suggestion`) |
+| `review.maxDiffSizeKb`            | `100`                 | Maximum diff size for automated review (KB)                           |
+| `review.claudeModel`              | `claude-sonnet-4-6`   | Model to use for code analysis                                        |
 
 ### Environment variables
 
@@ -512,18 +516,18 @@ Copy `env.example` to `.env` and fill in the values:
 
 ### Scripts
 
-| Script                          | Command                            |
-| ------------------------------- | ---------------------------------- |
-| `pnpm run build`                | Type-check TypeScript              |
-| `pnpm start`                    | Run the runner                     |
-| `pnpm run dev`                  | Watch mode (recompile on changes)  |
-| `pnpm test`                     | Run unit tests                     |
-| `pnpm run test:watch`           | Run tests in watch mode            |
-| `pnpm run format`               | Format code with Prettier          |
-| `pnpm run format:check`         | Check formatting (CI)              |
-| `pnpm run skills:list`          | List all global and project skills |
-| `pnpm run skills:show <id>`     | Show detailed skill content        |
-| `pnpm run skills:validate`      | Validate skill file syntax         |
+| Script                      | Command                            |
+| --------------------------- | ---------------------------------- |
+| `pnpm run build`            | Type-check TypeScript              |
+| `pnpm start`                | Run the runner                     |
+| `pnpm run dev`              | Watch mode (recompile on changes)  |
+| `pnpm test`                 | Run unit tests                     |
+| `pnpm run test:watch`       | Run tests in watch mode            |
+| `pnpm run format`           | Format code with Prettier          |
+| `pnpm run format:check`     | Check formatting (CI)              |
+| `pnpm run skills:list`      | List all global and project skills |
+| `pnpm run skills:show <id>` | Show detailed skill content        |
+| `pnpm run skills:validate`  | Validate skill file syntax         |
 
 ### GitHub webhooks
 
@@ -560,12 +564,12 @@ When enabled (`review.enabled: true`), the PR review agent automatically reviews
 
 **GitHub webhook setup** (per repo): Settings > Webhooks > Add webhook
 
-| Field        | Value                                                   |
-| ------------ | ------------------------------------------------------- |
+| Field        | Value                                                  |
+| ------------ | ------------------------------------------------------ |
 | Payload URL  | `http://<vps-public-ip>:3000/webhooks/github/pr`       |
-| Content type | `application/json`                                      |
+| Content type | `application/json`                                     |
 | Secret       | Same as `GITHUB_WEBHOOK_SECRET` in agent-runner `.env` |
-| Events       | Pull requests                                           |
+| Events       | Pull requests                                          |
 
 ### Deployment
 
