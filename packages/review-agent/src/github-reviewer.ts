@@ -133,12 +133,23 @@ export const postReviewToGitHub = async (
       `📝 Review: Posting ${event} review to PR #${prNumber} (${inlineComments.length} inline comments)...`
     );
 
-    const result = await client.createReview(
+    let result = await client.createReview(
       prNumber,
       event,
       body,
       inlineComments.length > 0 ? inlineComments : undefined
     );
+
+    // Fall back to COMMENT if REQUEST_CHANGES is rejected (e.g. reviewing own PR)
+    if (!result.success && event === "REQUEST_CHANGES" && result.error.includes("422")) {
+      console.log(`⚠️ Review: REQUEST_CHANGES rejected, falling back to COMMENT for PR #${prNumber}`);
+      result = await client.createReview(
+        prNumber,
+        "COMMENT",
+        body,
+        inlineComments.length > 0 ? inlineComments : undefined
+      );
+    }
 
     if (!result.success) {
       return { success: false, error: result.error };

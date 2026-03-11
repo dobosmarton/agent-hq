@@ -1,6 +1,7 @@
 import type { ReviewOrchestrator } from "@agent-hq/review-agent";
 import { createReviewOrchestrator, createGitHubClient } from "@agent-hq/review-agent";
 import { createAgentManager } from "@agent-hq/task-agent";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildPlaneClient, loadConfig, loadEnv } from "./config";
 import { createTaskPoller } from "./poller/task-poller";
@@ -49,8 +50,26 @@ const main = async (): Promise<void> => {
   let reviewAgent: ReviewOrchestrator | undefined;
   if (config.review.enabled) {
     console.log("✅ Review agent enabled");
+    const githubAppPrivateKey =
+      env.GITHUB_APP_PRIVATE_KEY_PATH
+        ? readFileSync(env.GITHUB_APP_PRIVATE_KEY_PATH, "utf-8")
+        : undefined;
+
     reviewAgent = createReviewOrchestrator({
-      createGitHub: (owner, repo) => createGitHubClient({ token: env.GITHUB_PAT, owner, repo }),
+      createGitHub: (owner, repo) =>
+        createGitHubClient({
+          auth:
+            env.GITHUB_APP_ID && githubAppPrivateKey && env.GITHUB_APP_INSTALLATION_ID
+              ? {
+                  type: "app",
+                  appId: env.GITHUB_APP_ID,
+                  privateKey: githubAppPrivateKey,
+                  installationId: env.GITHUB_APP_INSTALLATION_ID,
+                }
+              : { type: "token", token: env.GITHUB_PAT },
+          owner,
+          repo,
+        }),
       plane,
       config: config.review,
       anthropicApiKey: env.ANTHROPIC_API_KEY,
