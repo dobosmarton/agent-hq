@@ -50,6 +50,7 @@ This is a **pnpm workspace** monorepo. Shared logic is extracted into reusable p
 ```
 packages/
 ├── plane-client/     @agent-hq/plane-client   — Typed Plane API client (projects, issues, states, labels, comments)
+├── plane-tools/      @agent-hq/plane-tools    — Unified Plane tool definitions (Mastra createTool + executor functions)
 ├── shared-types/     @agent-hq/shared-types   — Shared type definitions (AgentTask, RunnerState, PLAN_MARKER)
 ├── skills/           @agent-hq/skills         — Skill loading, formatting, and validation
 ├── review-agent/     @agent-hq/review-agent   — PR review orchestrator with parallel review dimensions
@@ -103,6 +104,7 @@ When creating tasks, the agent proactively enriches your brief description into 
 - **[Mastra](https://mastra.ai)** — AI agent framework with built-in tool calling and conversation memory
 - **[@ai-sdk/anthropic](https://sdk.vercel.ai)** — Model provider
 - **[@agent-hq/plane-client](./packages/plane-client/)** — Shared Plane API client (workspace package)
+- **[@agent-hq/plane-tools](./packages/plane-tools/)** — Unified Plane tool definitions used by both bot and agent-runner
 - **[LibSQL](https://turso.tech/libsql)** — SQLite-based persistent storage for conversation history
 - **[Octokit](https://github.com/octokit/rest.js)** — GitHub API client for repo search and project discovery
 - **[Zod](https://zod.dev)** — Runtime type validation at API boundaries (v4)
@@ -158,6 +160,8 @@ The LLM agent has these tools for interacting with Plane and the agent runner:
 | `add_labels_to_task`      | Adds one or more labels to a task (idempotent, validates against existing labels) |
 | `remove_labels_from_task` | Removes one or more labels from a task (idempotent)                               |
 
+These tools are defined in the [`@agent-hq/plane-tools`](./packages/plane-tools/) shared package and imported via `createPlaneTools(plane, planeBaseUrl)`. See the [Shared Plane Tools](#shared-plane-tools) section for details.
+
 **Project discovery tools** (enabled when `GITHUB_PAT` is set):
 
 | Tool                        | Description                                                       |
@@ -175,6 +179,33 @@ The LLM agent has these tools for interacting with Plane and the agent runner:
 | ------------------------- | ------------------------------------------------------------------------ |
 | `agent_queue_status`      | Shows queued tasks, active agents, runtime, cost, and daily budget usage |
 | `remove_from_agent_queue` | Removes a queued (not active) task from the agent queue                  |
+
+### Shared Plane Tools
+
+The 11 Plane API tools are defined once in the [`@agent-hq/plane-tools`](./packages/plane-tools/) package and consumed by both the telegram-bot and the agent-runner's task-agent. This eliminates duplication of Plane API logic across both applications.
+
+**Package structure:**
+
+```
+packages/plane-tools/
+├── src/
+│   ├── tools.ts        # Mastra createTool definitions — createPlaneTools(plane, planeBaseUrl)
+│   ├── executors.ts    # Pure executor functions used by task-agent MCP tools
+│   └── index.ts        # Barrel exports
+```
+
+**Usage in telegram-bot** (`telegram-bot/src/agent/tools.ts`):
+```typescript
+import { createPlaneTools } from "@agent-hq/plane-tools";
+// Returns all 11 Mastra tools ready for the agent
+const planeTools = createPlaneTools(plane, planeBaseUrl);
+```
+
+**Usage in task-agent** (`packages/task-agent/src/mcp-tools.ts`):
+```typescript
+import { addLabelsToTaskExecutor, removeLabelsFromTaskExecutor } from "@agent-hq/plane-tools";
+// Pure executor functions called inside MCP tool handlers
+```
 
 ### Environment variables
 
@@ -272,6 +303,7 @@ The runner uses an in-memory task queue persisted to disk (`state/runner-state.j
 - **[pnpm workspaces](https://pnpm.io/workspaces)** — Monorepo package management
 - **[@agent-hq/task-agent](./packages/task-agent/)** — Agent manager, runner, MCP tools, prompt builder
 - **[@agent-hq/plane-client](./packages/plane-client/)** — Typed Plane API client
+- **[@agent-hq/plane-tools](./packages/plane-tools/)** — Unified Plane tool definitions (Mastra + executor functions)
 - **[@agent-hq/skills](./packages/skills/)** — Skill loading and formatting
 - **[@agent-hq/review-agent](./packages/review-agent/)** — PR review orchestrator
 - **[@agent-hq/shared-types](./packages/shared-types/)** — Shared type definitions
