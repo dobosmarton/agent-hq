@@ -2,17 +2,25 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 
-export type ProjectEntry = {
-  repoPath: string;
-  repoUrl: string;
-  defaultBranch: string;
-  planeProjectId: string;
-  planeIdentifier: string;
-};
+const ProjectEntrySchema = z.object({
+  repoPath: z.string(),
+  repoUrl: z.string(),
+  defaultBranch: z.string(),
+  planeProjectId: z.string(),
+  planeIdentifier: z.string(),
+});
 
-export type AgentConfig = {
-  projects: Record<string, ProjectEntry>;
+const AgentConfigSchema = z
+  .object({
+    projects: z.record(z.string(), ProjectEntrySchema).default({}),
+  })
+  .passthrough();
+
+export type ProjectEntry = z.infer<typeof ProjectEntrySchema>;
+
+export type AgentConfig = z.infer<typeof AgentConfigSchema> & {
   [key: string]: unknown;
 };
 
@@ -26,15 +34,9 @@ export const readAgentConfig = (configPath: string): AgentConfig | null => {
 
   try {
     const raw = readFileSync(configPath, "utf-8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (typeof parsed !== "object" || parsed === null) {
-      return null;
-    }
-    const config = parsed as Record<string, unknown>;
-    return {
-      ...config,
-      projects: (config["projects"] as Record<string, ProjectEntry> | undefined) ?? {},
-    };
+    const json: unknown = JSON.parse(raw);
+    const result = AgentConfigSchema.safeParse(json);
+    return result.success ? result.data : null;
   } catch {
     return null;
   }
