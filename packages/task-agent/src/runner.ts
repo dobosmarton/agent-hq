@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PlaneClient, PlaneComment } from "@agent-hq/plane-client";
 import type { AgentErrorType, AgentPhase, AgentTask } from "@agent-hq/shared-types";
@@ -78,6 +80,32 @@ const DISALLOWED_TOOLS = [
   "Bash(wget *)",
   "Bash(sudo *)",
 ];
+
+const execAsync = promisify(execFile);
+
+/**
+ * Commit and push any uncommitted changes left behind after agent termination.
+ * Returns true if a WIP commit was created, false if working tree was clean.
+ */
+const saveProgress = async (
+  workingDir: string,
+  branchName: string,
+  taskDisplayId: string
+): Promise<boolean> => {
+  const git = async (args: string[]): Promise<string> => {
+    const { stdout } = await execAsync("git", ["-C", workingDir, ...args]);
+    return stdout.trim();
+  };
+
+  const status = await git(["status", "--porcelain"]);
+  if (!status) return false;
+
+  await git(["add", "-A"]);
+  await git(["commit", "-m", `${taskDisplayId}: [WIP] save progress before termination`]);
+  await git(["push", "-u", "origin", branchName]);
+
+  return true;
+};
 
 export type ResumeContext = {
   gitLog: string;
@@ -244,6 +272,21 @@ export const runAgent = async (
             `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${subtype}, type=${errorType}): ${errorText}`
           );
 
+          // Save uncommitted work before returning on termination errors
+          if (
+            phase === "implementation" &&
+            (errorType === "budget_exceeded" || errorType === "max_turns")
+          ) {
+            try {
+              const saved = await saveProgress(workingDir, branchName, taskDisplayId);
+              if (saved) {
+                console.log(`Saved in-progress work for ${taskDisplayId} before termination`);
+              }
+            } catch (saveErr) {
+              console.error(`Failed to save progress for ${taskDisplayId}:`, saveErr);
+            }
+          }
+
           // Suppress notifications for retryable errors when retries remain
           const isRetryableError = errorType === "rate_limited" || errorType === "unknown";
           if (!(isRetryableError && hasRetriesRemaining)) {
@@ -269,6 +312,19 @@ export const runAgent = async (
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`Agent ${taskDisplayId} (${phase}) crashed: ${errorMsg}`);
+
+    // Save uncommitted work before propagating the crash
+    if (phase === "implementation") {
+      try {
+        const saved = await saveProgress(workingDir, branchName, taskDisplayId);
+        if (saved) {
+          console.log(`Saved in-progress work for ${taskDisplayId} after crash`);
+        }
+      } catch {
+        // Best effort — don't mask the original error
+      }
+    }
+
     if (!hasRetriesRemaining) {
       await deps.notifier.agentErrored(taskDisplayId, task.title, errorMsg);
       await deps.plane.addComment(
