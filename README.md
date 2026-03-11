@@ -155,8 +155,10 @@ The LLM agent has these tools for interacting with Plane and the agent runner:
 | `get_project_states`      | Lists workflow states for a project                                               |
 | `get_task_details`        | Gets full details of a specific task (description, metadata, URL)                 |
 | `list_task_comments`      | Lists all comments on a task                                                      |
+| `get_task_plan`           | Retrieves the agent's implementation plan from task comments                      |
 | `add_task_comment`        | Adds a comment to a task (HTML formatted)                                         |
 | `move_task_state`         | Moves a task to a different workflow state                                        |
+| `list_labels`             | Lists all available labels in a project                                           |
 | `add_labels_to_task`      | Adds one or more labels to a task (idempotent, validates against existing labels) |
 | `remove_labels_from_task` | Removes one or more labels from a task (idempotent)                               |
 
@@ -182,7 +184,7 @@ These tools are defined in the [`@agent-hq/plane-tools`](./packages/plane-tools/
 
 ### Shared Plane Tools
 
-The 11 Plane API tools are defined once in the [`@agent-hq/plane-tools`](./packages/plane-tools/) package and consumed by both the telegram-bot and the agent-runner's task-agent. This eliminates duplication of Plane API logic across both applications.
+The 12 Plane API tools are defined once in the [`@agent-hq/plane-tools`](./packages/plane-tools/) package and consumed by both the telegram-bot and the agent-runner's task-agent. This eliminates duplication of Plane API logic across both applications.
 
 **Package structure:**
 
@@ -197,7 +199,7 @@ packages/plane-tools/
 **Usage in telegram-bot** (`telegram-bot/src/agent/tools.ts`):
 ```typescript
 import { createPlaneTools } from "@agent-hq/plane-tools";
-// Returns all 11 Mastra tools ready for the agent
+// Returns all 12 Mastra tools ready for the agent
 const planeTools = createPlaneTools(plane, planeBaseUrl);
 ```
 
