@@ -1,29 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PlaneClient } from "@agent-hq/plane-client";
 import { addLabelsToTaskExecutor, removeLabelsFromTaskExecutor } from "../executors";
-import { makeIssue, makeLabel } from "./fixtures";
-
-const makeMockPlane = (): PlaneClient => ({
-  listProjects: vi.fn(),
-  findProjectByIdentifier: vi.fn(),
-  createProject: vi.fn(),
-  listStates: vi.fn(),
-  buildStateMap: vi.fn(),
-  findStateByGroupAndName: vi.fn(),
-  listLabels: vi.fn(),
-  findLabelByName: vi.fn(),
-  createLabel: vi.fn(),
-  listIssues: vi.fn(),
-  getIssue: vi.fn(),
-  createIssue: vi.fn(),
-  updateIssue: vi.fn(),
-  findIssueBySequenceId: vi.fn(),
-  addComment: vi.fn(),
-  listComments: vi.fn(),
-  addLink: vi.fn(),
-  parseIssueIdentifier: vi.fn() as any,
-  cloneProjectConfiguration: vi.fn(),
-});
+import { makeIssue, makeLabel, makeMockPlane } from "./fixtures";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -144,24 +121,47 @@ describe("addLabelsToTaskExecutor", () => {
     expect(plane.updateIssue).toHaveBeenCalledWith("proj-1", "issue-1", { labels: ["label-1"] });
   });
 
-  it("fetches issue and labels in parallel", async () => {
+  it("calls both getIssue and listLabels", async () => {
     const plane = makeMockPlane();
-    const callOrder: string[] = [];
-    vi.mocked(plane.getIssue).mockImplementation(async () => {
-      callOrder.push("getIssue");
-      return makeIssue({ labels: [] });
-    });
-    vi.mocked(plane.listLabels).mockImplementation(async () => {
-      callOrder.push("listLabels");
-      return [makeLabel({ id: "label-1", name: "agent" })];
-    });
+    vi.mocked(plane.getIssue).mockResolvedValue(makeIssue({ labels: [] }));
+    vi.mocked(plane.listLabels).mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
     vi.mocked(plane.updateIssue).mockResolvedValue(makeIssue());
 
     await addLabelsToTaskExecutor(plane, "proj-1", "issue-1", ["agent"]);
 
-    // Both should have been called
     expect(plane.getIssue).toHaveBeenCalledOnce();
     expect(plane.listLabels).toHaveBeenCalledOnce();
+  });
+
+  it("propagates getIssue errors to the caller", async () => {
+    const plane = makeMockPlane();
+    vi.mocked(plane.getIssue).mockRejectedValue(new Error("network error"));
+    vi.mocked(plane.listLabels).mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
+
+    await expect(addLabelsToTaskExecutor(plane, "proj-1", "issue-1", ["agent"])).rejects.toThrow(
+      "network error"
+    );
+  });
+
+  it("propagates listLabels errors to the caller", async () => {
+    const plane = makeMockPlane();
+    vi.mocked(plane.getIssue).mockResolvedValue(makeIssue({ labels: [] }));
+    vi.mocked(plane.listLabels).mockRejectedValue(new Error("labels fetch failed"));
+
+    await expect(addLabelsToTaskExecutor(plane, "proj-1", "issue-1", ["agent"])).rejects.toThrow(
+      "labels fetch failed"
+    );
+  });
+
+  it("propagates updateIssue errors to the caller", async () => {
+    const plane = makeMockPlane();
+    vi.mocked(plane.getIssue).mockResolvedValue(makeIssue({ labels: [] }));
+    vi.mocked(plane.listLabels).mockResolvedValue([makeLabel({ id: "label-1", name: "agent" })]);
+    vi.mocked(plane.updateIssue).mockRejectedValue(new Error("update failed"));
+
+    await expect(addLabelsToTaskExecutor(plane, "proj-1", "issue-1", ["agent"])).rejects.toThrow(
+      "update failed"
+    );
   });
 });
 

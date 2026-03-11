@@ -1,4 +1,6 @@
+import { vi } from "vitest";
 import type {
+  PlaneClient,
   PlaneComment,
   PlaneIssue,
   PlaneLabel,
@@ -46,4 +48,26 @@ export const makeComment = (overrides?: Partial<PlaneComment>): PlaneComment => 
   comment_html: "<p>Progress update</p>",
   created_at: "2026-02-19T10:00:00Z",
   ...overrides,
+});
+
+export const makeMockPlane = (): PlaneClient => ({
+  listProjects: vi.fn(),
+  findProjectByIdentifier: vi.fn(),
+  createProject: vi.fn(),
+  listStates: vi.fn(),
+  buildStateMap: vi.fn(),
+  findStateByGroupAndName: vi.fn(),
+  listLabels: vi.fn(),
+  findLabelByName: vi.fn(),
+  createLabel: vi.fn(),
+  listIssues: vi.fn(),
+  getIssue: vi.fn(),
+  createIssue: vi.fn(),
+  updateIssue: vi.fn(),
+  findIssueBySequenceId: vi.fn(),
+  addComment: vi.fn(),
+  listComments: vi.fn(),
+  addLink: vi.fn(),
+  parseIssueIdentifier: vi.fn() as PlaneClient["parseIssueIdentifier"],
+  cloneProjectConfiguration: vi.fn(),
 });

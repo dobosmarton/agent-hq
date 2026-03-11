@@ -1,29 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlaneClient } from "@agent-hq/plane-client";
 import { createPlaneTools } from "../tools";
-import { makeComment, makeIssue, makeLabel, makeProject, makeState } from "./fixtures";
-
-const makeMockPlane = (): PlaneClient => ({
-  listProjects: vi.fn(),
-  findProjectByIdentifier: vi.fn(),
-  createProject: vi.fn(),
-  listStates: vi.fn(),
-  buildStateMap: vi.fn(),
-  findStateByGroupAndName: vi.fn(),
-  listLabels: vi.fn(),
-  findLabelByName: vi.fn(),
-  createLabel: vi.fn(),
-  listIssues: vi.fn(),
-  getIssue: vi.fn(),
-  createIssue: vi.fn(),
-  updateIssue: vi.fn(),
-  findIssueBySequenceId: vi.fn(),
-  addComment: vi.fn(),
-  listComments: vi.fn(),
-  addLink: vi.fn(),
-  parseIssueIdentifier: vi.fn() as any,
-  cloneProjectConfiguration: vi.fn(),
-});
+import {
+  makeComment,
+  makeIssue,
+  makeLabel,
+  makeMockPlane,
+  makeProject,
+  makeState,
+} from "./fixtures";
 
 let plane: PlaneClient;
 const planeBaseUrl = "http://localhost";
@@ -106,7 +91,7 @@ describe("list_tasks tool", () => {
     expect(result.error).toContain("not found");
   });
 
-  it("filters by state names", async () => {
+  it("filters by a single state name", async () => {
     const project = makeProject({ identifier: "HQ" });
     const states = [
       makeState({ id: "s1", name: "Plan Review" }),
@@ -123,6 +108,26 @@ describe("list_tasks tool", () => {
     );
 
     expect(plane.listIssues).toHaveBeenCalledWith(project.id, { state: "s1" });
+  });
+
+  it("filters by multiple state names as comma-joined IDs", async () => {
+    const project = makeProject({ identifier: "HQ" });
+    const states = [
+      makeState({ id: "s1", name: "Plan Review" }),
+      makeState({ id: "s2", name: "In Progress" }),
+      makeState({ id: "s3", name: "Done" }),
+    ];
+    vi.mocked(plane.findProjectByIdentifier).mockResolvedValue(project);
+    vi.mocked(plane.listStates).mockResolvedValue(states);
+    vi.mocked(plane.listIssues).mockResolvedValue([]);
+
+    const tools = createPlaneTools(plane, planeBaseUrl);
+    await tools.listTasks.execute!(
+      { project_identifier: "HQ", state_names: ["Plan Review", "In Progress"] } as any,
+      {} as any
+    );
+
+    expect(plane.listIssues).toHaveBeenCalledWith(project.id, { state: "s1,s2" });
   });
 
   it("returns error when state not found", async () => {
@@ -472,6 +477,30 @@ describe("get_task_plan tool", () => {
     expect(result.has_plan).toBe(false);
   });
 
+  it("strips content before the AGENT_PLAN marker", async () => {
+    vi.mocked(plane.parseIssueIdentifier).mockReturnValue({
+      projectIdentifier: "HQ",
+      sequenceId: 42,
+    });
+    vi.mocked(plane.findProjectByIdentifier).mockResolvedValue(makeProject());
+    vi.mocked(plane.findIssueBySequenceId).mockResolvedValue(makeIssue({ id: "issue-1" }));
+    vi.mocked(plane.listComments).mockResolvedValue([
+      makeComment({
+        comment_html: "<p>Preamble</p><!-- AGENT_PLAN --><p>Plan content</p>",
+      }),
+    ]);
+
+    const tools = createPlaneTools(plane, planeBaseUrl);
+    const result = (await tools.getTaskPlan.execute!(
+      { task_id: "HQ-42" } as any,
+      {} as any
+    )) as any;
+
+    expect(result.has_plan).toBe(true);
+    expect(result.plan_html).toBe("<p>Plan content</p>");
+    expect(result.plan_html).not.toContain("Preamble");
+  });
+
   it("returns error for invalid task ID", async () => {
     vi.mocked(plane.parseIssueIdentifier).mockReturnValue(null);
 
@@ -534,6 +563,25 @@ describe("add_task_comment tool", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Invalid task ID format");
+  });
+
+  it("returns error when task not found and does not call addComment", async () => {
+    vi.mocked(plane.parseIssueIdentifier).mockReturnValue({
+      projectIdentifier: "HQ",
+      sequenceId: 999,
+    });
+    vi.mocked(plane.findProjectByIdentifier).mockResolvedValue(makeProject());
+    vi.mocked(plane.findIssueBySequenceId).mockResolvedValue(null);
+
+    const tools = createPlaneTools(plane, planeBaseUrl);
+    const result = (await tools.addTaskComment.execute!(
+      { task_id: "HQ-999", comment_html: "<p>Test</p>" } as any,
+      {} as any
+    )) as any;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("not found");
+    expect(plane.addComment).not.toHaveBeenCalled();
   });
 });
 
