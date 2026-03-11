@@ -50,10 +50,9 @@ const main = async (): Promise<void> => {
   let reviewAgent: ReviewOrchestrator | undefined;
   if (config.review.enabled) {
     console.log("✅ Review agent enabled");
-    const githubAppPrivateKey =
-      env.GITHUB_APP_PRIVATE_KEY_PATH
-        ? readFileSync(env.GITHUB_APP_PRIVATE_KEY_PATH, "utf-8")
-        : undefined;
+    const githubAppPrivateKey = env.GITHUB_APP_PRIVATE_KEY_PATH
+      ? readFileSync(env.GITHUB_APP_PRIVATE_KEY_PATH, "utf-8")
+      : undefined;
 
     reviewAgent = createReviewOrchestrator({
       createGitHub: (owner, repo) =>
