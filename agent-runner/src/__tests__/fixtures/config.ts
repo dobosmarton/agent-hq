@@ -41,7 +41,7 @@ export const makeConfig = (overrides?: Partial<Config>): Config => ({
     triggerOnOpened: true,
     triggerOnSynchronize: true,
     severityThreshold: "major",
-    maxDiffSizeKb: 100,
+    maxDiffSizeKb: 200,
     claudeModel: "claude-sonnet-4-6",
     useParallelReview: true,
   },
