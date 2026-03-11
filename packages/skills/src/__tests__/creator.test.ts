@@ -56,12 +56,14 @@ describe("skills creator", () => {
       };
 
       const md = generateSkillMarkdown(input);
-      expect(md).toContain("<!-- skill:name = Test Skill -->");
-      expect(md).toContain("<!-- skill:description = A test skill description -->");
-      expect(md).toContain("<!-- skill:category = learned -->");
-      expect(md).toContain("<!-- skill:priority = 30 -->");
-      expect(md).toContain("<!-- skill:appliesTo = both -->");
+      expect(md).toContain("name: Test Skill");
+      expect(md).toContain("description: A test skill description");
+      expect(md).toContain("category: learned");
+      expect(md).toContain("priority: 30");
+      expect(md).toContain("applies_to: both");
       expect(md).toContain("# Content\nSome content here");
+      expect(md).toMatch(/^---\n/);
+      expect(md).toMatch(/\n---\n/);
     });
 
     it("should have an empty line between metadata and content", () => {
@@ -104,7 +106,7 @@ describe("skills creator", () => {
       expect(existsSync(filePath)).toBe(true);
 
       const content = readFileSync(filePath, "utf-8");
-      expect(content).toContain("<!-- skill:name = Test Pattern -->");
+      expect(content).toContain("name: Test Pattern");
       expect(content).toContain("# Test Pattern");
     });
 

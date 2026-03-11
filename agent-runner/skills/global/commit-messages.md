@@ -1,8 +1,11 @@
-<!-- skill:name = Git Commit Messages -->
-<!-- skill:description = Standards for writing clear, consistent git commit messages -->
-<!-- skill:category = commit-standards -->
-<!-- skill:priority = 90 -->
-<!-- skill:appliesTo = implementation -->
+---
+id: commit-messages
+name: Git Commit Messages
+description: Standards for writing clear, consistent git commit messages
+category: commit-standards
+priority: 90
+applies_to: implementation
+---
 
 # Git Commit Messages
 

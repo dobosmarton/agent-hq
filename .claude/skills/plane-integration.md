@@ -1,8 +1,10 @@
-<!-- skill:name = Plane API Integration Patterns -->
-<!-- skill:description = Best practices for integrating with Plane's API in this project -->
-<!-- skill:category = api-usage -->
-<!-- skill:priority = 70 -->
-<!-- skill:appliesTo = both -->
+---
+name: Plane API Integration Patterns
+description: Best practices for integrating with Plane's API in this project
+category: api-usage
+priority: 70
+applies_to: both
+---
 
 # Plane API Integration Patterns
 
@@ -11,6 +13,7 @@
 This project uses a centralized Plane API client in `src/plane/client.ts`.
 
 - **Always use the client functions** instead of making raw HTTP requests
+
   ```typescript
   import { listComments, updateTaskState } from "../plane/client";
 
@@ -29,6 +32,7 @@ This project uses a centralized Plane API client in `src/plane/client.ts`.
 ## Task State Management
 
 - **Use MCP tools** for updating task state in agent code
+
   ```typescript
   // In agent context, use MCP tools
   await mcp__agent_plane_tools__update_task_status({ state: "in_review" });
@@ -39,6 +43,7 @@ This project uses a centralized Plane API client in `src/plane/client.ts`.
 ## Task Comments
 
 - **Format comments as HTML** when using the Plane API
+
   ```typescript
   const commentHtml = `<p><strong>Progress update</strong></p>
   <ul>
@@ -59,6 +64,7 @@ This project uses a centralized Plane API client in `src/plane/client.ts`.
 ## Error Handling
 
 - **Handle API errors gracefully**
+
   ```typescript
   try {
     await updateTaskState(planeConfig, projectId, issueId, "in_review");
@@ -73,6 +79,7 @@ This project uses a centralized Plane API client in `src/plane/client.ts`.
 ## Task Polling
 
 - **Use the task poller** for detecting new tasks
+
   ```typescript
   const tasks = await taskPoller.pollOnce();
   ```
@@ -85,6 +92,7 @@ This project uses a centralized Plane API client in `src/plane/client.ts`.
 ## Project Configuration
 
 - **Map project identifiers** to configuration in `config.json`
+
   ```json
   {
     "projects": {

@@ -1,8 +1,11 @@
-<!-- skill:name = Testing Standards -->
-<!-- skill:description = Guidelines for writing comprehensive, maintainable tests using Vitest -->
-<!-- skill:category = testing -->
-<!-- skill:priority = 75 -->
-<!-- skill:appliesTo = both -->
+---
+id: testing-standards
+name: Testing Standards
+description: Guidelines for writing comprehensive, maintainable tests using Vitest
+category: testing
+priority: 75
+applies_to: both
+---
 
 # Testing Standards
 

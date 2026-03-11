@@ -1,8 +1,11 @@
-<!-- skill:name = Python Best Practices -->
-<!-- skill:description = Python 3.12+ project setup, strict typing, functional patterns, and type-safe coding practices -->
-<!-- skill:category = best-practices -->
-<!-- skill:priority = 80 -->
-<!-- skill:appliesTo = both -->
+---
+id: python-best-practices
+name: Python Best Practices
+description: Python 3.12+ project setup, strict typing, functional patterns, and type-safe coding practices
+category: best-practices
+priority: 80
+applies_to: both
+---
 
 # Skill: Python Best Practices
 

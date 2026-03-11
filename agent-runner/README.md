@@ -289,11 +289,13 @@ Skills are markdown files with metadata that get injected into agent prompts. Th
 ### Skill File Format
 
 ```markdown
-<!-- skill:name = TypeScript Best Practices -->
-<!-- skill:description = TypeScript coding standards -->
-<!-- skill:category = best-practices -->
-<!-- skill:priority = 80 -->
-<!-- skill:appliesTo = both -->
+---
+name: TypeScript Best Practices
+description: TypeScript coding standards
+category: best-practices
+priority: 80
+applies_to: both
+---
 
 # TypeScript Best Practices
 

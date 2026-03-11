@@ -15,8 +15,10 @@ describe("skills formatter", () => {
     description: "A test skill",
     category: "best-practices",
     priority: 80,
-    content: `<!-- skill:name = Test Skill -->
-<!-- skill:description = A test skill -->
+    content: `---
+name: Test Skill
+description: A test skill
+---
 
 # Test Skill
 
@@ -40,10 +42,11 @@ This is the content.`,
       expect(result).toContain("This is the content.");
     });
 
-    it("should remove metadata comments from content", () => {
+    it("should remove YAML frontmatter from content", () => {
       const result = formatSkillsForPrompt([mockSkill]);
-      expect(result).not.toContain("<!-- skill:name");
-      expect(result).not.toContain("<!-- skill:description");
+      expect(result).not.toContain("---");
+      expect(result).not.toContain("name: Test Skill");
+      expect(result).not.toContain("description: A test skill");
     });
 
     it("should format multiple skills", () => {
@@ -107,15 +110,15 @@ This is the content.`,
   });
 
   describe("stripSkillMetadata", () => {
-    it("should remove metadata comments", () => {
+    it("should remove YAML frontmatter", () => {
       const result = stripSkillMetadata(mockSkill.content);
-      expect(result).not.toContain("<!-- skill:name");
-      expect(result).not.toContain("<!-- skill:description");
+      expect(result).not.toContain("---");
+      expect(result).not.toContain("name: Test Skill");
       expect(result).toContain("# Test Skill");
       expect(result).toContain("This is the content.");
     });
 
-    it("should handle content without metadata", () => {
+    it("should handle content without frontmatter", () => {
       const result = stripSkillMetadata("# Just content\n\nNo metadata.");
       expect(result).toBe("# Just content\n\nNo metadata.");
     });

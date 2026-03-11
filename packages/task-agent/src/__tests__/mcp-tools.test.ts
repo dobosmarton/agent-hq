@@ -539,8 +539,10 @@ describe("load_skill", () => {
     description: "A test skill",
     category: "best-practices",
     priority: 80,
-    content: `<!-- skill:name = Test Skill -->
-<!-- skill:description = A test skill -->
+    content: `---
+name: Test Skill
+description: A test skill
+---
 
 # Test Skill
 
@@ -563,7 +565,7 @@ This is the content.`,
 
     expect(result.content[0].text).toContain("# Test Skill");
     expect(result.content[0].text).toContain("This is the content.");
-    expect(result.content[0].text).not.toContain("<!-- skill:name");
+    expect(result.content[0].text).not.toContain("name: Test Skill");
   });
 
   it("returns not found for unknown skill ID", async () => {

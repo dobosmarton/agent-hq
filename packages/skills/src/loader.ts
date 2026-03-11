@@ -16,13 +16,37 @@ const projectCache = new Map<string, SkillCache>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Parse skill metadata from markdown frontmatter-style comments
+ * Parse simple YAML frontmatter (--- delimited key: value pairs) from markdown content.
+ * Only handles flat string values — no nested objects or arrays.
+ */
+const parseYamlFrontmatter = (content: string): Record<string, string> => {
+  const metadata: Record<string, string> = {};
+  const lines = content.split("\n");
+
+  if (lines[0]?.trim() !== "---") return metadata;
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (line.trim() === "---") break;
+    const match = line.match(/^(\w+):\s*(.+)$/);
+    if (match?.[1] && match[2]) {
+      metadata[match[1]] = match[2].trim();
+    }
+  }
+
+  return metadata;
+};
+
+/**
+ * Parse skill metadata from YAML frontmatter.
  * Expected format at top of file:
- * <!-- skill:name = Skill Name -->
- * <!-- skill:description = Description text -->
- * <!-- skill:category = best-practices -->
- * <!-- skill:priority = 80 -->
- * <!-- skill:appliesTo = both -->
+ * ---
+ * name: Skill Name
+ * description: Description text
+ * category: best-practices
+ * priority: 80
+ * applies_to: both
+ * ---
  */
 const parseSkillMetadata = (
   content: string,
@@ -30,17 +54,13 @@ const parseSkillMetadata = (
   filePath: string,
   isProjectSkill: boolean
 ): Skill => {
-  const metadata: Record<string, string> = {};
-  const lines = content.split("\n");
+  const raw = parseYamlFrontmatter(content);
 
-  for (const line of lines) {
-    const match = line.match(/<!--\s*skill:(\w+)\s*=\s*(.+?)\s*-->/);
-    if (match) {
-      const [, key, value] = match;
-      if (key && value) {
-        metadata[key] = value.trim();
-      }
-    }
+  // Map snake_case YAML key to camelCase
+  const metadata: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const mappedKey = key === "applies_to" ? "appliesTo" : key;
+    metadata[mappedKey] = value;
   }
 
   // Build skill object with defaults
