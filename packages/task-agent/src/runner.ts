@@ -232,12 +232,12 @@ export const runAgent = async (
 
           // Classify error type for retry decisions
           let errorType: AgentErrorType = "unknown";
-          if (!errors && subtype !== "success") {
-            errorType = "rate_limited";
-          } else if (subtype.includes("budget")) {
+          if (subtype.includes("budget")) {
             errorType = "budget_exceeded";
           } else if (subtype.includes("turns")) {
             errorType = "max_turns";
+          } else if (!errors && subtype !== "success") {
+            errorType = "rate_limited";
           }
 
           console.error(
