@@ -24,7 +24,7 @@ A command center for managing multiple autonomous agents across software project
   │   GitHub   │        │  Phone → @my_agent_hq_bot                   │
   │ PR merged  │        │  "What's the agent queue status?"           │
   │ → task     │        │  "Create a task about rate limiting"         │
-  │   "Done"   │        │  "Search GitHub for my verdandi repo"       │
+  │   "Done"   │        │  "Search GitHub for my acme-app repo"       │
   └────────────┘        └──────────────────────────────────────────────┘
 
                     OPTIONAL: Local (Mac)
@@ -82,14 +82,14 @@ You send a natural language message to `@my_agent_hq_bot` on Telegram. A [Mastra
 **Examples:**
 
 - "List my projects"
-- "What tasks are open in Verdandi?"
-- "Create a task in Style-swipe about fixing the onboarding flow"
-- "What workflow states does Verdandi have?"
-- "Add the agent label to VERDANDI-5"
+- "What tasks are open in Acme App?"
+- "Create a task in My Project about fixing the onboarding flow"
+- "What workflow states does Acme App have?"
+- "Add the agent label to ACME-5"
 - "Start implementing AGENTHQ-2" (auto-adds "agent" label + moves to "Todo")
 - "What's the agent queue status?" (shows queued tasks, active agents, daily spend)
-- "Remove VERDANDI-3 from the agent queue"
-- "Search GitHub for my verdandi repo" (project discovery)
+- "Remove ACME-3 from the agent queue"
+- "Search GitHub for my acme-app repo" (project discovery)
 - "Create a new Plane project for this repo and link it"
 
 When creating tasks, the agent proactively enriches your brief description into a structured issue with acceptance criteria, technical considerations, and edge cases.
@@ -463,7 +463,12 @@ agent-runner/
 │       ├── commit-messages.md
 │       ├── typescript-nodejs-best-practices.md
 │       ├── python-best-practices.md
-│       └── testing-standards.md
+│       ├── testing-standards.md
+│       ├── architecture-review.md
+│       ├── completeness-review.md
+│       ├── performance-review.md
+│       ├── security-review.md
+│       └── testing-review.md
 ├── config.json               # Project mappings and agent settings
 ├── Dockerfile                # Multi-stage build with git support
 ├── docker-compose.yml        # Docker Compose with repo volumes and state persistence
@@ -477,7 +482,7 @@ Agent behavior is configured in `config.json`:
 
 | Setting                           | Default               | Description                                                           |
 | --------------------------------- | --------------------- | --------------------------------------------------------------------- |
-| `agent.maxConcurrent`             | 2                     | Max agents running in parallel                                        |
+| `agent.maxConcurrent`             | 4                     | Max agents running in parallel                                        |
 | `agent.maxBudgetPerTask`          | $5.00                 | Budget ceiling per individual task                                    |
 | `agent.maxDailyBudget`            | $20.00                | Total daily spend limit                                               |
 | `agent.maxTurns`                  | 200                   | Max agent turns per task                                              |
@@ -497,7 +502,7 @@ Agent behavior is configured in `config.json`:
 | `review.triggerOnOpened`          | `true`                | Trigger review when PR is opened                                      |
 | `review.triggerOnSynchronize`     | `true`                | Trigger review when PR is updated                                     |
 | `review.severityThreshold`        | `major`               | Minimum severity for issues (`critical`/`major`/`minor`/`suggestion`) |
-| `review.maxDiffSizeKb`            | `100`                 | Maximum diff size for automated review (KB)                           |
+| `review.maxDiffSizeKb`            | `200`                 | Maximum diff size for automated review (KB)                           |
 | `review.claudeModel`              | `claude-sonnet-4-6`   | Model to use for code analysis                                        |
 
 ### Environment variables
