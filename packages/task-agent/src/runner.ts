@@ -4,7 +4,13 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PlaneClient, PlaneComment } from "@agent-hq/plane-client";
 import type { AgentErrorType, AgentPhase, AgentTask } from "@agent-hq/shared-types";
 import type { Skill } from "@agent-hq/skills";
-import type { ExternalMcpServer, Notifier, TaskAgentConfig, TaskPollerAdapter } from "./adapters";
+import type {
+  AgentConfig,
+  ExternalMcpServer,
+  Notifier,
+  TaskAgentConfig,
+  TaskPollerAdapter,
+} from "./adapters";
 import type { CiContext } from "./ci-discovery";
 import type { CommentAnalysis } from "./comment-analyzer";
 import { createAgentMcpServer } from "./mcp-tools";
@@ -114,26 +120,119 @@ export type ResumeContext = {
   analysis: CommentAnalysis;
 };
 
-export const runAgent = async (
-  task: AgentTask,
-  phase: AgentPhase,
-  workingDir: string,
-  branchName: string,
-  comments: PlaneComment[],
-  ciContext: CiContext,
-  skillsSection: string | undefined,
-  skills: Skill[],
+// ── Extracted pure/stateless helpers ─────────────────────────────────
+
+const PLANNING_MAX_TURNS = 50;
+const PLANNING_MAX_BUDGET_USD = 2.0;
+
+type PhaseConfig = {
+  maxTurns: number;
+  maxBudgetUsd: number;
+  allowedTools: string[];
+  disallowedTools: string[];
+  permissionMode: "plan" | "acceptEdits";
+  phaseLabel: "planning" | "implementing";
+};
+
+export const getPhaseConfig = (phase: AgentPhase, agentConfig: AgentConfig): PhaseConfig => {
+  if (phase === "planning") {
+    return {
+      maxTurns: PLANNING_MAX_TURNS,
+      maxBudgetUsd: PLANNING_MAX_BUDGET_USD,
+      allowedTools: PLANNING_TOOLS,
+      disallowedTools: [],
+      permissionMode: "plan",
+      phaseLabel: "planning",
+    };
+  }
+  return {
+    maxTurns: agentConfig.maxTurns,
+    maxBudgetUsd: agentConfig.maxBudgetPerTask,
+    allowedTools: IMPLEMENTATION_TOOLS,
+    disallowedTools: DISALLOWED_TOOLS,
+    permissionMode: "acceptEdits",
+    phaseLabel: "implementing",
+  };
+};
+
+export const classifyError = (subtype: string, errors: string): AgentErrorType => {
+  if (subtype.includes("budget")) return "budget_exceeded";
+  if (subtype.includes("turns")) return "max_turns";
+  if (errors) return "unknown";
+  if (subtype === "success") return "unknown";
+  return "rate_limited";
+};
+
+const notifyAgentError = async (
   deps: RunnerDeps,
-  projectRepoPath: string,
-  agentRunnerRoot: string,
-  resumeContext: ResumeContext | null = null,
-  externalMcpServers?: Record<string, ExternalMcpServer>
-): Promise<AgentResult> => {
+  task: AgentTask,
+  taskDisplayId: string,
+  phaseLabel: "planning" | "implementing",
+  errorText: string
+): Promise<void> => {
+  await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
+  await deps.plane.addComment(
+    task.projectId,
+    task.issueId,
+    `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`
+  );
+};
+
+const notifyAgentCrash = async (
+  deps: RunnerDeps,
+  task: AgentTask,
+  taskDisplayId: string,
+  phaseLabel: "planning" | "implementing",
+  errorText: string
+): Promise<void> => {
+  await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
+  await deps.plane.addComment(
+    task.projectId,
+    task.issueId,
+    `<p><strong>Agent crashed during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`
+  );
+};
+
+// ── Main orchestration ───────────────────────────────────────────────
+
+export type RunAgentInput = {
+  task: AgentTask;
+  phase: AgentPhase;
+  workingDir: string;
+  branchName: string;
+  comments: PlaneComment[];
+  ciContext: CiContext;
+  skillsSection: string | undefined;
+  skills: Skill[];
+  deps: RunnerDeps;
+  projectRepoPath: string;
+  agentRunnerRoot: string;
+  resumeContext: ResumeContext | null;
+  externalMcpServers?: Record<string, ExternalMcpServer>;
+};
+
+export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
+  const {
+    task,
+    phase,
+    workingDir,
+    branchName,
+    comments,
+    ciContext,
+    skillsSection,
+    skills,
+    deps,
+    projectRepoPath,
+    agentRunnerRoot,
+    resumeContext,
+    externalMcpServers,
+  } = input;
+
   const taskDisplayId = `${task.projectIdentifier}-${task.sequenceId}`;
   const hasRetriesRemaining = deps.retryContext.retryCount < deps.retryContext.maxRetries;
   const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
-
   const isRetry = deps.retryContext.retryCount > 0;
+  const pc = getPhaseConfig(phase, deps.config.agent);
 
   console.log(
     `Starting ${phase} agent for ${taskDisplayId}: "${task.title}"${isRetry ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})` : ""}`
@@ -154,8 +253,7 @@ export const runAgent = async (
     updateIntervalMs: deps.config.agent.progressUpdateIntervalMs,
   });
 
-  // Post starting comment on Plane (always, but with retry info)
-  const phaseLabel = phase === "planning" ? "planning" : "implementing";
+  // Post starting comment on Plane
   const retryLabel = isRetry
     ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})`
     : "";
@@ -165,12 +263,12 @@ export const runAgent = async (
   await deps.plane.addComment(
     task.projectId,
     task.issueId,
-    `<p><strong>Agent started ${phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`
+    `<p><strong>Agent started ${pc.phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`
   );
 
   progressTracker.update("Setting up environment", "completed");
 
-  // Create task-scoped MCP server (synchronous — mark completed directly)
+  // Create task-scoped MCP server
   const mcpServer = createAgentMcpServer({
     plane: deps.plane,
     projectId: task.projectId,
@@ -200,12 +298,6 @@ export const runAgent = async (
           resumeContext
         );
 
-  // Phase-specific settings
-  const maxTurns = phase === "planning" ? 50 : deps.config.agent.maxTurns;
-  const maxBudgetUsd = phase === "planning" ? 2.0 : deps.config.agent.maxBudgetPerTask;
-  const allowedTools = phase === "planning" ? PLANNING_TOOLS : IMPLEMENTATION_TOOLS;
-  const permissionMode = phase === "planning" ? "plan" : "acceptEdits";
-
   let totalCostUsd = 0;
 
   try {
@@ -218,11 +310,11 @@ export const runAgent = async (
       prompt,
       options: {
         cwd: workingDir,
-        permissionMode,
-        maxTurns,
-        maxBudgetUsd,
-        allowedTools,
-        disallowedTools: phase === "implementation" ? DISALLOWED_TOOLS : [],
+        permissionMode: pc.permissionMode,
+        maxTurns: pc.maxTurns,
+        maxBudgetUsd: pc.maxBudgetUsd,
+        allowedTools: pc.allowedTools,
+        disallowedTools: pc.disallowedTools,
         mcpServers: buildMcpServersRecord({
           sdkServer: mcpServer,
           globalServers: deps.config.agent.mcpServers,
@@ -249,7 +341,7 @@ export const runAgent = async (
           await deps.plane.addComment(
             task.projectId,
             task.issueId,
-            `<p><strong>Agent completed ${phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`
+            `<p><strong>Agent completed ${pc.phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`
           );
         } else {
           const errors =
@@ -258,44 +350,29 @@ export const runAgent = async (
           const errorText =
             errors || `result subtype: ${subtype}, cost: $${totalCostUsd.toFixed(2)}`;
 
-          // Classify error type for retry decisions
-          let errorType: AgentErrorType = "unknown";
-          if (subtype.includes("budget")) {
-            errorType = "budget_exceeded";
-          } else if (subtype.includes("turns")) {
-            errorType = "max_turns";
-          } else if (!errors && subtype !== "success") {
-            errorType = "rate_limited";
-          }
+          const errorType = classifyError(subtype, errors);
 
           console.error(
             `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${subtype}, type=${errorType}): ${errorText}`
           );
 
-          // Save uncommitted work before returning on termination errors
-          if (
-            phase === "implementation" &&
-            (errorType === "budget_exceeded" || errorType === "max_turns")
-          ) {
-            try {
-              const saved = await saveProgress(workingDir, branchName, taskDisplayId);
-              if (saved) {
-                console.log(`Saved in-progress work for ${taskDisplayId} before termination`);
+          if (errorType === "budget_exceeded" || errorType === "max_turns") {
+            if (phase === "implementation") {
+              try {
+                const saved = await saveProgress(workingDir, branchName, taskDisplayId);
+                if (saved) {
+                  console.log(`Saved in-progress work for ${taskDisplayId} before termination`);
+                }
+              } catch (saveErr) {
+                console.error(`Failed to save progress for ${taskDisplayId}:`, saveErr);
               }
-            } catch (saveErr) {
-              console.error(`Failed to save progress for ${taskDisplayId}:`, saveErr);
             }
           }
 
           // Suppress notifications for retryable errors when retries remain
           const isRetryableError = errorType === "rate_limited" || errorType === "unknown";
           if (!(isRetryableError && hasRetriesRemaining)) {
-            await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
-            await deps.plane.addComment(
-              task.projectId,
-              task.issueId,
-              `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`
-            );
+            await notifyAgentError(deps, task, taskDisplayId, pc.phaseLabel, errorText);
           }
 
           return { costUsd: totalCostUsd, errorType };
@@ -326,12 +403,7 @@ export const runAgent = async (
     }
 
     if (!hasRetriesRemaining) {
-      await deps.notifier.agentErrored(taskDisplayId, task.title, errorMsg);
-      await deps.plane.addComment(
-        task.projectId,
-        task.issueId,
-        `<p><strong>Agent crashed during ${phaseLabel}:</strong></p><pre>${errorMsg.slice(0, 1000)}</pre>`
-      );
+      await notifyAgentCrash(deps, task, taskDisplayId, pc.phaseLabel, errorMsg);
     }
     throw err;
   }

@@ -215,19 +215,13 @@ describe("phase detection", () => {
 
     expect(deps.worktree.getOrCreateWorktree).toHaveBeenCalled();
     expect(mockedRunAgent).toHaveBeenCalledWith(
-      expect.anything(),
-      "planning",
-      "/wt",
-      "agent/HQ-42",
-      [],
-      expect.objectContaining({ workflowFiles: expect.any(Object) }),
-      undefined,
-      expect.any(Array),
-      expect.anything(),
-      expect.any(String),
-      expect.any(String),
-      null,
-      undefined
+      expect.objectContaining({
+        phase: "planning",
+        workingDir: "/wt",
+        branchName: "agent/HQ-42",
+        comments: [],
+        resumeContext: null,
+      })
     );
   });
 
@@ -247,23 +241,17 @@ describe("phase detection", () => {
 
     expect(deps.worktree.getOrCreateWorktree).toHaveBeenCalled();
     expect(mockedRunAgent).toHaveBeenCalledWith(
-      expect.anything(),
-      "implementation",
-      "/wt",
-      "agent/HQ-42",
-      expect.arrayContaining([
-        expect.objectContaining({
-          comment_html: expect.stringContaining(PLAN_MARKER),
-        }),
-      ]),
-      expect.objectContaining({ workflowFiles: expect.any(Object) }),
-      undefined,
-      expect.any(Array),
-      expect.anything(),
-      expect.any(String),
-      expect.any(String),
-      null,
-      undefined
+      expect.objectContaining({
+        phase: "implementation",
+        workingDir: "/wt",
+        branchName: "agent/HQ-42",
+        comments: expect.arrayContaining([
+          expect.objectContaining({
+            comment_html: expect.stringContaining(PLAN_MARKER),
+          }),
+        ]),
+        resumeContext: null,
+      })
     );
   });
 });
@@ -386,21 +374,12 @@ describe("spawnAgent", () => {
     await manager.spawnAgent(makeTask(), 2);
 
     expect(mockedRunAgent).toHaveBeenCalledWith(
-      expect.anything(),
-      "planning",
-      expect.any(String),
-      expect.any(String),
-      expect.any(Array),
-      expect.anything(),
-      undefined,
-      expect.any(Array),
       expect.objectContaining({
-        retryContext: { retryCount: 2, maxRetries: 2 },
-      }),
-      expect.any(String),
-      expect.any(String),
-      null,
-      undefined
+        phase: "planning",
+        deps: expect.objectContaining({
+          retryContext: { retryCount: 2, maxRetries: 2 },
+        }),
+      })
     );
   });
 

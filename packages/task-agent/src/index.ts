@@ -1,7 +1,7 @@
 export { createAgentManager } from "./manager";
 export type { AgentManager, OnAgentDone } from "./manager";
 export { runAgent } from "./runner";
-export type { AgentResult, ResumeContext } from "./runner";
+export type { AgentResult, ResumeContext, RunAgentInput } from "./runner";
 export type {
   ExternalMcpServer,
   Notifier,

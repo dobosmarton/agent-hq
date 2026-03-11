@@ -187,7 +187,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
     activeAgents.set(task.issueId, agent);
 
     // Run agent in background — notify caller via onAgentDone
-    runAgent(
+    runAgent({
       task,
       phase,
       workingDir,
@@ -196,7 +196,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
       ciContext,
       skillsSection,
       skills,
-      {
+      deps: {
         plane: deps.plane,
         config: deps.config,
         notifier: deps.notifier,
@@ -206,11 +206,11 @@ export const createAgentManager = (deps: ManagerDeps) => {
           maxRetries: deps.config.agent.maxRetries,
         },
       },
-      repoPath,
-      resolve(process.cwd()),
+      projectRepoPath: repoPath,
+      agentRunnerRoot: resolve(process.cwd()),
       resumeContext,
-      projectConfig.mcpServers
-    )
+      externalMcpServers: projectConfig.mcpServers,
+    })
       .then(async (result) => {
         agent.costUsd = result.costUsd;
         dailySpendUsd += result.costUsd;
