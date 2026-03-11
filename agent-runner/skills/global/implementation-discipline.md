@@ -1,8 +1,11 @@
-<!-- skill:name = Implementation Discipline -->
-<!-- skill:description = Execution rules for following the approved plan precisely without over-engineering -->
-<!-- skill:category = best-practices -->
-<!-- skill:priority = 100 -->
-<!-- skill:appliesTo = implementation -->
+---
+id: implementation-discipline
+name: Implementation Discipline
+description: Execution rules for following the approved plan precisely without over-engineering
+category: best-practices
+priority: 100
+applies_to: implementation
+---
 
 # Implementation Discipline
 

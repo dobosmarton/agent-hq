@@ -1,8 +1,11 @@
-<!-- skill:name = TypeScript Node.js Best Practices -->
-<!-- skill:description = TypeScript and Node.js project setup, compiler configuration, and type-safe coding patterns -->
-<!-- skill:category = best-practices -->
-<!-- skill:priority = 80 -->
-<!-- skill:appliesTo = both -->
+---
+id: typescript-nodejs-best-practices
+name: TypeScript Node.js Best Practices
+description: TypeScript and Node.js project setup, compiler configuration, and type-safe coding patterns
+category: best-practices
+priority: 80
+applies_to: both
+---
 
 # Skill: TypeScript Node.js Best Practices
 

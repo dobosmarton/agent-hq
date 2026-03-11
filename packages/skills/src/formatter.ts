@@ -44,14 +44,23 @@ ${rows}`;
 };
 
 /**
- * Strip skill metadata comments from content
+ * Strip YAML frontmatter from skill content
  */
-export const stripSkillMetadata = (content: string): string =>
-  content
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("<!-- skill:"))
-    .join("\n")
-    .trim();
+export const stripSkillMetadata = (content: string): string => {
+  const lines = content.split("\n");
+  if (lines[0]?.trim() !== "---") return content.trim();
+
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i]!.trim() === "---") {
+      return lines
+        .slice(i + 1)
+        .join("\n")
+        .trim();
+    }
+  }
+
+  return content.trim();
+};
 
 /**
  * Format skills list for CLI display

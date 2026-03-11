@@ -1,8 +1,11 @@
-<!-- skill:name = Planning Methodology -->
-<!-- skill:description = Feasibility assessment, plan structure, and quality standards for the planning phase -->
-<!-- skill:category = architecture -->
-<!-- skill:priority = 100 -->
-<!-- skill:appliesTo = planning -->
+---
+id: planning-methodology
+name: Planning Methodology
+description: Feasibility assessment, plan structure, and quality standards for the planning phase
+category: architecture
+priority: 100
+applies_to: planning
+---
 
 # Planning Methodology
 

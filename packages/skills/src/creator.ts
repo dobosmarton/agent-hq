@@ -29,15 +29,17 @@ export const slugify = (name: string): string =>
     .slice(0, 60);
 
 /**
- * Generate skill markdown with metadata headers
+ * Generate skill markdown with YAML frontmatter
  */
 export const generateSkillMarkdown = (input: CreateSkillInput): string =>
   [
-    `<!-- skill:name = ${input.name} -->`,
-    `<!-- skill:description = ${input.description} -->`,
-    `<!-- skill:category = ${input.category} -->`,
-    `<!-- skill:priority = ${input.priority} -->`,
-    `<!-- skill:appliesTo = ${input.appliesTo} -->`,
+    "---",
+    `name: ${input.name}`,
+    `description: ${input.description}`,
+    `category: ${input.category}`,
+    `priority: ${input.priority}`,
+    `applies_to: ${input.appliesTo}`,
+    "---",
     "",
     input.content,
   ].join("\n");
