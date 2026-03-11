@@ -1,4 +1,5 @@
 import { Octokit } from "@octokit/rest";
+import { createAppAuth } from "@octokit/auth-app";
 import type {
   GitHubClientResult,
   GitHubConfig,
@@ -10,10 +11,27 @@ import type {
 import { GitHubPRDetailsSchema, GitHubPRFileSchema } from "./types";
 
 /**
+ * Creates an Octokit instance based on auth config (PAT or GitHub App)
+ */
+const createOctokit = (config: GitHubConfig): Octokit => {
+  if (config.auth.type === "app") {
+    return new Octokit({
+      authStrategy: createAppAuth,
+      auth: {
+        appId: config.auth.appId,
+        privateKey: config.auth.privateKey,
+        installationId: config.auth.installationId,
+      },
+    });
+  }
+  return new Octokit({ auth: config.auth.token });
+};
+
+/**
  * Creates a GitHub API client for PR review operations
  */
 export const createGitHubClient = (config: GitHubConfig) => {
-  const octokit = new Octokit({ auth: config.token });
+  const octokit = createOctokit(config);
   const { owner, repo } = config;
 
   /**

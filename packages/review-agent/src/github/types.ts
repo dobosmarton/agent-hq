@@ -4,8 +4,20 @@ import { z } from "zod";
  * GitHub API types for PR review operations
  */
 
-export type GitHubConfig = {
+export type GitHubTokenAuth = {
+  type: "token";
   token: string;
+};
+
+export type GitHubAppAuth = {
+  type: "app";
+  appId: number;
+  privateKey: string;
+  installationId: number;
+};
+
+export type GitHubConfig = {
+  auth: GitHubTokenAuth | GitHubAppAuth;
   owner: string;
   repo: string;
 };

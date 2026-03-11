@@ -123,6 +123,9 @@ telegram-bot/
 │   ├── agent/
 │   │   ├── index.ts        # Mastra agent setup — system prompt, memory, model config
 │   │   └── tools.ts        # Plane + GitHub + agent runner tools
+│   ├── config/
+│   │   ├── config-manager.ts  # Atomic config.json read/write operations
+│   │   └── project-linker.ts  # GitHub validation + automatic config.json linking
 │   ├── telegram/
 │   │   ├── progress-tracker.ts    # Live progress message updates
 │   │   └── progress-formatter.ts  # Progress step formatting
@@ -161,10 +164,10 @@ The LLM agent has these tools for interacting with Plane and the agent runner:
 | --------------------------- | ----------------------------------------------------------------- |
 | `search_github_projects`    | Searches GitHub repos by name or URL (user, org, and global)      |
 | `search_plane_projects`     | Searches existing Plane projects by keyword                       |
-| `create_plane_project`      | Creates a new Plane project with optional template cloning        |
+| `create_plane_project`      | Creates a new Plane project; optionally auto-links a GitHub repo  |
 | `find_github_plane_match`   | Finds matching Plane project for a GitHub repo                    |
 | `get_project_mapping`       | Gets the full mapping between GitHub repos and Plane projects     |
-| `link_github_plane_project` | Links a GitHub repo to a Plane project in the agent runner config |
+| `link_github_plane_project` | Automatically links a GitHub repo to a Plane project by writing agent-runner config.json |
 
 **Agent runner tools:**
 
@@ -190,6 +193,7 @@ Copy `env.example` to `.env` and fill in the values:
 | `GITHUB_PAT`                   | GitHub Personal Access Token for project discovery (optional — enables GitHub tools) |
 | `PROGRESS_FEEDBACK_ENABLED`    | Enable real-time progress updates (default: `true`)                                  |
 | `PROGRESS_UPDATE_INTERVAL_MS`  | Minimum time between progress updates in milliseconds (default: `2500`)              |
+| `AGENT_RUNNER_CONFIG_PATH`     | Path to agent-runner config.json for automatic project linking (default: `../agent-runner/config.json`) |
 
 ### Local development
 

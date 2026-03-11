@@ -7,6 +7,7 @@ import {
   searchRepositories,
   searchUserRepositories,
 } from "../github";
+import { linkProject } from "../config/project-linker";
 
 // Zod schemas for agent-runner API responses (validated at boundary)
 const AgentStatusResponseSchema = z
@@ -940,7 +941,7 @@ export const createProjectManagementTools = (
     createPlaneProject: createTool({
       id: "create_plane_project",
       description:
-        "Create a new Plane project with configuration cloned from a template project (default: AGENTHQ). Use this after confirming with the user.",
+        "Create a new Plane project with configuration cloned from a template project (default: AGENTHQ). Optionally provide a GitHub repo to automatically link the project. Use this after confirming with the user.",
       inputSchema: z.object({
         name: z.string().describe("Project name (e.g. 'Verdandi', 'StyleSwipe')"),
         identifier: z
@@ -951,6 +952,12 @@ export const createProjectManagementTools = (
           .string()
           .optional()
           .describe("Template project identifier to clone labels from (default: 'AGENTHQ')"),
+        github_repo: z
+          .string()
+          .optional()
+          .describe(
+            "GitHub repository in 'owner/repo' format (e.g. 'dobosmarton/verdandi'). If provided, automatically links the GitHub repo to the new Plane project."
+          ),
       }),
       outputSchema: z.object({
         success: z.boolean(),
@@ -962,9 +969,16 @@ export const createProjectManagementTools = (
             url: z.string(),
           })
           .optional(),
+        linking: z
+          .object({
+            success: z.boolean(),
+            status: z.string().optional(),
+            error: z.string().optional(),
+          })
+          .optional(),
         error: z.string().optional(),
       }),
-      execute: async ({ name, identifier, description, template_identifier }) => {
+      execute: async ({ name, identifier, description, template_identifier, github_repo }) => {
         try {
           // Create the project
           const project = await plane.createProject(name, identifier.toUpperCase(), description);
@@ -984,6 +998,49 @@ export const createProjectManagementTools = (
 
           // Build Plane web URL
           const projectUrl = `${planeBaseUrl}/projects/${project.identifier.toLowerCase()}`;
+
+          // Auto-link GitHub repo if provided
+          if (github_repo) {
+            const parsed = parseGitHubUrl(github_repo);
+            if (!parsed) {
+              return {
+                success: true,
+                project: {
+                  id: project.id,
+                  name: project.name,
+                  identifier: project.identifier,
+                  url: projectUrl,
+                },
+                linking: {
+                  success: false,
+                  error: `Invalid GitHub repo format: "${github_repo}". Expected "owner/repo".`,
+                },
+              };
+            }
+
+            const githubUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
+            const linkResult = await linkProject({
+              githubOwner: parsed.owner,
+              githubRepo: parsed.repo,
+              githubUrl,
+              planeIdentifier: project.identifier,
+              planeProjectId: project.id,
+              githubConfig,
+            });
+
+            return {
+              success: true,
+              project: {
+                id: project.id,
+                name: project.name,
+                identifier: project.identifier,
+                url: projectUrl,
+              },
+              linking: linkResult.success
+                ? { success: true, status: linkResult.status }
+                : { success: false, error: linkResult.reason },
+            };
+          }
 
           return {
             success: true,
@@ -1106,7 +1163,7 @@ export const createProjectManagementTools = (
     linkGitHubPlaneProject: createTool({
       id: "link_github_plane_project",
       description:
-        "Guide user to link GitHub and Plane projects by updating config.json. Use this after finding both GitHub repo and Plane project.",
+        "Automatically link a GitHub repository to a Plane project by updating agent-runner config.json. Use this after finding both GitHub repo and Plane project.",
       inputSchema: z.object({
         github_owner: z.string().describe("GitHub repository owner"),
         github_repo: z.string().describe("GitHub repository name"),
@@ -1116,7 +1173,7 @@ export const createProjectManagementTools = (
       }),
       outputSchema: z.object({
         success: z.boolean(),
-        instructions: z.string(),
+        message: z.string(),
         config_snippet: z.string(),
       }),
       execute: async ({
@@ -1129,31 +1186,53 @@ export const createProjectManagementTools = (
         const configSnippet = JSON.stringify(
           {
             [plane_identifier]: {
+              repoPath: `/repos/${github_repo}`,
               repoUrl: github_url,
+              defaultBranch: "main",
               planeProjectId: plane_project_id,
               planeIdentifier: plane_identifier,
-              defaultBranch: "main",
             },
           },
           null,
           2
         );
 
-        const instructions = `To complete the linking:
+        const result = await linkProject({
+          githubOwner: github_owner,
+          githubRepo: github_repo,
+          githubUrl: github_url,
+          planeIdentifier: plane_identifier,
+          planeProjectId: plane_project_id,
+          githubConfig,
+        });
 
-1. Add this to agent-runner/config.json under "projects":
+        if (!result.success) {
+          const fallback = `Automatic linking failed: ${result.reason}
+
+Please manually add this to agent-runner/config.json under "projects":
 
 ${configSnippet}
 
-2. Restart both agent-runner and telegram-bot services:
-   cd agent-runner && docker compose restart
-   cd telegram-bot && docker compose restart
+Then restart the agent-runner service.`;
 
-The projects will then be fully linked and the agent can work on tasks in this project.`;
+          return {
+            success: false,
+            message: fallback,
+            config_snippet: configSnippet,
+          };
+        }
+
+        if (result.status === "already_exists") {
+          return {
+            success: true,
+            message: `✅ Project ${plane_identifier} is already linked to ${github_owner}/${github_repo} in config.json.`,
+            config_snippet: configSnippet,
+          };
+        }
 
         return {
           success: true,
-          instructions,
+          message: `✅ Successfully linked ${github_owner}/${github_repo} → ${plane_identifier}!\n\nconfig.json has been updated automatically. The project is ready for agent tasks.`,
           config_snippet: configSnippet,
         };
       },
