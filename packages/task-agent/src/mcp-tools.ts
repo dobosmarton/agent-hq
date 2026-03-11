@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 import type { PlaneClient } from "@agent-hq/plane-client";
+import { addLabelsToTaskExecutor, removeLabelsFromTaskExecutor } from "@agent-hq/plane-tools";
 
 // Default exec implementation — can be overridden via McpToolsDeps for testing
 const defaultExecAsync = promisify(exec);
@@ -197,50 +198,23 @@ export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) 
           label_names: z.array(z.string()).describe("Array of label names to add"),
         },
         async ({ label_names }) => {
-          // Fetch current issue and available labels
-          const [issue, availableLabels] = await Promise.all([
-            ctx.plane.getIssue(ctx.projectId, ctx.issueId),
-            ctx.plane.listLabels(ctx.projectId),
-          ]);
-
-          // Build lookup map (case-insensitive)
-          const labelMap = new Map(availableLabels.map((l) => [l.name.toLowerCase(), l.id]));
-
-          // Find label IDs
-          const notFound: string[] = [];
-          const labelIdsToAdd: string[] = [];
-
-          for (const name of label_names) {
-            const labelId = labelMap.get(name.toLowerCase());
-            if (labelId) {
-              labelIdsToAdd.push(labelId);
-            } else {
-              notFound.push(name);
-            }
-          }
-
-          // If any labels not found, return helpful error
-          if (notFound.length > 0) {
-            const availableList = availableLabels.map((l) => l.name).join(", ");
+          const result = await addLabelsToTaskExecutor(
+            ctx.plane,
+            ctx.projectId,
+            ctx.issueId,
+            label_names
+          );
+          if (!result.success) {
+            const availableList = result.availableLabelNames.join(", ");
             return {
               content: [
                 {
                   type: "text" as const,
-                  text: `Label(s) not found: ${notFound.join(", ")}.\nAvailable labels: ${availableList}`,
+                  text: `Label(s) not found: ${result.notFound.join(", ")}.\nAvailable labels: ${availableList}`,
                 },
               ],
             };
           }
-
-          // Merge with existing labels and deduplicate
-          const currentLabels = issue.labels ?? [];
-          const mergedLabels = Array.from(new Set([...currentLabels, ...labelIdsToAdd]));
-
-          // Update issue
-          await ctx.plane.updateIssue(ctx.projectId, ctx.issueId, {
-            labels: mergedLabels,
-          });
-
           return {
             content: [
               {
@@ -259,31 +233,12 @@ export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) 
           label_names: z.array(z.string()).describe("Array of label names to remove"),
         },
         async ({ label_names }) => {
-          // Fetch current issue and available labels
-          const [issue, availableLabels] = await Promise.all([
-            ctx.plane.getIssue(ctx.projectId, ctx.issueId),
-            ctx.plane.listLabels(ctx.projectId),
-          ]);
-
-          // Build lookup map (case-insensitive)
-          const labelMap = new Map(availableLabels.map((l) => [l.name.toLowerCase(), l.id]));
-
-          // Find label IDs to remove
-          const labelIdsToRemove = new Set(
+          const result = await removeLabelsFromTaskExecutor(
+            ctx.plane,
+            ctx.projectId,
+            ctx.issueId,
             label_names
-              .map((name) => labelMap.get(name.toLowerCase()))
-              .filter((id): id is string => id !== undefined)
           );
-
-          // Filter out labels to remove
-          const currentLabels = issue.labels ?? [];
-          const updatedLabels = currentLabels.filter((id) => !labelIdsToRemove.has(id));
-
-          // Update issue
-          await ctx.plane.updateIssue(ctx.projectId, ctx.issueId, {
-            labels: updatedLabels,
-          });
-
           return {
             content: [
               {
