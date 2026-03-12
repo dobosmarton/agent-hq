@@ -1,6 +1,6 @@
 import type { PlaneComment } from "@agent-hq/plane-client";
 import type { AgentTask } from "@agent-hq/shared-types";
-import { PLAN_MARKER } from "@agent-hq/shared-types";
+import { PLAN_MARKER, METADATA_MARKER } from "@agent-hq/shared-types";
 import type { CiContext } from "./ci-discovery";
 import { buildResumeContext } from "./comment-formatter";
 import type { ResumeContext } from "./runner";
@@ -106,6 +106,7 @@ export const buildImplementationPrompt = (
   const taskId = taskDisplayId(task);
 
   const commentsSection = comments
+    .filter((c) => !c.comment_html.includes(METADATA_MARKER))
     .map((c) => `<div class="comment" data-date="${c.created_at}">${c.comment_html}</div>`)
     .join("\n");
 

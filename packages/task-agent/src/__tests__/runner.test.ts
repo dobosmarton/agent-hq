@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { classifyError, getPhaseConfig } from "../runner";
+import { classifyError, getPhaseConfig, buildMetadataComment } from "../runner";
+import { METADATA_MARKER } from "@agent-hq/shared-types";
 import type { AgentConfig } from "../adapters";
 
 describe("classifyError", () => {
@@ -25,6 +26,55 @@ describe("classifyError", () => {
 
   it("returns unknown for success subtype with no errors", () => {
     expect(classifyError("success", "")).toBe("unknown");
+  });
+});
+
+describe("buildMetadataComment", () => {
+  it("includes the metadata marker", () => {
+    const result = buildMetadataComment("implementation", 1.5, {
+      available: ["ts-skill"],
+      loaded: new Set(["ts-skill"]),
+    });
+
+    expect(result).toContain(METADATA_MARKER);
+  });
+
+  it("formats cost with two decimal places", () => {
+    const result = buildMetadataComment("planning", 0.1, {
+      available: [],
+      loaded: new Set(),
+    });
+
+    expect(result).toContain("$0.10");
+  });
+
+  it("includes phase label", () => {
+    const result = buildMetadataComment("implementation", 2.0, {
+      available: [],
+      loaded: new Set(),
+    });
+
+    expect(result).toContain("phase: implementation");
+  });
+
+  it("lists available and loaded skills", () => {
+    const result = buildMetadataComment("implementation", 1.0, {
+      available: ["skill-a", "skill-b"],
+      loaded: new Set(["skill-a"]),
+    });
+
+    expect(result).toContain("skill-a, skill-b");
+    expect(result).toContain("<li><strong>Skills loaded:</strong> skill-a</li>");
+  });
+
+  it("shows 'none' when no skills are available or loaded", () => {
+    const result = buildMetadataComment("planning", 0.5, {
+      available: [],
+      loaded: new Set(),
+    });
+
+    expect(result).toContain("<li><strong>Skills available:</strong> none</li>");
+    expect(result).toContain("<li><strong>Skills loaded:</strong> none</li>");
   });
 });
 

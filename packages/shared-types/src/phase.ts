@@ -1,6 +1,7 @@
 import type { PlaneComment } from "@agent-hq/plane-client";
 
 export const PLAN_MARKER = "<!-- AGENT_PLAN -->";
+export const METADATA_MARKER = "<!-- AGENT_METADATA -->";
 
 export type AgentPhase = "planning" | "implementation";
 

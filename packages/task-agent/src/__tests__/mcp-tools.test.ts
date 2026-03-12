@@ -145,6 +145,48 @@ describe("add_task_comment", () => {
   });
 });
 
+describe("list_task_comments", () => {
+  it("filters out metadata comments", async () => {
+    const ctx = makeContext();
+    createAgentMcpServer(ctx);
+
+    vi.mocked(ctx.plane.listComments).mockResolvedValue([
+      makeComment({ comment_html: "<p>User feedback</p>" }),
+      makeComment({
+        comment_html:
+          "<!-- AGENT_METADATA -->\n<details><summary>Session metadata</summary></details>",
+      }),
+      makeComment({ comment_html: "<p>Another comment</p>" }),
+    ]);
+
+    const handler = toolHandlers.get("list_task_comments")!;
+    const result = await handler({});
+    const text = result.content[0].text as string;
+    const parsed = JSON.parse(text);
+
+    expect(parsed).toHaveLength(2);
+    expect(text).toContain("User feedback");
+    expect(text).toContain("Another comment");
+    expect(text).not.toContain("AGENT_METADATA");
+  });
+
+  it("returns empty message when only metadata comments exist", async () => {
+    const ctx = makeContext();
+    createAgentMcpServer(ctx);
+
+    vi.mocked(ctx.plane.listComments).mockResolvedValue([
+      makeComment({
+        comment_html: "<!-- AGENT_METADATA -->\n<details><summary>metadata</summary></details>",
+      }),
+    ]);
+
+    const handler = toolHandlers.get("list_task_comments")!;
+    const result = await handler({});
+
+    expect(result.content[0].text).toContain("No comments found");
+  });
+});
+
 describe("add_task_link", () => {
   it("calls addLink with correct params", async () => {
     const ctx = makeContext();
@@ -566,6 +608,42 @@ This is the content.`,
     expect(result.content[0].text).toContain("# Test Skill");
     expect(result.content[0].text).toContain("This is the content.");
     expect(result.content[0].text).not.toContain("name: Test Skill");
+  });
+
+  it("tracks loaded skills in skillTracker", async () => {
+    const skill = makeSkill();
+    const ctx = makeContext({ skills: [skill] });
+    const { skillTracker } = createAgentMcpServer(ctx);
+
+    expect(skillTracker.available).toEqual(["test-skill"]);
+    expect(skillTracker.loaded.size).toBe(0);
+
+    const handler = toolHandlers.get("load_skill")!;
+    await handler({ skill_id: "test-skill" });
+
+    expect(skillTracker.loaded.has("test-skill")).toBe(true);
+  });
+
+  it("does not track invalid skill IDs", async () => {
+    const ctx = makeContext({ skills: [makeSkill()] });
+    const { skillTracker } = createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("load_skill")!;
+    await handler({ skill_id: "nonexistent" });
+
+    expect(skillTracker.loaded.size).toBe(0);
+  });
+
+  it("deduplicates repeated loads in skillTracker", async () => {
+    const skill = makeSkill();
+    const ctx = makeContext({ skills: [skill] });
+    const { skillTracker } = createAgentMcpServer(ctx);
+
+    const handler = toolHandlers.get("load_skill")!;
+    await handler({ skill_id: "test-skill" });
+    await handler({ skill_id: "test-skill" });
+
+    expect(skillTracker.loaded.size).toBe(1);
   });
 
   it("returns not found for unknown skill ID", async () => {

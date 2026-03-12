@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import type { PlaneClient } from "@agent-hq/plane-client";
 import { addLabelsToTaskExecutor, removeLabelsFromTaskExecutor } from "@agent-hq/plane-tools";
+import { METADATA_MARKER } from "@agent-hq/shared-types";
 
 // Default exec implementation — can be overridden via McpToolsDeps for testing
 const defaultExecAsync = promisify(exec);
@@ -41,9 +42,30 @@ type McpToolsDeps = {
   execAsync?: ExecAsyncFn;
 };
 
-export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) => {
+export type SkillTracker = {
+  /** Skill IDs available for loading in this session */
+  available: string[];
+  /** Skill IDs the agent actually called load_skill on */
+  loaded: Set<string>;
+};
+
+export type AgentMcpServerResult = {
+  server: ReturnType<typeof createSdkMcpServer>;
+  skillTracker: SkillTracker;
+};
+
+export const createAgentMcpServer = (
+  ctx: McpToolsContext,
+  deps?: McpToolsDeps
+): AgentMcpServerResult => {
   const execAsync = deps?.execAsync ?? (defaultExecAsync as ExecAsyncFn);
-  return createSdkMcpServer({
+
+  const skillTracker: SkillTracker = {
+    available: ctx.skills.map((s) => s.id),
+    loaded: new Set<string>(),
+  };
+
+  const server = createSdkMcpServer({
     name: "agent-plane-tools",
     tools: [
       tool(
@@ -105,7 +127,8 @@ export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) 
         "Retrieve all comments on the current task with timestamps and content. Use this to review feedback and understand the task's history.",
         {},
         async () => {
-          const comments = await ctx.plane.listComments(ctx.projectId, ctx.issueId);
+          const allComments = await ctx.plane.listComments(ctx.projectId, ctx.issueId);
+          const comments = allComments.filter((c) => !c.comment_html.includes(METADATA_MARKER));
 
           if (comments.length === 0) {
             return {
@@ -270,6 +293,8 @@ export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) 
             };
           }
 
+          skillTracker.loaded.add(skill_id);
+
           return {
             content: [
               {
@@ -425,4 +450,6 @@ export const createAgentMcpServer = (ctx: McpToolsContext, deps?: McpToolsDeps) 
       ),
     ],
   });
+
+  return { server, skillTracker };
 };
