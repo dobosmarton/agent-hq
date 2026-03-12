@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PlaneClient, PlaneComment } from "@agent-hq/plane-client";
 import type { AgentErrorType, AgentPhase, AgentTask } from "@agent-hq/shared-types";
+import { METADATA_MARKER } from "@agent-hq/shared-types";
 import type { Skill } from "@agent-hq/skills";
 import type {
   AgentConfig,
@@ -14,6 +15,7 @@ import type {
 import type { CiContext } from "./ci-discovery";
 import type { CommentAnalysis } from "./comment-analyzer";
 import { createAgentMcpServer } from "./mcp-tools";
+import type { SkillTracker } from "./mcp-tools";
 import { buildMcpServersRecord } from "./mcp-servers";
 import { createAgentProgressTracker } from "./progress-tracker";
 import { buildImplementationPrompt, buildPlanningPrompt } from "./prompt-builder";
@@ -163,34 +165,62 @@ export const classifyError = (subtype: string, errors: string): AgentErrorType =
   return "rate_limited";
 };
 
-const notifyAgentError = async (
+const ERROR_PREVIEW_MAX_LENGTH = 1000;
+
+const notifyAgentFailure = async (
   deps: RunnerDeps,
   task: AgentTask,
   taskDisplayId: string,
   phaseLabel: "planning" | "implementing",
-  errorText: string
+  errorText: string,
+  kind: "error" | "crash"
 ): Promise<void> => {
   await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
+  const verb = kind === "error" ? "encountered an error during" : "crashed during";
   await deps.plane.addComment(
     task.projectId,
     task.issueId,
-    `<p><strong>Agent encountered an error during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`
+    `<p><strong>Agent ${verb} ${phaseLabel}:</strong></p><pre>${errorText.slice(0, ERROR_PREVIEW_MAX_LENGTH)}</pre>`
   );
 };
 
-const notifyAgentCrash = async (
+export const buildMetadataComment = (
+  phase: AgentPhase,
+  costUsd: number,
+  skillTracker: SkillTracker
+): string => {
+  const availableStr =
+    skillTracker.available.length > 0 ? skillTracker.available.join(", ") : "none";
+  const loadedStr = skillTracker.loaded.size > 0 ? [...skillTracker.loaded].join(", ") : "none";
+
+  return `${METADATA_MARKER}
+<details>
+<summary>Session metadata (phase: ${phase}, cost: $${costUsd.toFixed(2)})</summary>
+<ul>
+<li><strong>Phase:</strong> ${phase}</li>
+<li><strong>Cost:</strong> $${costUsd.toFixed(2)}</li>
+<li><strong>Skills available:</strong> ${availableStr}</li>
+<li><strong>Skills loaded:</strong> ${loadedStr}</li>
+</ul>
+</details>`;
+};
+
+const postMetadataComment = async (
   deps: RunnerDeps,
   task: AgentTask,
-  taskDisplayId: string,
-  phaseLabel: "planning" | "implementing",
-  errorText: string
+  phase: AgentPhase,
+  costUsd: number,
+  skillTracker: SkillTracker
 ): Promise<void> => {
-  await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
-  await deps.plane.addComment(
-    task.projectId,
-    task.issueId,
-    `<p><strong>Agent crashed during ${phaseLabel}:</strong></p><pre>${errorText.slice(0, 1000)}</pre>`
-  );
+  try {
+    await deps.plane.addComment(
+      task.projectId,
+      task.issueId,
+      buildMetadataComment(phase, costUsd, skillTracker)
+    );
+  } catch (err) {
+    console.error("Failed to post metadata comment:", err);
+  }
 };
 
 // ── Main orchestration ───────────────────────────────────────────────
@@ -269,7 +299,7 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
   progressTracker.update("Setting up environment", "completed");
 
   // Create task-scoped MCP server
-  const mcpServer = createAgentMcpServer({
+  const { server: mcpServer, skillTracker } = createAgentMcpServer({
     plane: deps.plane,
     projectId: task.projectId,
     issueId: task.issueId,
@@ -343,6 +373,7 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
             task.issueId,
             `<p><strong>Agent completed ${pc.phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`
           );
+          await postMetadataComment(deps, task, phase, totalCostUsd, skillTracker);
         } else {
           const errors =
             "errors" in message && Array.isArray(message.errors) ? message.errors.join(", ") : "";
@@ -369,12 +400,13 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
             }
           }
 
-          // Suppress notifications for retryable errors when retries remain
           const isRetryableError = errorType === "rate_limited" || errorType === "unknown";
-          if (!(isRetryableError && hasRetriesRemaining)) {
-            await notifyAgentError(deps, task, taskDisplayId, pc.phaseLabel, errorText);
+          const shouldSuppressNotification = isRetryableError && hasRetriesRemaining;
+          if (!shouldSuppressNotification) {
+            await notifyAgentFailure(deps, task, taskDisplayId, pc.phaseLabel, errorText, "error");
           }
 
+          await postMetadataComment(deps, task, phase, totalCostUsd, skillTracker);
           return { costUsd: totalCostUsd, errorType };
         }
 
@@ -403,8 +435,9 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
     }
 
     if (!hasRetriesRemaining) {
-      await notifyAgentCrash(deps, task, taskDisplayId, pc.phaseLabel, errorMsg);
+      await notifyAgentFailure(deps, task, taskDisplayId, pc.phaseLabel, errorMsg, "crash");
     }
+    await postMetadataComment(deps, task, phase, totalCostUsd, skillTracker);
     throw err;
   }
 };

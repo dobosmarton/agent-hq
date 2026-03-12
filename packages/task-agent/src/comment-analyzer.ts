@@ -1,13 +1,14 @@
 import type { PlaneComment } from "@agent-hq/plane-client";
-import { PLAN_MARKER } from "@agent-hq/shared-types";
+import { PLAN_MARKER, METADATA_MARKER } from "@agent-hq/shared-types";
 
 /**
  * Markers used to identify agent comments
  */
 const AGENT_MARKERS = [
-  "<!-- AGENT_PLAN -->",
+  PLAN_MARKER,
   "<!-- AGENT_PROGRESS -->",
   "<!-- AGENT_SESSION_METADATA",
+  METADATA_MARKER,
   "<strong>Agent started",
   "<strong>Agent completed",
 ];
