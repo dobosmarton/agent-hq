@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import type { PlaneClient } from "@agent-hq/plane-client";
 import { addLabelsToTaskExecutor, removeLabelsFromTaskExecutor } from "@agent-hq/plane-tools";
-import { METADATA_MARKER } from "@agent-hq/shared-types";
+import { METADATA_MARKER, toErrorMessage } from "@agent-hq/shared-types";
 
 // Default exec implementation — can be overridden via McpToolsDeps for testing
 const defaultExecAsync = promisify(exec);
@@ -17,6 +17,10 @@ import {
   SkillPhaseSchema,
 } from "@agent-hq/skills";
 import type { Skill } from "@agent-hq/skills";
+
+const textResult = (text: string) => ({
+  content: [{ type: "text" as const, text }],
+});
 
 type McpToolsContext = {
   plane: PlaneClient;
@@ -81,27 +85,13 @@ export const createAgentMcpServer = (
           const stateId = stateMap[state];
 
           if (!stateId) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `State "${state}" not available in this project.`,
-                },
-              ],
-            };
+            return textResult(`State "${state}" not available in this project.`);
           }
 
           await ctx.plane.updateIssue(ctx.projectId, ctx.issueId, {
             state: stateId,
           });
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Task ${ctx.taskDisplayId} moved to ${state}.`,
-              },
-            ],
-          };
+          return textResult(`Task ${ctx.taskDisplayId} moved to ${state}.`);
         }
       ),
 
@@ -111,14 +101,7 @@ export const createAgentMcpServer = (
         { comment_html: z.string().describe("HTML-formatted comment content") },
         async ({ comment_html }) => {
           await ctx.plane.addComment(ctx.projectId, ctx.issueId, comment_html);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Comment added to task ${ctx.taskDisplayId}.`,
-              },
-            ],
-          };
+          return textResult(`Comment added to task ${ctx.taskDisplayId}.`);
         }
       ),
 
@@ -131,24 +114,10 @@ export const createAgentMcpServer = (
           const comments = allComments.filter((c) => !c.comment_html.includes(METADATA_MARKER));
 
           if (comments.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "No comments found on this task.",
-                },
-              ],
-            };
+            return textResult("No comments found on this task.");
           }
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(comments, null, 2),
-              },
-            ],
-          };
+          return textResult(JSON.stringify(comments, null, 2));
         }
       ),
 
@@ -161,14 +130,7 @@ export const createAgentMcpServer = (
         },
         async ({ title, url }) => {
           await ctx.plane.addLink(ctx.projectId, ctx.issueId, title, url);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Link "${title}" added to task ${ctx.taskDisplayId}.`,
-              },
-            ],
-          };
+          return textResult(`Link "${title}" added to task ${ctx.taskDisplayId}.`);
         }
       ),
 
@@ -180,14 +142,7 @@ export const createAgentMcpServer = (
           const labels = await ctx.plane.listLabels(ctx.projectId);
 
           if (labels.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "No labels found in this project.",
-                },
-              ],
-            };
+            return textResult("No labels found in this project.");
           }
 
           const labelList = labels
@@ -203,14 +158,7 @@ export const createAgentMcpServer = (
             })
             .join("\n");
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Available labels in this project:\n${labelList}`,
-              },
-            ],
-          };
+          return textResult(`Available labels in this project:\n${labelList}`);
         }
       ),
 
@@ -229,23 +177,13 @@ export const createAgentMcpServer = (
           );
           if (!result.success) {
             const availableList = result.availableLabelNames.join(", ");
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Label(s) not found: ${result.notFound.join(", ")}.\nAvailable labels: ${availableList}`,
-                },
-              ],
-            };
+            return textResult(
+              `Label(s) not found: ${result.notFound.join(", ")}.\nAvailable labels: ${availableList}`
+            );
           }
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Added label(s) ${label_names.join(", ")} to task ${ctx.taskDisplayId}.`,
-              },
-            ],
-          };
+          return textResult(
+            `Added label(s) ${label_names.join(", ")} to task ${ctx.taskDisplayId}.`
+          );
         }
       ),
 
@@ -256,20 +194,10 @@ export const createAgentMcpServer = (
           label_names: z.array(z.string()).describe("Array of label names to remove"),
         },
         async ({ label_names }) => {
-          const result = await removeLabelsFromTaskExecutor(
-            ctx.plane,
-            ctx.projectId,
-            ctx.issueId,
-            label_names
+          await removeLabelsFromTaskExecutor(ctx.plane, ctx.projectId, ctx.issueId, label_names);
+          return textResult(
+            `Removed label(s) ${label_names.join(", ")} from task ${ctx.taskDisplayId}.`
           );
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Removed label(s) ${label_names.join(", ")} from task ${ctx.taskDisplayId}.`,
-              },
-            ],
-          };
         }
       ),
 
@@ -283,26 +211,12 @@ export const createAgentMcpServer = (
           const skill = ctx.skills.find((s) => s.id === skill_id);
           if (!skill) {
             const available = ctx.skills.map((s) => s.id).join(", ");
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Skill "${skill_id}" not found. Available skills: ${available}`,
-                },
-              ],
-            };
+            return textResult(`Skill "${skill_id}" not found. Available skills: ${available}`);
           }
 
           skillTracker.loaded.add(skill_id);
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: stripSkillMetadata(skill.content),
-              },
-            ],
-          };
+          return textResult(stripSkillMetadata(skill.content));
         }
       ),
 
@@ -312,14 +226,7 @@ export const createAgentMcpServer = (
         {},
         async () => {
           if (ctx.ciCommands.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "No CI commands configured. Run quality checks manually using Bash.",
-                },
-              ],
-            };
+            return textResult("No CI commands configured. Run quality checks manually using Bash.");
           }
 
           type CommandResult = {
@@ -356,14 +263,9 @@ export const createAgentMcpServer = (
             .map((r) => `${r.passed ? "✓" : "✗"} ${r.command}\n${r.output}`)
             .join("\n\n");
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Quality gate ${allPassed ? "PASSED" : "FAILED"} (${results.filter((r) => r.passed).length}/${results.length} checks passed)\n\n${summary}`,
-              },
-            ],
-          };
+          return textResult(
+            `Quality gate ${allPassed ? "PASSED" : "FAILED"} (${results.filter((r) => r.passed).length}/${results.length} checks passed)\n\n${summary}`
+          );
         }
       ),
 
@@ -428,23 +330,11 @@ export const createAgentMcpServer = (
             clearSkillCache();
 
             const scopeLabel = effectiveScope === "project" ? "project" : "global";
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Skill "${name}" saved as ${scopeLabel} learned skill at ${filePath}. It will be automatically loaded for future tasks.`,
-                },
-              ],
-            };
+            return textResult(
+              `Skill "${name}" saved as ${scopeLabel} learned skill at ${filePath}. It will be automatically loaded for future tasks.`
+            );
           } catch (err) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Failed to create skill: ${err instanceof Error ? err.message : String(err)}`,
-                },
-              ],
-            };
+            return textResult(`Failed to create skill: ${toErrorMessage(err)}`);
           }
         }
       ),

@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PlaneClient, PlaneComment } from "@agent-hq/plane-client";
 import type { AgentErrorType, AgentPhase, AgentTask } from "@agent-hq/shared-types";
-import { METADATA_MARKER } from "@agent-hq/shared-types";
+import { METADATA_MARKER, toErrorMessage } from "@agent-hq/shared-types";
 import type { Skill } from "@agent-hq/skills";
 import type {
   AgentConfig,
@@ -115,6 +115,27 @@ const saveProgress = async (
   return true;
 };
 
+/**
+ * Best-effort save of uncommitted work. Swallows errors to avoid masking
+ * the original error that triggered the save.
+ */
+const trySaveProgress = async (
+  phase: AgentPhase,
+  workingDir: string,
+  branchName: string,
+  taskDisplayId: string
+): Promise<void> => {
+  if (phase !== "implementation") return;
+  try {
+    const saved = await saveProgress(workingDir, branchName, taskDisplayId);
+    if (saved) {
+      console.log(`Saved in-progress work for ${taskDisplayId}`);
+    }
+  } catch (err) {
+    console.error(`Failed to save progress for ${taskDisplayId}:`, err);
+  }
+};
+
 export type ResumeContext = {
   gitLog: string;
   gitDiff: string;
@@ -126,6 +147,7 @@ export type ResumeContext = {
 
 const PLANNING_MAX_TURNS = 50;
 const PLANNING_MAX_BUDGET_USD = 2.0;
+const ERROR_PREVIEW_MAX_LENGTH = 1000;
 
 type PhaseConfig = {
   maxTurns: number;
@@ -165,21 +187,20 @@ export const classifyError = (subtype: string, errors: string): AgentErrorType =
   return "rate_limited";
 };
 
-const ERROR_PREVIEW_MAX_LENGTH = 1000;
+type CommentFn = (html: string) => Promise<PlaneComment>;
 
 const notifyAgentFailure = async (
-  deps: RunnerDeps,
-  task: AgentTask,
+  notifier: Notifier,
   taskDisplayId: string,
+  taskTitle: string,
   phaseLabel: "planning" | "implementing",
   errorText: string,
-  kind: "error" | "crash"
+  kind: "error" | "crash",
+  comment: CommentFn
 ): Promise<void> => {
-  await deps.notifier.agentErrored(taskDisplayId, task.title, errorText);
+  await notifier.agentErrored(taskDisplayId, taskTitle, errorText);
   const verb = kind === "error" ? "encountered an error during" : "crashed during";
-  await deps.plane.addComment(
-    task.projectId,
-    task.issueId,
+  await comment(
     `<p><strong>Agent ${verb} ${phaseLabel}:</strong></p><pre>${errorText.slice(0, ERROR_PREVIEW_MAX_LENGTH)}</pre>`
   );
 };
@@ -206,21 +227,84 @@ export const buildMetadataComment = (
 };
 
 const postMetadataComment = async (
-  deps: RunnerDeps,
-  task: AgentTask,
   phase: AgentPhase,
   costUsd: number,
-  skillTracker: SkillTracker
+  skillTracker: SkillTracker,
+  comment: CommentFn
 ): Promise<void> => {
   try {
-    await deps.plane.addComment(
-      task.projectId,
-      task.issueId,
-      buildMetadataComment(phase, costUsd, skillTracker)
-    );
+    await comment(buildMetadataComment(phase, costUsd, skillTracker));
   } catch (err) {
     console.error("Failed to post metadata comment:", err);
   }
+};
+
+// ── Result handler ──────────────────────────────────────────────────
+
+type ResultHandlerContext = {
+  taskDisplayId: string;
+  phase: AgentPhase;
+  pc: PhaseConfig;
+  notifier: Notifier;
+  workingDir: string;
+  branchName: string;
+  hasRetriesRemaining: boolean;
+  retryCount: number;
+  skillTracker: SkillTracker;
+  comment: CommentFn;
+};
+
+const handleAgentResult = async (
+  message: { subtype?: string; errors?: string[]; total_cost_usd?: number },
+  totalCostUsd: number,
+  ctx: ResultHandlerContext
+): Promise<AgentResult> => {
+  if (message.subtype === "success") {
+    const retryNote =
+      ctx.retryCount > 0
+        ? ` (succeeded after ${ctx.retryCount} ${ctx.retryCount === 1 ? "retry" : "retries"})`
+        : "";
+    console.log(
+      `Agent ${ctx.taskDisplayId} (${ctx.phase}) completed successfully${retryNote} (cost: $${totalCostUsd.toFixed(2)})`
+    );
+    await ctx.notifier.agentCompleted(ctx.taskDisplayId, ctx.phase);
+    await ctx.comment(
+      `<p><strong>Agent completed ${ctx.pc.phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${ctx.phase === "implementation" ? `<p>Branch <code>${ctx.branchName}</code> is ready for review.</p>` : ""}`
+    );
+    await postMetadataComment(ctx.phase, totalCostUsd, ctx.skillTracker, ctx.comment);
+    return { costUsd: totalCostUsd };
+  }
+
+  // Error path
+  const errors = Array.isArray(message.errors) ? message.errors.join(", ") : "";
+  const subtype = String(message.subtype ?? "");
+  const errorText = errors || `result subtype: ${subtype}, cost: $${totalCostUsd.toFixed(2)}`;
+  const errorType = classifyError(subtype, errors);
+
+  console.error(
+    `Agent ${ctx.taskDisplayId} (${ctx.phase}) ended with error (subtype=${subtype}, type=${errorType}): ${errorText}`
+  );
+
+  if (errorType === "budget_exceeded" || errorType === "max_turns") {
+    await trySaveProgress(ctx.phase, ctx.workingDir, ctx.branchName, ctx.taskDisplayId);
+  }
+
+  const isRetryableError = errorType === "rate_limited" || errorType === "unknown";
+  const shouldSuppressNotification = isRetryableError && ctx.hasRetriesRemaining;
+  if (!shouldSuppressNotification) {
+    await notifyAgentFailure(
+      ctx.notifier,
+      ctx.taskDisplayId,
+      ctx.phase,
+      ctx.pc.phaseLabel,
+      errorText,
+      "error",
+      ctx.comment
+    );
+  }
+
+  await postMetadataComment(ctx.phase, totalCostUsd, ctx.skillTracker, ctx.comment);
+  return { costUsd: totalCostUsd, errorType };
 };
 
 // ── Main orchestration ───────────────────────────────────────────────
@@ -263,6 +347,7 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
   const cache = deps.taskPoller.getProjectCache(task.projectIdentifier);
   const isRetry = deps.retryContext.retryCount > 0;
   const pc = getPhaseConfig(phase, deps.config.agent);
+  const comment: CommentFn = (html) => deps.plane.addComment(task.projectId, task.issueId, html);
 
   console.log(
     `Starting ${phase} agent for ${taskDisplayId}: "${task.title}"${isRetry ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})` : ""}`
@@ -290,9 +375,7 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
 
   progressTracker.update("Setting up environment", "in_progress");
 
-  await deps.plane.addComment(
-    task.projectId,
-    task.issueId,
+  await comment(
     `<p><strong>Agent started ${pc.phaseLabel}</strong> this task${retryLabel}.</p>${phase === "implementation" ? `<p>Branch: <code>${branchName}</code></p>` : ""}`
   );
 
@@ -328,6 +411,19 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
           resumeContext
         );
 
+  const resultCtx: ResultHandlerContext = {
+    taskDisplayId,
+    phase,
+    pc,
+    notifier: deps.notifier,
+    workingDir,
+    branchName,
+    hasRetriesRemaining,
+    retryCount: deps.retryContext.retryCount,
+    skillTracker,
+    comment,
+  };
+
   let totalCostUsd = 0;
 
   try {
@@ -359,85 +455,29 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
           totalCostUsd = message.total_cost_usd;
         }
 
-        if (message.subtype === "success") {
-          const retryNote =
-            deps.retryContext.retryCount > 0
-              ? ` (succeeded after ${deps.retryContext.retryCount} ${deps.retryContext.retryCount === 1 ? "retry" : "retries"})`
-              : "";
-          console.log(
-            `Agent ${taskDisplayId} (${phase}) completed successfully${retryNote} (cost: $${totalCostUsd.toFixed(2)})`
-          );
-          await deps.notifier.agentCompleted(taskDisplayId, task.title);
-          await deps.plane.addComment(
-            task.projectId,
-            task.issueId,
-            `<p><strong>Agent completed ${pc.phaseLabel}</strong>${retryNote}.</p><p>Cost: $${totalCostUsd.toFixed(2)}</p>${phase === "implementation" ? `<p>Branch <code>${branchName}</code> is ready for review.</p>` : ""}`
-          );
-          await postMetadataComment(deps, task, phase, totalCostUsd, skillTracker);
-        } else {
-          const errors =
-            "errors" in message && Array.isArray(message.errors) ? message.errors.join(", ") : "";
-          const subtype = String(message.subtype ?? "");
-          const errorText =
-            errors || `result subtype: ${subtype}, cost: $${totalCostUsd.toFixed(2)}`;
-
-          const errorType = classifyError(subtype, errors);
-
-          console.error(
-            `Agent ${taskDisplayId} (${phase}) ended with error (subtype=${subtype}, type=${errorType}): ${errorText}`
-          );
-
-          if (errorType === "budget_exceeded" || errorType === "max_turns") {
-            if (phase === "implementation") {
-              try {
-                const saved = await saveProgress(workingDir, branchName, taskDisplayId);
-                if (saved) {
-                  console.log(`Saved in-progress work for ${taskDisplayId} before termination`);
-                }
-              } catch (saveErr) {
-                console.error(`Failed to save progress for ${taskDisplayId}:`, saveErr);
-              }
-            }
-          }
-
-          const isRetryableError = errorType === "rate_limited" || errorType === "unknown";
-          const shouldSuppressNotification = isRetryableError && hasRetriesRemaining;
-          if (!shouldSuppressNotification) {
-            await notifyAgentFailure(deps, task, taskDisplayId, pc.phaseLabel, errorText, "error");
-          }
-
-          await postMetadataComment(deps, task, phase, totalCostUsd, skillTracker);
-          return { costUsd: totalCostUsd, errorType };
-        }
-
-        // Return immediately after processing the result message.
-        // The Claude Code process may exit with a non-zero code after
-        // yielding the result, which would throw if we continue iterating.
-        return { costUsd: totalCostUsd };
+        return await handleAgentResult(message, totalCostUsd, resultCtx);
       }
     }
 
     return { costUsd: totalCostUsd };
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
+    const errorMsg = toErrorMessage(err);
     console.error(`Agent ${taskDisplayId} (${phase}) crashed: ${errorMsg}`);
 
-    // Save uncommitted work before propagating the crash
-    if (phase === "implementation") {
-      try {
-        const saved = await saveProgress(workingDir, branchName, taskDisplayId);
-        if (saved) {
-          console.log(`Saved in-progress work for ${taskDisplayId} after crash`);
-        }
-      } catch {
-        // Best effort — don't mask the original error
-      }
-    }
+    await trySaveProgress(phase, workingDir, branchName, taskDisplayId);
 
     if (!hasRetriesRemaining) {
-      await notifyAgentFailure(deps, task, taskDisplayId, pc.phaseLabel, errorMsg, "crash");
+      await notifyAgentFailure(
+        deps.notifier,
+        taskDisplayId,
+        task.title,
+        pc.phaseLabel,
+        errorMsg,
+        "crash",
+        comment
+      );
     }
-    await postMetadataComment(deps, task, phase, totalCostUsd, skillTracker);
+    await postMetadataComment(phase, totalCostUsd, skillTracker, comment);
     throw err;
   }
 };
