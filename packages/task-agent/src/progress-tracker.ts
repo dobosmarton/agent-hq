@@ -1,3 +1,4 @@
+import { toErrorMessage } from "@agent-hq/shared-types";
 import type { Notifier } from "./adapters";
 import { formatAgentProgress, type ProgressStep } from "./progress-formatter";
 
@@ -55,9 +56,7 @@ export const createAgentProgressTracker = (config: AgentProgressTrackerConfig) =
           startTime
         );
         void config.notifier.agentProgress(config.messageId, message).catch((err: unknown) => {
-          console.error(
-            `Progress update failed: ${err instanceof Error ? err.message : String(err)}`
-          );
+          console.error(`Progress update failed: ${toErrorMessage(err)}`);
         });
       }
     },

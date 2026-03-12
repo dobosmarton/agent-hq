@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { GitHubPRAdapter, PlaneTaskAdapter } from "@agent-hq/shared-types";
+import { toErrorMessage } from "@agent-hq/shared-types";
 import { loadSkills } from "@agent-hq/skills";
 import type { ReviewContext, ReviewResult, CodeAnalysisResult } from "./types";
 import { analyzeReview } from "./agent";
@@ -245,12 +246,7 @@ export const createReviewOrchestrator = (deps: ReviewOrchestratorDeps) => {
       return { success: true, data: undefined };
     } catch (error: unknown) {
       console.error(`❌ Review: Unexpected error:`, error);
-
-      if (error instanceof Error) {
-        return { success: false, error: error.message };
-      }
-
-      return { success: false, error: "Unknown error during review" };
+      return { success: false, error: toErrorMessage(error) };
     }
   };
 

@@ -1,4 +1,5 @@
 import type { GitHubPRAdapter, ReviewEvent } from "@agent-hq/shared-types";
+import { toErrorMessage } from "@agent-hq/shared-types";
 import type { GitHubReviewComment } from "./github/types";
 import type { CodeAnalysisResult, IssueSeverity, ReviewResult } from "./types";
 import type { AggregatedReview } from "./parallel-reviewer";
@@ -161,11 +162,6 @@ export const postReviewToGitHub = async (
     return { success: true, data: undefined };
   } catch (error: unknown) {
     console.error(`❌ Review: Error posting review to GitHub:`, error);
-
-    if (error instanceof Error) {
-      return { success: false, error: error.message };
-    }
-
-    return { success: false, error: "Unknown error posting review" };
+    return { success: false, error: toErrorMessage(error) };
   }
 };

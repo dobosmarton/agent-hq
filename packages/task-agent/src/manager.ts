@@ -1,6 +1,6 @@
 import type { PlaneClient } from "@agent-hq/plane-client";
 import type { ActiveAgent, AgentDoneResult, AgentTask, SpawnResult } from "@agent-hq/shared-types";
-import { detectPhase } from "@agent-hq/shared-types";
+import { detectPhase, toErrorMessage } from "@agent-hq/shared-types";
 import { loadSkills, formatSkillsCatalog } from "@agent-hq/skills";
 import { resolve } from "node:path";
 import type {
@@ -152,7 +152,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
         console.log(`Posted resume comment for ${taskSlug}`);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = toErrorMessage(err);
       console.error(`Failed to setup worktree for ${taskSlug}: ${msg}`);
       await deps.notifier.agentErrored(taskSlug, task.title, `Worktree setup failed: ${msg}`);
       deps.taskPoller.releaseTask(task.issueId);
@@ -236,7 +236,7 @@ export const createAgentManager = (deps: ManagerDeps) => {
       })
       .catch(async (err) => {
         agent.status = "errored";
-        const errMsg = err instanceof Error ? err.message : String(err);
+        const errMsg = toErrorMessage(err);
         console.error(`Agent ${taskSlug} (${phase}) failed:`, err);
 
         activeAgents.delete(task.issueId);
