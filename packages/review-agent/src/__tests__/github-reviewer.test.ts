@@ -55,6 +55,89 @@ describe("postReviewToGitHub", () => {
     );
   });
 
+  it("should retry without inline comments on path resolution 422", async () => {
+    const mockClient: Pick<GitHubPRAdapter, "createReview"> = {
+      createReview: vi
+        .fn()
+        .mockResolvedValueOnce({
+          success: false,
+          error: '422 Unprocessable Entity: "Path could not be resolved"',
+        })
+        .mockResolvedValueOnce({ success: true, data: undefined }),
+    };
+
+    const analysis: CodeAnalysisResult = {
+      overallAssessment: "request_changes",
+      summary: "Issues found",
+      issues: [
+        {
+          category: "security",
+          severity: "major",
+          description: "Problem here",
+          file: "src/nonexistent.ts",
+          line: 10,
+        },
+      ],
+    };
+
+    const result = await postReviewToGitHub(mockClient as GitHubPRAdapter, 123, analysis);
+
+    expect(result.success).toBe(true);
+    expect(mockClient.createReview).toHaveBeenCalledTimes(2);
+    // First call: with inline comments
+    expect(mockClient.createReview).toHaveBeenNthCalledWith(
+      1,
+      123,
+      "REQUEST_CHANGES",
+      expect.any(String),
+      expect.arrayContaining([expect.objectContaining({ path: "src/nonexistent.ts" })])
+    );
+    // Second call: without inline comments
+    expect(mockClient.createReview).toHaveBeenNthCalledWith(
+      2,
+      123,
+      "REQUEST_CHANGES",
+      expect.any(String)
+    );
+  });
+
+  it("should fall back to COMMENT after path error and REQUEST_CHANGES rejection", async () => {
+    const mockClient: Pick<GitHubPRAdapter, "createReview"> = {
+      createReview: vi
+        .fn()
+        .mockResolvedValueOnce({
+          success: false,
+          error: '422 Unprocessable Entity: "Path could not be resolved"',
+        })
+        .mockResolvedValueOnce({
+          success: false,
+          error: "422 Unprocessable Entity",
+        })
+        .mockResolvedValueOnce({ success: true, data: undefined }),
+    };
+
+    const analysis: CodeAnalysisResult = {
+      overallAssessment: "request_changes",
+      summary: "Issues found",
+      issues: [
+        {
+          category: "correctness",
+          severity: "critical",
+          description: "Bug",
+          file: "src/bad.ts",
+          line: 5,
+        },
+      ],
+    };
+
+    const result = await postReviewToGitHub(mockClient as GitHubPRAdapter, 123, analysis);
+
+    expect(result.success).toBe(true);
+    expect(mockClient.createReview).toHaveBeenCalledTimes(3);
+    // Third call: COMMENT without inline comments
+    expect(mockClient.createReview).toHaveBeenNthCalledWith(3, 123, "COMMENT", expect.any(String));
+  });
+
   it("should handle GitHub API errors", async () => {
     const mockClient: Pick<GitHubPRAdapter, "createReview"> = {
       createReview: vi.fn().mockResolvedValue({ success: false, error: "API error" }),

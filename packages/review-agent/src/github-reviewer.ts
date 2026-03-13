@@ -141,17 +141,24 @@ export const postReviewToGitHub = async (
       inlineComments.length > 0 ? inlineComments : undefined
     );
 
-    // Fall back to COMMENT if REQUEST_CHANGES is rejected (e.g. reviewing own PR)
-    if (!result.success && event === "REQUEST_CHANGES" && result.error.includes("422")) {
-      console.log(
-        `⚠️ Review: REQUEST_CHANGES rejected, falling back to COMMENT for PR #${prNumber}`
-      );
-      result = await client.createReview(
-        prNumber,
-        "COMMENT",
-        body,
-        inlineComments.length > 0 ? inlineComments : undefined
-      );
+    // Retry without inline comments if paths couldn't be resolved
+    if (!result.success && result.error.includes("422")) {
+      const isPathError = result.error.includes("Path could not be resolved");
+
+      if (isPathError && inlineComments.length > 0) {
+        console.log(
+          `⚠️ Review: Inline comment paths invalid, retrying without inline comments for PR #${prNumber}`
+        );
+        result = await client.createReview(prNumber, event, body);
+      }
+
+      // Fall back to COMMENT if REQUEST_CHANGES is still rejected (e.g. reviewing own PR)
+      if (!result.success && event === "REQUEST_CHANGES" && result.error.includes("422")) {
+        console.log(
+          `⚠️ Review: REQUEST_CHANGES rejected, falling back to COMMENT for PR #${prNumber}`
+        );
+        result = await client.createReview(prNumber, "COMMENT", body);
+      }
     }
 
     if (!result.success) {
