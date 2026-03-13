@@ -69,10 +69,13 @@ export type ProjectConfig = {
   mcpServers?: Record<string, ExternalMcpServer>;
 };
 
+export type AuthMode = "api" | "subscription";
+
 /**
  * Agent configuration subset needed by the task agent
  */
 export type AgentConfig = {
+  authMode: AuthMode;
   maxBudgetPerTask: number;
   maxDailyBudget: number;
   maxTurns: number;

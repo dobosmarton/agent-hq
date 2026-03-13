@@ -13,6 +13,7 @@ export const makeConfig = (overrides?: Partial<Config>): Config => ({
     },
   },
   agent: {
+    authMode: "api" as const,
     maxConcurrent: 2,
     maxBudgetPerTask: 5,
     maxDailyBudget: 20,

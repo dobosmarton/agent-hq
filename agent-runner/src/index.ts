@@ -41,6 +41,19 @@ const main = async (): Promise<void> => {
   // Load configuration
   const config = loadConfig();
   const env = loadEnv();
+
+  // Validate auth mode credentials
+  if (config.agent.authMode === "api" && !env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY is required when authMode is 'api'");
+  }
+  if (config.agent.authMode === "subscription" && !env.CLAUDE_CODE_OAUTH_TOKEN) {
+    throw new Error(
+      "CLAUDE_CODE_OAUTH_TOKEN is required when authMode is 'subscription'.\n" +
+        "Generate one on your local machine: claude setup-token"
+    );
+  }
+  console.log(`Auth mode: ${config.agent.authMode}`);
+
   injectMcpTokens(config, env.GITHUB_PAT);
   const plane = buildPlaneClient(config, env);
 
@@ -68,9 +81,14 @@ const main = async (): Promise<void> => {
   const taskPoller = createTaskPoller(plane, config);
   await taskPoller.initialize();
 
-  // Initialize review agent if enabled
+  // Initialize review agent if enabled (requires ANTHROPIC_API_KEY regardless of authMode)
+  const anthropicApiKey = env.ANTHROPIC_API_KEY;
+  if (config.review.enabled && !anthropicApiKey) {
+    console.warn("Review agent requires ANTHROPIC_API_KEY — disabling review agent");
+    config.review.enabled = false;
+  }
   let reviewAgent: ReviewOrchestrator | undefined;
-  if (config.review.enabled) {
+  if (config.review.enabled && anthropicApiKey) {
     console.log("✅ Review agent enabled");
     const githubAppPrivateKey = env.GITHUB_APP_PRIVATE_KEY_PATH
       ? readFileSync(env.GITHUB_APP_PRIVATE_KEY_PATH, "utf-8")
@@ -93,7 +111,7 @@ const main = async (): Promise<void> => {
         }),
       plane,
       config: config.review,
-      anthropicApiKey: env.ANTHROPIC_API_KEY,
+      anthropicApiKey,
     });
   } else {
     console.log("ℹ️  Review agent disabled in config");

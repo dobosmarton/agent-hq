@@ -350,7 +350,7 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
   const comment: CommentFn = (html) => deps.plane.addComment(task.projectId, task.issueId, html);
 
   console.log(
-    `Starting ${phase} agent for ${taskDisplayId}: "${task.title}"${isRetry ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})` : ""}`
+    `Starting ${phase} agent for ${taskDisplayId}: "${task.title}"${isRetry ? ` (retry ${deps.retryContext.retryCount}/${deps.retryContext.maxRetries})` : ""} [auth: ${deps.config.agent.authMode}]`
   );
 
   // Notify on Telegram and start progress tracking
@@ -432,6 +432,17 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
       "in_progress"
     );
 
+    // Build auth options based on configured mode
+    const authMode = deps.config.agent.authMode;
+    const queryEnv: Record<string, string> = {};
+    if (authMode === "subscription") {
+      if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+        queryEnv.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      }
+      // Prevent API key from triggering pay-as-you-go billing in subprocess
+      queryEnv.ANTHROPIC_API_KEY = "";
+    }
+
     for await (const message of query({
       prompt,
       options: {
@@ -448,6 +459,10 @@ export const runAgent = async (input: RunAgentInput): Promise<AgentResult> => {
         }),
         persistSession: false,
         settingSources: ["project"],
+        ...(authMode === "subscription"
+          ? { settings: { forceLoginMethod: "claudeai" as const } }
+          : {}),
+        env: Object.keys(queryEnv).length > 0 ? queryEnv : undefined,
       },
     })) {
       if (message.type === "result") {

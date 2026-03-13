@@ -79,6 +79,7 @@ describe("buildMetadataComment", () => {
 });
 
 const stubAgentConfig: AgentConfig = {
+  authMode: "api" as const,
   maxBudgetPerTask: 10.0,
   maxDailyBudget: 50.0,
   maxTurns: 200,

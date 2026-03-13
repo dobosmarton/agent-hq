@@ -40,6 +40,7 @@ const ReviewConfigSchema = z.object({
 });
 
 const AgentConfigSchema = z.object({
+  authMode: z.enum(["api", "subscription"]).default("api"),
   maxConcurrent: z.number().int().min(1).default(2),
   maxBudgetPerTask: z.number().positive().default(5.0),
   maxDailyBudget: z.number().positive().default(20.0),
@@ -62,6 +63,7 @@ const ConfigSchema = z.object({
   }),
   projects: z.record(z.string(), ProjectConfigSchema),
   agent: AgentConfigSchema.optional().default({
+    authMode: "api",
     maxConcurrent: 2,
     maxBudgetPerTask: 5.0,
     maxDailyBudget: 20.0,
@@ -101,7 +103,8 @@ export type Config = z.infer<typeof ConfigSchema>;
 const EnvSchema = z.object({
   PLANE_API_KEY: z.string().min(1),
   PLANE_BASE_URL: z.string().url().optional(),
-  ANTHROPIC_API_KEY: z.string().min(1),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1).optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   TELEGRAM_CHAT_ID: z.string().min(1).optional(),
   GITHUB_PAT: z.string().min(1),

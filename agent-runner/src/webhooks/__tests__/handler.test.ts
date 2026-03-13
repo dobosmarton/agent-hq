@@ -60,6 +60,7 @@ const mockConfig: Config = {
   },
   projects: {},
   agent: {
+    authMode: "api",
     maxConcurrent: 2,
     maxBudgetPerTask: 5.0,
     maxDailyBudget: 20.0,

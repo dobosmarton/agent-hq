@@ -124,6 +124,7 @@ const makeConfig = () => ({
     },
   },
   agent: {
+    authMode: "api" as const,
     maxBudgetPerTask: 5,
     maxDailyBudget: 20,
     maxTurns: 200,

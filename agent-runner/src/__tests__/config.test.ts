@@ -46,6 +46,7 @@ describe("loadConfig", () => {
 
     const config = loadConfig("/fake/config.json");
     expect(config.agent).toEqual({
+      authMode: "api",
       maxConcurrent: 2,
       maxBudgetPerTask: 5,
       maxDailyBudget: 20,
