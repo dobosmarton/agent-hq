@@ -107,13 +107,13 @@ const makeWorktree = (): WorktreeAdapter => ({
 });
 
 const makePersistence = (state?: Partial<RunnerState>): StatePersistence => ({
-  load: vi.fn().mockReturnValue({
+  load: vi.fn().mockResolvedValue({
     activeAgents: {},
     dailySpendUsd: 0,
     dailySpendDate: new Date().toISOString().slice(0, 10),
     ...state,
   }),
-  save: vi.fn(),
+  save: vi.fn().mockResolvedValue(undefined),
 });
 
 const makeConfig = () => ({
@@ -168,7 +168,7 @@ describe("budget checking", () => {
     });
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     const result = await manager.spawnAgent(makeTask());
 
     expect(result.outcome).toBe("started");
@@ -180,7 +180,7 @@ describe("budget checking", () => {
       persistence: makePersistence({ dailySpendUsd: 16 }), // 16 + 5 > 20
     });
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     const result = await manager.spawnAgent(makeTask());
 
     expect(result).toEqual({
@@ -198,7 +198,7 @@ describe("budget checking", () => {
     const deps = makeDeps({ persistence });
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     const result = await manager.spawnAgent(makeTask());
 
     expect(result.outcome).toBe("started");
@@ -211,7 +211,7 @@ describe("phase detection", () => {
     const deps = makeDeps();
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     expect(deps.worktree.getOrCreateWorktree).toHaveBeenCalled();
@@ -237,7 +237,7 @@ describe("phase detection", () => {
     ]);
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     expect(deps.worktree.getOrCreateWorktree).toHaveBeenCalled();
@@ -260,7 +260,7 @@ describe("phase detection", () => {
 describe("spawnAgent", () => {
   it("returns no_project_config for missing project config", async () => {
     const deps = makeDeps();
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
 
     const result = await manager.spawnAgent(makeTask({ projectIdentifier: "UNKNOWN" }));
 
@@ -283,7 +283,7 @@ describe("spawnAgent", () => {
     ]);
     vi.mocked(deps.worktree.getOrCreateWorktree).mockRejectedValue(new Error("git error"));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     const result = await manager.spawnAgent(makeTask());
 
     expect(result).toEqual({
@@ -303,7 +303,7 @@ describe("spawnAgent", () => {
     const deps = makeDeps();
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     const result = await manager.spawnAgent(makeTask());
 
     expect(result.outcome).toBe("started");
@@ -321,7 +321,7 @@ describe("spawnAgent", () => {
 
     mockedRunAgent.mockReturnValue(agentPromise);
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     resolveAgent!({ costUsd: 2.5 });
@@ -352,7 +352,7 @@ describe("spawnAgent", () => {
     ]);
     mockedRunAgent.mockReturnValue(agentPromise);
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     rejectAgent!(new Error("agent crashed"));
@@ -371,7 +371,7 @@ describe("spawnAgent", () => {
     const deps = makeDeps();
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask(), 2);
 
     expect(mockedRunAgent).toHaveBeenCalledWith(
@@ -388,7 +388,7 @@ describe("spawnAgent", () => {
     const deps = makeDeps();
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     const state = manager.getState();
@@ -405,7 +405,7 @@ describe("checkStaleAgents", () => {
 
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     await manager.checkStaleAgents();
@@ -422,7 +422,7 @@ describe("checkStaleAgents", () => {
 
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     const agents = manager.getActiveAgents();
@@ -441,7 +441,7 @@ describe("checkStaleAgents", () => {
 
     mockedRunAgent.mockReturnValue(new Promise(() => {}));
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     const agents = manager.getActiveAgents();
@@ -462,7 +462,7 @@ describe("checkStaleAgents", () => {
 
     mockedRunAgent.mockResolvedValue({ costUsd: 1 });
 
-    const manager = createAgentManager(deps);
+    const manager = await createAgentManager(deps);
     await manager.spawnAgent(makeTask());
 
     // Wait for completion
