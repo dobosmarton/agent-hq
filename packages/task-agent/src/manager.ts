@@ -30,13 +30,13 @@ type ManagerDeps = {
 
 const STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-export const createAgentManager = (deps: ManagerDeps) => {
+export const createAgentManager = async (deps: ManagerDeps) => {
   const activeAgents = new Map<string, ActiveAgent>();
   let dailySpendUsd = 0;
   let dailySpendDate = new Date().toISOString().slice(0, 10);
 
   // Load persisted state
-  const savedState = deps.statePersistence.load();
+  const savedState = await deps.statePersistence.load();
   dailySpendUsd = savedState.dailySpendUsd;
   dailySpendDate = savedState.dailySpendDate;
 
@@ -291,4 +291,4 @@ export const createAgentManager = (deps: ManagerDeps) => {
   };
 };
 
-export type AgentManager = ReturnType<typeof createAgentManager>;
+export type AgentManager = Awaited<ReturnType<typeof createAgentManager>>;

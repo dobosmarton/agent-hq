@@ -26,8 +26,8 @@ export type TaskPollerAdapter = {
  * State persistence adapter
  */
 export type StatePersistence = {
-  load: () => RunnerState;
-  save: (state: RunnerState) => void;
+  load: () => Promise<RunnerState>;
+  save: (state: RunnerState) => Promise<void>;
 };
 
 /**

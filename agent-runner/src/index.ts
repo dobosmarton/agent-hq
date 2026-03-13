@@ -137,14 +137,14 @@ const main = async (): Promise<void> => {
   }
 
   // Initialize state persistence
-  const statePath = env.STATE_PATH ?? resolve(process.cwd(), "state/runner-state.json");
-  const statePersistence = createStatePersistence(statePath);
+  const statePath = env.STATE_PATH ?? resolve(process.cwd(), "state/agent-state.db");
+  const statePersistence = await createStatePersistence(statePath);
 
   // Initialize task queue
   const queue = createTaskQueue(config.agent.retryBaseDelayMs);
 
   // Restore queued tasks from previous run
-  const savedState = statePersistence.load();
+  const savedState = await statePersistence.load();
   if (savedState.queuedTasks?.length) {
     queue.hydrate(savedState.queuedTasks);
     console.log(`Restored ${savedState.queuedTasks.length} queued tasks from state`);
@@ -171,9 +171,9 @@ const main = async (): Promise<void> => {
   }
 
   // Central state save — single writer for both manager and queue state
-  const saveState = (): void => {
+  const saveState = async (): Promise<void> => {
     try {
-      statePersistence.save({
+      await statePersistence.save({
         ...agentManager.getState(),
         queuedTasks: queue.toJSON(),
       });
@@ -183,7 +183,7 @@ const main = async (): Promise<void> => {
   };
 
   // Initialize agent manager with completion callback
-  const agentManager = createAgentManager({
+  const agentManager = await createAgentManager({
     plane,
     config,
     notifier,
@@ -225,7 +225,7 @@ const main = async (): Promise<void> => {
         queue.requeue(task, nextRetry);
       }
 
-      saveState();
+      void saveState();
     },
   });
 
@@ -240,7 +240,7 @@ const main = async (): Promise<void> => {
   await notifier.sendMessage("<b>Agent Runner started</b>\nPolling for tasks...");
 
   // Save initial state (clears orphaned agents)
-  saveState();
+  void saveState();
 
   // Discovery: find tasks and enqueue them
   const discoveryCycle = async (): Promise<void> => {
@@ -269,7 +269,7 @@ const main = async (): Promise<void> => {
         const taskId = `${task.projectIdentifier}-${task.sequenceId}`;
         console.log(`Claimed task ${taskId}: "${task.title}"`);
         queue.enqueue(task);
-        saveState();
+        void saveState();
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -325,7 +325,7 @@ const main = async (): Promise<void> => {
         }
       }
 
-      saveState();
+      void saveState();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`Process cycle error: ${msg}`);
@@ -347,7 +347,7 @@ const main = async (): Promise<void> => {
     clearInterval(discoveryInterval);
     clearInterval(processInterval);
 
-    saveState();
+    await saveState();
     bridge.stop();
 
     const active = agentManager.getActiveAgents();
